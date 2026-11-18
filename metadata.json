@@ -1,0 +1,6 @@
+{
+  "name": "ShadowRecomp iOS Builder & Port Studio",
+  "description": "Complete zero-Mac iOS porting suite, GitHub Actions IPA generator, and interactive iPhone 16 Pro Mod Manager for ShadowRecomp (Shadow the Hedgehog Xbox static recompilation).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

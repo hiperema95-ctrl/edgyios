@@ -1,0 +1,127 @@
+name: Build ShadowRecomp iOS Unsigned IPA (No-Mac Cloud Builder)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_configuration:
+        description: 'Configurazione di compilazione CMake/Xcode'
+        required: true
+        default: 'Release'
+        type: choice
+        options:
+          - Release
+          - RelWithDebInfo
+      upstream_branch:
+        description: 'Branch o Tag di FoxWorkshop/ShadowRecomp'
+        required: true
+        default: 'main'
+        type: string
+  push:
+    branches: [ main ]
+
+env:
+  APP_NAME: "ShadowRecomp"
+  BUNDLE_ID: "com.foxworkshop.shadowrecomp.ios"
+  APP_VERSION: "1.1.0"
+  IOS_DEPLOYMENT_TARGET: "17.0"
+  UPSTREAM_REPO: "https://github.com/FoxWorkshop/ShadowRecomp.git"
+
+jobs:
+  build-shadowrecomp-ios-ipa:
+    name: Build Unsigned IPA on GitHub macOS-15 (iPhone 16 Pro / arm64)
+    runs-on: macos-15
+    permissions:
+      contents: write
+    steps:
+      - name: 1. Checkout iOS Port Repository (Questo Repo)
+        uses: actions/checkout@v4
+        with:
+          path: ios-port
+
+      - name: 2. Clone FoxWorkshop/ShadowRecomp con Submodules
+        run: |
+          git clone --recursive --branch "${{ inputs.upstream_branch || 'main' }}" "${UPSTREAM_REPO}" ShadowRecomp-Upstream
+
+      - name: 3. Seleziona Xcode 16.2 & Installa Dipendenze nel Cloud
+        run: |
+          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          xcodebuild -version
+          brew update
+          brew install cmake ninja ldid pkg-config python3 llvm
+
+      - name: 4. Compila i Tool di Ricompilazione Statica (XboxRecomp2 & XShaderRecomp)
+        working-directory: ShadowRecomp-Upstream
+        run: |
+          cmake -B build-host -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSHADOW_BUILD_HOST_TOOLS=ON
+          cmake --build build-host --parallel
+
+      - name: 5. Applica Patch iOS (UIKit Launcher, Mod Manager & Metal Backend)
+        run: |
+          chmod +x ios-port/scripts/apply_ios_port.sh
+          ./ios-port/scripts/apply_ios_port.sh "${GITHUB_WORKSPACE}/ShadowRecomp-Upstream" "${GITHUB_WORKSPACE}/ios-port"
+
+      - name: 6. Configura CMake per iOS arm64 (iPhone 16 Pro - A18 Pro)
+        working-directory: ShadowRecomp-Upstream
+        run: |
+          cmake -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${IOS_DEPLOYMENT_TARGET}" \
+            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="" \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_ENABLE_BITCODE=NO \
+            -DCMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER="${BUNDLE_ID}" \
+            -DCMAKE_XCODE_ATTRIBUTE_MARKETING_VERSION="${APP_VERSION}" \
+            -DCMAKE_C_FLAGS="-march=armv8.6-a+simd+crypto -Wl,-pie -fPIC" \
+            -DCMAKE_CXX_FLAGS="-march=armv8.6-a+simd+crypto -Wl,-pie -fPIC" \
+            -DSHADOW_HOST_TOOLS_DIR="${GITHUB_WORKSPACE}/ShadowRecomp-Upstream/build-host" \
+            -DSHADOW_IOS_PORT=ON \
+            -DPLUME_METAL_BACKEND=ON \
+            -DSHADOW_PROMOTION_120HZ=ON \
+            -DSDL_STATIC=ON \
+            -DSDL_SHARED=OFF
+
+      - name: 7. Compila ShadowRecomp.app (Unsigned arm64)
+        working-directory: ShadowRecomp-Upstream
+        run: |
+          CONFIG="${{ inputs.build_configuration || 'Release' }}"
+          xcodebuild build \
+            -project build-ios/ShadowRecomp.xcodeproj \
+            -scheme "${APP_NAME}" \
+            -configuration "${CONFIG}" \
+            -sdk iphoneos \
+            -arch arm64 \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES
+
+      - name: 8. Firma Ad-Hoc con ldid & Impacchetta IPA per Feather e LiveContainer
+        run: |
+          CONFIG="${{ inputs.build_configuration || 'Release' }}"
+          APP_BUNDLE="ShadowRecomp-Upstream/build-ios/${CONFIG}-iphoneos/${APP_NAME}.app"
+
+          rm -rf Payload
+          mkdir -p Payload
+          cp -R "${APP_BUNDLE}" "Payload/${APP_NAME}.app"
+          cp ios-port/ios/Info.plist "Payload/${APP_NAME}.app/Info.plist"
+
+          ldid -Sios-port/ios/Entitlements.plist "Payload/${APP_NAME}.app/${APP_NAME}"
+          chmod +x "Payload/${APP_NAME}.app/${APP_NAME}"
+
+          zip -qry "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa" Payload
+          shasum -a 256 "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa" > "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa.sha256"
+
+      - name: 9. Carica File IPA pronto da scaricare su iPhone
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP_NAME }}-iOS-Unsigned-IPA
+          path: |
+            ${{ env.APP_NAME }}-iOS-v${{ env.APP_VERSION }}-Unsigned.ipa
+            ${{ env.APP_NAME }}-iOS-v${{ env.APP_VERSION }}-Unsigned.ipa.sha256
+          retention-days: 90
