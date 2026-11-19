@@ -107,9 +107,9 @@ if "defined(__APPLE__)" not in win_src:
     print("Patched game_window.cpp")
 PY_REG_WIN
 
-echo "==> [5/7] Patch Plume, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no desktop DXC dylib)..."
-python3 - "${UPSTREAM_DIR}/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/thirdparty/plume/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/lib/dxc_compiler.cpp" << 'PY_TP'
-import sys, pathlib
+echo "==> [5/7] Patch Plume, discord-rpc, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no Cocoa/system())..."
+python3 - "${UPSTREAM_DIR}/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/thirdparty/plume/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/lib/dxc_compiler.cpp" "${UPSTREAM_DIR}/thirdparty/discord-rpc/src/discord_register_linux.cpp" "${UPSTREAM_DIR}/thirdparty/plume" << 'PY_TP'
+import sys, pathlib, re
 
 # 5a. thirdparty/CMakeLists.txt: abilita PLUME_SDL3_VULKAN_ENABLED su iOS (MoltenVK)
 tp_p = pathlib.Path(sys.argv[1])
@@ -122,7 +122,7 @@ if 'CMAKE_SYSTEM_NAME STREQUAL "iOS"' not in tp_src:
     tp_p.write_text(tp_src, encoding="utf-8")
     print("Patched thirdparty/CMakeLists.txt")
 
-# 5b. thirdparty/plume/CMakeLists.txt: consenti PLUME_SDL3_VULKAN_ENABLED anche su APPLE/iOS
+# 5b. thirdparty/plume: consenti PLUME_SDL3_VULKAN_ENABLED su iOS e rimuovi dipendenze macOS-only (Cocoa / plume_metal.mm AppKit)
 plume_p = pathlib.Path(sys.argv[2])
 if plume_p.exists():
     plume_src = plume_p.read_text(encoding="utf-8")
@@ -131,11 +131,40 @@ if plume_p.exists():
         'option(PLUME_SDL3_VULKAN_ENABLED "Enable SDL3 Vulkan integration" OFF)'
     )
     plume_src = plume_src.replace("PUBLIC PUBLIC SDL3::Headers", "PUBLIC SDL3::Headers")
+    plume_src = re.sub(r'"-framework\s+Cocoa"', '""', plume_src)
+    plume_src = re.sub(r'"-framework\s+AppKit"', '""', plume_src)
+    plume_src = re.sub(r'find_library\([^)]*\b(?:Cocoa|AppKit)\b[^)]*\)', '', plume_src)
+    plume_src = plume_src.replace("-framework Cocoa", "")
+    plume_src = plume_src.replace("-framework AppKit", "")
     plume_p.write_text(plume_src, encoding="utf-8")
     print("Patched plume/CMakeLists.txt")
 
+plume_dir = pathlib.Path(sys.argv[7])
+if plume_dir.exists():
+    for mm_file in plume_dir.rglob("*.mm"):
+        mm_src = mm_file.read_text(encoding="utf-8")
+        if "TARGET_OS_IPHONE" not in mm_src and any(k in mm_src for k in ("Cocoa/Cocoa.h", "AppKit/AppKit.h", "NSWindow", "NSView")):
+            guarded = "#include <TargetConditionals.h>\n#if !TARGET_OS_IPHONE\n" + mm_src + "\n#endif\n"
+            mm_file.write_text(guarded, encoding="utf-8")
+            print(f"Guarded macOS-only ObjC++ file for iOS: {mm_file.name}")
+
+# 5e. discord-rpc/src/discord_register_linux.cpp: rimuovi system() (vietato su iOS SDK)
+discord_reg = pathlib.Path(sys.argv[6])
+if discord_reg.exists():
+    discord_stub = '''#include "discord_register.h"
+
+extern "C" void Discord_Register(const char*, const char*)
+{
+}
+
+extern "C" void Discord_RegisterSteamGame(const char*, const char*)
+{
+}
+'''
+    discord_reg.write_text(discord_stub, encoding="utf-8")
+    print("Patched discord_register_linux.cpp (iOS no-op stub without system())")
+
 # 5c. XShaderRecomp/CMakeLists.txt: su iOS non compilare XShaderRecompTool e proteggi OGNI target_*(XShaderRecompTool ...)
-import re
 
 def guard_cmake_calls(text, func_regex, condition):
     out = []

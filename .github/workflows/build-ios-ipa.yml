@@ -273,7 +273,7 @@ jobs:
       - name: 8. Compila ShadowRecomp.app (arm64 Unsigned via Ninja)
         working-directory: ShadowRecomp-Upstream
         run: |
-          cmake --build build-ios --target ShadowRecomp --parallel "$(sysctl -n hw.ncpu)"
+          cmake --build build-ios --target ShadowRecomp --parallel "$(sysctl -n hw.ncpu)" -- -k 10
 
       - name: 9. Firma Ad-Hoc (ldid) & Impacchetta IPA Unsigned per Feather / LiveContainer
         run: |
