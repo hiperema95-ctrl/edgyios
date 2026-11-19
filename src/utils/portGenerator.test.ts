@@ -166,11 +166,19 @@ test('all audited Step 8 iOS arm64 patches and FreeType/zlib linking are present
   assert.match(applyScript, /#include <SDL3\/SDL_main\.h>/);
   assert.match(applyScript, /os::process::GetWorkingDirectory\(\)/);
   assert.match(applyScript, /static std::filesystem::path s_userPath = BuildUserPath\(\);/);
+  assert.match(applyScript, /SHADOW_IOS_ATOMIC_REF_POLYFILL/);
+  assert.match(applyScript, /!defined\(__cpp_lib_atomic_ref\)/);
+  assert.match(applyScript, /class atomic_ref/);
+  assert.match(applyScript, /compare_exchange_weak/);
+  assert.match(applyScript, /void wait\(T old/);
+  assert.match(applyScript, /void notify_one\(\)/);
+  assert.match(applyScript, /atomic_ref\(T&\) -> atomic_ref<T>;/);
 
   const cmakeIos = byPath.get('cmake/ShadowRecompIOS.cmake') ?? '';
   assert.match(cmakeIos, /find_package\(Freetype REQUIRED\)/);
   assert.match(cmakeIos, /Freetype::Freetype/);
   assert.match(cmakeIos, /"-lz"/);
+  assert.doesNotMatch(cmakeIos, /PLUME_SDL_VULKAN_ENABLED=1/);
 
   const iosPlatform = byPath.get('ios/os/ios_platform.mm') ?? '';
   assert.match(iosPlatform, /#include <cstdint>/);

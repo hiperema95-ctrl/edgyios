@@ -537,17 +537,205 @@ inline std::filesystem::path GetGamePath()
         ph.write_text(ph_src, encoding="utf-8")
         print("Patched user/paths.h GetGamePath() for writable iOS Documents/")
 
-# 3c. stdafx.h: abilita i typedef/macro Win32 compat (LONG, HANDLE, HRESULT, Sleep, _stricmp, ecc.) anche su __APPLE__
+# 3c. stdafx.h: abilita i typedef/macro Win32 compat anche su __APPLE__ + polyfill std::atomic_ref<T> per Apple libc++ (Xcode 16.2)
 sa = pathlib.Path(sys.argv[3])
 sa_src = sa.read_text(encoding="utf-8")
+sa_changed = False
 if "#elif defined(__linux__) || defined(__APPLE__)" not in sa_src:
     sa_src = sa_src.replace(
         "#elif defined(__linux__)",
         "#elif defined(__linux__) || defined(__APPLE__)\\n#include <strings.h>",
         1
     )
-    sa.write_text(sa_src, encoding="utf-8")
+    sa_changed = True
     print("Patched stdafx.h for __APPLE__ POSIX/Win32 compat types")
+
+if "SHADOW_IOS_ATOMIC_REF_POLYFILL" not in sa_src:
+    atomic_ref_polyfill = '''
+#if defined(__APPLE__) && defined(__cplusplus) && !defined(__cpp_lib_atomic_ref) && !defined(SHADOW_IOS_ATOMIC_REF_POLYFILL)
+#define SHADOW_IOS_ATOMIC_REF_POLYFILL 1
+#include <atomic>
+#include <condition_variable>
+#include <cstdint>
+#include <cstring>
+#include <mutex>
+#include <type_traits>
+
+namespace std {
+namespace shadow_ios_atomic_detail {
+struct WaitBucket {
+    std::mutex mtx;
+    std::condition_variable cv;
+};
+
+inline WaitBucket& get_wait_bucket(const volatile void* addr) noexcept {
+    static WaitBucket buckets[64];
+    uintptr_t h = reinterpret_cast<uintptr_t>(addr);
+    h ^= (h >> 16);
+    h *= 0x45d9f3bu;
+    h ^= (h >> 16);
+    return buckets[h & 63u];
+}
+
+constexpr int to_builtin_order(memory_order order) noexcept {
+    switch (order) {
+        case memory_order_relaxed: return __ATOMIC_RELAXED;
+        case memory_order_consume: return __ATOMIC_CONSUME;
+        case memory_order_acquire: return __ATOMIC_ACQUIRE;
+        case memory_order_release: return __ATOMIC_RELEASE;
+        case memory_order_acq_rel: return __ATOMIC_ACQ_REL;
+        case memory_order_seq_cst:
+        default:                   return __ATOMIC_SEQ_CST;
+    }
+}
+
+constexpr int to_failure_order(memory_order success) noexcept {
+    switch (success) {
+        case memory_order_acq_rel: return __ATOMIC_ACQUIRE;
+        case memory_order_release: return __ATOMIC_RELAXED;
+        default:                   return to_builtin_order(success);
+    }
+}
+} // namespace shadow_ios_atomic_detail
+
+template <class T>
+class atomic_ref {
+    static_assert(std::is_trivially_copyable_v<T>, "std::atomic_ref requires a trivially copyable type");
+    T* ptr_;
+
+public:
+    using value_type = T;
+    static constexpr size_t required_alignment = alignof(T);
+    static constexpr bool is_always_lock_free = __atomic_always_lock_free(sizeof(T), nullptr);
+
+    explicit atomic_ref(T& obj) noexcept : ptr_(&obj) {}
+    atomic_ref(const atomic_ref&) noexcept = default;
+    atomic_ref& operator=(const atomic_ref&) = delete;
+
+    bool is_lock_free() const noexcept {
+        return __atomic_is_lock_free(sizeof(T), ptr_);
+    }
+
+    void store(T desired, memory_order order = memory_order_seq_cst) const noexcept {
+        __atomic_store(ptr_, &desired, shadow_ios_atomic_detail::to_builtin_order(order));
+    }
+
+    T operator=(T desired) const noexcept {
+        store(desired);
+        return desired;
+    }
+
+    T load(memory_order order = memory_order_seq_cst) const noexcept {
+        T result;
+        __atomic_load(ptr_, &result, shadow_ios_atomic_detail::to_builtin_order(order));
+        return result;
+    }
+
+    operator T() const noexcept {
+        return load();
+    }
+
+    T exchange(T desired, memory_order order = memory_order_seq_cst) const noexcept {
+        T result;
+        __atomic_exchange(ptr_, &desired, &result, shadow_ios_atomic_detail::to_builtin_order(order));
+        return result;
+    }
+
+    bool compare_exchange_weak(T& expected, T desired, memory_order success, memory_order failure) const noexcept {
+        return __atomic_compare_exchange(
+            ptr_, &expected, &desired, true,
+            shadow_ios_atomic_detail::to_builtin_order(success),
+            shadow_ios_atomic_detail::to_builtin_order(failure));
+    }
+
+    bool compare_exchange_weak(T& expected, T desired, memory_order order = memory_order_seq_cst) const noexcept {
+        return __atomic_compare_exchange(
+            ptr_, &expected, &desired, true,
+            shadow_ios_atomic_detail::to_builtin_order(order),
+            shadow_ios_atomic_detail::to_failure_order(order));
+    }
+
+    bool compare_exchange_strong(T& expected, T desired, memory_order success, memory_order failure) const noexcept {
+        return __atomic_compare_exchange(
+            ptr_, &expected, &desired, false,
+            shadow_ios_atomic_detail::to_builtin_order(success),
+            shadow_ios_atomic_detail::to_builtin_order(failure));
+    }
+
+    bool compare_exchange_strong(T& expected, T desired, memory_order order = memory_order_seq_cst) const noexcept {
+        return __atomic_compare_exchange(
+            ptr_, &expected, &desired, false,
+            shadow_ios_atomic_detail::to_builtin_order(order),
+            shadow_ios_atomic_detail::to_failure_order(order));
+    }
+
+    template <class U = T, std::enable_if_t<std::is_integral_v<U> && !std::is_same_v<U, bool>, int> = 0>
+    T fetch_add(T arg, memory_order order = memory_order_seq_cst) const noexcept {
+        return __atomic_fetch_add(ptr_, arg, shadow_ios_atomic_detail::to_builtin_order(order));
+    }
+
+    template <class U = T, std::enable_if_t<std::is_integral_v<U> && !std::is_same_v<U, bool>, int> = 0>
+    T fetch_sub(T arg, memory_order order = memory_order_seq_cst) const noexcept {
+        return __atomic_fetch_sub(ptr_, arg, shadow_ios_atomic_detail::to_builtin_order(order));
+    }
+
+    template <class U = T, std::enable_if_t<std::is_integral_v<U> && !std::is_same_v<U, bool>, int> = 0>
+    T fetch_and(T arg, memory_order order = memory_order_seq_cst) const noexcept {
+        return __atomic_fetch_and(ptr_, arg, shadow_ios_atomic_detail::to_builtin_order(order));
+    }
+
+    template <class U = T, std::enable_if_t<std::is_integral_v<U> && !std::is_same_v<U, bool>, int> = 0>
+    T fetch_or(T arg, memory_order order = memory_order_seq_cst) const noexcept {
+        return __atomic_fetch_or(ptr_, arg, shadow_ios_atomic_detail::to_builtin_order(order));
+    }
+
+    template <class U = T, std::enable_if_t<std::is_integral_v<U> && !std::is_same_v<U, bool>, int> = 0>
+    T fetch_xor(T arg, memory_order order = memory_order_seq_cst) const noexcept {
+        return __atomic_fetch_xor(ptr_, arg, shadow_ios_atomic_detail::to_builtin_order(order));
+    }
+
+    void wait(T old, memory_order order = memory_order_seq_cst) const noexcept {
+        T cur = load(order);
+        if (std::memcmp(&cur, &old, sizeof(T)) != 0)
+            return;
+        auto& bucket = shadow_ios_atomic_detail::get_wait_bucket(ptr_);
+        std::unique_lock<std::mutex> lock(bucket.mtx);
+        while (true) {
+            cur = load(order);
+            if (std::memcmp(&cur, &old, sizeof(T)) != 0)
+                break;
+            bucket.cv.wait(lock);
+        }
+    }
+
+    void notify_one() const noexcept {
+        auto& bucket = shadow_ios_atomic_detail::get_wait_bucket(ptr_);
+        {
+            std::lock_guard<std::mutex> lock(bucket.mtx);
+        }
+        bucket.cv.notify_all();
+    }
+
+    void notify_all() const noexcept {
+        auto& bucket = shadow_ios_atomic_detail::get_wait_bucket(ptr_);
+        {
+            std::lock_guard<std::mutex> lock(bucket.mtx);
+        }
+        bucket.cv.notify_all();
+    }
+};
+
+template <class T>
+atomic_ref(T&) -> atomic_ref<T>;
+} // namespace std
+#endif
+'''
+    sa_src = sa_src + atomic_ref_polyfill
+    sa_changed = True
+    print("Patched stdafx.h with C++20 std::atomic_ref<T> polyfill for Apple libc++")
+
+if sa_changed:
+    sa.write_text(sa_src, encoding="utf-8")
 
 # 3d. cpu/guest_thread.cpp: proteggi #include <x86intrin.h> (non esiste su iOS arm64)
 gt = pathlib.Path(sys.argv[4])
@@ -939,8 +1127,6 @@ function(shadow_configure_ios_target TARGET_NAME)
 
     target_compile_definitions(\${TARGET_NAME} PRIVATE
         SHADOW_IOS_PORT=1
-        PLUME_SDL_VULKAN_ENABLED=1
-        PLUME_SDL3_VULKAN_ENABLED=1
         ${config.enable120HzProMotion ? 'SHADOW_IOS_PROMOTION_120HZ=1' : 'SHADOW_IOS_PROMOTION_120HZ=0'}
     )
 
