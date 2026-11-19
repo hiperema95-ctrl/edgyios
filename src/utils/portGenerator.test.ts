@@ -2,66 +2,85 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   DEFAULT_BUILD_CONFIG,
-  INITIAL_MODS,
-  INITIAL_CODES,
-  parseModIniContent,
-  generateModsConfigToml,
-  resolveVirtualFileSystemPath,
   generateGitHubWorkflowYaml,
   generateAllRepositoryFiles,
+  generateShadowRecompModProfileJson,
 } from './portGenerator';
+import { buildZipArchiveBytes } from './zipBuilder';
 
-test('parseModIniContent extracts SA Mod Manager / ShadowRecomp mod.ini properties', () => {
-  const sampleIni = `
-[Main]
-Name=Shadow Generations Boost VFX
-Author=ChaosModder
-Version=2.4.0
-Category=Graphics
-Description=Replaces Chaos Control aura with high-res shaders
-Include=files/ONE/shadow.one, files/fnt/font_en.txd
-`;
-  const parsed = parseModIniContent(sampleIni, 'Shadow_Gen_VFX');
-  assert.equal(parsed.name, 'Shadow Generations Boost VFX');
-  assert.equal(parsed.author, 'ChaosModder');
-  assert.equal(parsed.version, '2.4.0');
-  assert.equal(parsed.category, 'Graphics');
-  assert.deepEqual(parsed.replacedAssets, ['files/ONE/shadow.one', 'files/fnt/font_en.txd']);
+test('default upstream branch is master (matches FoxWorkshop/ShadowRecomp)', () => {
+  assert.equal(DEFAULT_BUILD_CONFIG.upstreamBranch, 'master');
+  const yml = generateGitHubWorkflowYaml(DEFAULT_BUILD_CONFIG);
+  assert.match(yml, /default:\s*'master'/);
+  assert.match(yml, /git ls-remote --exit-code --heads/);
 });
 
-test('resolveVirtualFileSystemPath prioritizes enabled mods in load order and falls back to GameData', () => {
-  const res1 = resolveVirtualFileSystemPath('D:\\files\\ONE\\shadow.one', INITIAL_MODS);
-  assert.equal(res1.sourceModName, 'Sonic Adventure 2 Soap Shoes & Shaders');
-  assert.equal(res1.resolvedPath, 'Documents/Mods/SA2_Terios_Legacy_Pack/files/ONE/shadow.one');
-
-  // Disabled mod (Crush40_Lossless_ADX) should fall back to GameData
-  const resAudio = resolveVirtualFileSystemPath('D:\\files\\ADX\\s_bgm.afs', INITIAL_MODS);
-  assert.equal(resAudio.sourceModName, null);
-  assert.equal(resAudio.resolvedPath, 'Documents/GameData/files/ADX/s_bgm.afs');
+test('GitHub Actions workflow builds host XboxRecomp2, file_to_c, MoltenVK, and unsigned IPA', () => {
+  const yml = generateGitHubWorkflowYaml(DEFAULT_BUILD_CONFIG);
+  assert.match(yml, /runs-on:\s*macos-15/);
+  assert.match(yml, /cargo build --release --manifest-path tools\/XboxRecomp2\/Cargo\.toml/);
+  assert.match(yml, /tools\/file_to_c\/file_to_c\.cpp/);
+  assert.match(yml, /MoltenVK-all\.tar/);
+  assert.match(yml, /DSHADOW_RECOMP_XBOXRECOMP2_EXECUTABLE=/);
+  assert.match(yml, /DPLUME_SDL3_VULKAN_ENABLED=ON/);
+  assert.match(yml, /CODE_SIGNING_ALLOWED=NO/);
+  assert.match(yml, /ldid -Sios-port\/ios\/Entitlements\.plist/);
+  assert.match(yml, /ShadowRecompLib\/private\/default\.xbe/);
 });
 
-test('generateModsConfigToml serializes active mods and 120Hz ProMotion codes', () => {
-  const toml = generateModsConfigToml(INITIAL_MODS, INITIAL_CODES, DEFAULT_BUILD_CONFIG);
-  assert.ok(toml.includes('MaxRefreshRate = 120'));
-  assert.ok(toml.includes('"Shadow_4K_HUD_DynamicIsland"'));
-  assert.ok(!toml.includes('"Crush40_Lossless_ADX"'));
-  assert.ok(toml.includes('fps_120_promotion = true'));
-});
-
-test('generateGitHubWorkflowYaml produces complete macOS-15 unsigned IPA pipeline without requiring local Mac', () => {
-  const yaml = generateGitHubWorkflowYaml(DEFAULT_BUILD_CONFIG);
-  assert.ok(yaml.includes('runs-on: macos-15'));
-  assert.ok(yaml.includes('CODE_SIGNING_ALLOWED=NO'));
-  assert.ok(yaml.includes('ldid -Sios-port/ios/Entitlements.plist'));
-  assert.ok(yaml.includes('-Unsigned.ipa'));
-});
-
-test('generateAllRepositoryFiles returns all required iOS port & GitHub Actions files', () => {
+test('generated repository contains real ShadowRecomp iOS patches and NFD Files picker', () => {
   const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
-  assert.equal(files.length, 8);
-  const paths = files.map((f) => f.path);
-  assert.ok(paths.includes('.github/workflows/build-ios-ipa.yml'));
-  assert.ok(paths.includes('ios/ShadowRecompLauncherView.swift'));
-  assert.ok(paths.includes('ios/Info.plist'));
-  assert.ok(paths.includes('ios/Entitlements.plist'));
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+  assert.match(applyScript, /ShadowRecomp\/user\/paths\.cpp/);
+  assert.match(applyScript, /ShadowRecomp\/os\/registry\.h/);
+  assert.match(applyScript, /ShadowRecomp\/ui\/game_window\.cpp/);
+  assert.match(applyScript, /thirdparty\/plume\/CMakeLists\.txt/);
+  assert.match(applyScript, /ShadowRecompLib\/CMakeLists\.txt/);
+
+  const nfdMm = byPath.get('ios/nfd_ios.mm') ?? '';
+  assert.match(nfdMm, /UIDocumentPickerViewController/);
+  assert.match(nfdMm, /NFD_OpenDialogU8/);
+  assert.match(nfdMm, /NFD_PickFolderU8/);
+
+  const modMgr = byPath.get('ios/ios_mod_manager.mm') ?? '';
+  assert.match(modMgr, /profiles\.json/);
+  assert.match(modMgr, /Default\.json/);
+  assert.match(modMgr, /EnabledMods/);
+
+  const plist = byPath.get('ios/Info.plist') ?? '';
+  assert.match(plist, /UIFileSharingEnabled/);
+  assert.match(plist, /LSSupportsOpeningDocumentsInPlace/);
+  assert.match(plist, /CADisableMinimumFrameDurationOnPhone/);
+});
+
+test('generateShadowRecompModProfileJson matches ModLoader::Init() schema', () => {
+  const { profilesJson, defaultProfileJson } = generateShadowRecompModProfileJson([
+    { folderName: 'Shadow_Reloaded', name: 'Reloaded', author: 'LV', version: '1.0', enabled: true },
+    { folderName: 'Disabled_Mod', name: 'Off', author: 'Test', version: '1.0', enabled: false },
+  ]);
+  const profiles = JSON.parse(profilesJson);
+  const def = JSON.parse(defaultProfileJson);
+  assert.equal(profiles.ProfileIndex, 0);
+  assert.equal(profiles.ProfilesList[0].Filename, 'Default.json');
+  assert.deepEqual(def.EnabledMods, ['Shadow_Reloaded']);
+});
+
+test('buildZipArchiveBytes generates valid PKZIP binary containing all 13 files', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const zip = buildZipArchiveBytes(files.map((f) => ({ path: f.path, content: f.content })));
+  // Local file header signature: PK\x03\x04
+  assert.equal(zip[0], 0x50);
+  assert.equal(zip[1], 0x4b);
+  assert.equal(zip[2], 0x03);
+  assert.equal(zip[3], 0x04);
+  // End of central directory signature: PK\x05\x06 at last 22 bytes
+  const eocdOffset = zip.length - 22;
+  assert.equal(zip[eocdOffset], 0x50);
+  assert.equal(zip[eocdOffset + 1], 0x4b);
+  assert.equal(zip[eocdOffset + 2], 0x05);
+  assert.equal(zip[eocdOffset + 3], 0x06);
+  const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
+  assert.equal(view.getUint16(eocdOffset + 8, true), files.length);
 });
