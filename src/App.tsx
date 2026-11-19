@@ -48,7 +48,7 @@ export default function App() {
     const zipBytes = buildZipArchiveBytes(
       generatedFiles.map((f) => ({ path: f.path, content: f.content }))
     );
-    const blob = new Blob([zipBytes], { type: 'application/zip' });
+    const blob = new Blob([zipBytes.buffer as ArrayBuffer], { type: 'application/zip' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
