@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import {
   DEFAULT_BUILD_CONFIG,
   generateGitHubWorkflowYaml,
@@ -94,3 +95,35 @@ test('buildZipArchiveBytes generates valid PKZIP binary containing all 14 files 
   const view = new DataView(zip.buffer, zip.byteOffset, zip.byteLength);
   assert.equal(view.getUint16(eocdOffset + 8, true), files.length);
 });
+
+test('scripts/apply_ios_port.sh has valid bash syntax and valid Python AST in all PY_* heredocs', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const applyScript = files.find((f) => f.path === 'scripts/apply_ios_port.sh')?.content ?? '';
+  assert.ok(applyScript.length > 0);
+
+  // Validate bash syntax via `bash -n`
+  execFileSync('bash', ['-n'], { input: applyScript, encoding: 'utf-8' });
+
+  // Extract and validate every Python heredoc (`<< 'PY_...'` ... `PY_...`)
+  const heredocRegex = /<<\s*'(PY_[A-Z0-9_]+)'\n([\s\S]*?)\n\1(?:\n|$)/g;
+  const blocks: Array<{ tag: string; code: string }> = [];
+  let match: RegExpExecArray | null;
+  while ((match = heredocRegex.exec(applyScript)) !== null) {
+    blocks.push({ tag: match[1], code: match[2] });
+  }
+  assert.equal(blocks.length, 4, `Expected 4 Python heredoc blocks, found ${blocks.length}`);
+
+  for (const { tag, code } of blocks) {
+    assert.doesNotThrow(
+      () => {
+        execFileSync('python3', ['-c', 'import ast, sys; ast.parse(sys.stdin.read())'], {
+          input: code,
+          encoding: 'utf-8',
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+      },
+      `Python AST syntax error in heredoc ${tag}`
+    );
+  }
+});
+

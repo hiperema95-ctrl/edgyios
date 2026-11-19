@@ -406,10 +406,10 @@ cp "\${PORT_DIR}/ios/include/nfd.h" "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/in
 cp "\${PORT_DIR}/ios/ios_mod_manager.mm" "\${UPSTREAM_DIR}/ShadowRecomp/os/ios/ios_mod_manager.mm"
 cp "\${PORT_DIR}/ios/curl_ios_stub.mm" "\${UPSTREAM_DIR}/ShadowRecomp/os/ios/curl_ios_stub.mm"
 cp "\${PORT_DIR}/ios/include/curl/curl.h" "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/curl/curl.h"
-mkdir -p "\${UPSTREAM_DIR}/ios"
+mkdir -p "\${UPSTREAM_DIR}/ios" "\${UPSTREAM_DIR}/cmake"
 cp "\${PORT_DIR}/ios/Info.plist" "\${UPSTREAM_DIR}/ios/Info.plist"
 cp "\${PORT_DIR}/ios/Entitlements.plist" "\${UPSTREAM_DIR}/ios/Entitlements.plist"
-cp "\${PORT_DIR}/cmake/ShadowRecompIOS.cmake" "\${UPSTREAM_DIR}/cmake/ShadowRecompIOS.cmake" 2>/dev/null || (mkdir -p "\${UPSTREAM_DIR}/cmake" && cp "\${PORT_DIR}/cmake/ShadowRecompIOS.cmake" "\${UPSTREAM_DIR}/cmake/ShadowRecompIOS.cmake")
+cp "\${PORT_DIR}/cmake/ShadowRecompIOS.cmake" "\${UPSTREAM_DIR}/cmake/ShadowRecompIOS.cmake"
 
 echo "==> [3/7] Patch ShadowRecomp/user/paths.cpp (rimuove static_assert per __APPLE__ / iOS)..."
 python3 - "\${UPSTREAM_DIR}/ShadowRecomp/user/paths.cpp" << 'PY_PATHS'
@@ -417,7 +417,7 @@ import sys, pathlib
 p = pathlib.Path(sys.argv[1])
 src = p.read_text(encoding="utf-8")
 if "#elif defined(__APPLE__)" not in src:
-    apple_block = """#elif defined(__APPLE__)
+    apple_block = '''#elif defined(__APPLE__)
     const char* homeDir = getenv("HOME");
     if (homeDir != nullptr)
     {
@@ -425,7 +425,7 @@ if "#elif defined(__APPLE__)" not in src:
         std::error_code ec;
         std::filesystem::create_directories(userPath, ec);
     }
-#else"""
+#else'''
     src = src.replace("#else", apple_block, 1)
     p.write_text(src, encoding="utf-8")
     print("Patched paths.cpp for iOS Documents/")
@@ -438,12 +438,14 @@ import sys, pathlib
 reg_p = pathlib.Path(sys.argv[1])
 reg_src = reg_p.read_text(encoding="utf-8")
 if "registry_ios.inl" not in reg_src:
-    reg_src = reg_src.replace(
-        "/*#elif defined(__APPLE__)\n#include <os/macos/registry_macos.inl>*/",
-        "#elif defined(__APPLE__)\n#include <os/ios/registry_ios.inl>"
-    )
-    if "registry_ios.inl" not in reg_src:
-        reg_src = reg_src.replace("#endif", "#elif defined(__APPLE__)\n#include <os/ios/registry_ios.inl>\n#endif", 1)
+    old_apple = '''/*#elif defined(__APPLE__)
+#include <os/macos/registry_macos.inl>*/'''
+    new_apple = '''#elif defined(__APPLE__)
+#include <os/ios/registry_ios.inl>'''
+    if old_apple in reg_src:
+        reg_src = reg_src.replace(old_apple, new_apple, 1)
+    else:
+        reg_src = reg_src.replace("#endif", new_apple + "\\n#endif", 1)
     reg_p.write_text(reg_src, encoding="utf-8")
     print("Patched registry.h")
 
@@ -459,13 +461,13 @@ if "defined(__APPLE__)" not in win_src:
 PY_REG_WIN
 
 echo "==> [5/7] Patch Plume, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no desktop DXC dylib)..."
-python3 - "\${UPSTREAM_DIR}/thirdparty/CMakeLists.txt" "\${UPSTREAM_DIR}/thirdparty/plume/CMakeLists.txt" "\${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/CMakeLists.txt" "\${UPSTREAM_DIR}/tools/XShaderRecomp/thirdparty/CMakeLists.txt" << 'PY_TP'
+python3 - "\${UPSTREAM_DIR}/thirdparty/CMakeLists.txt" "\${UPSTREAM_DIR}/thirdparty/plume/CMakeLists.txt" "\${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/CMakeLists.txt" "\${UPSTREAM_DIR}/tools/XShaderRecomp/thirdparty/CMakeLists.txt" "\${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/lib/dxc_compiler.cpp" << 'PY_TP'
 import sys, pathlib
 
-# 5a. thirdparty/CMakeLists.txt: abilita PLUME_SDL3_VULKAN_ENABLED su iOS (MoltenVK) e disabilita discord-rpc su iOS
+# 5a. thirdparty/CMakeLists.txt: abilita PLUME_SDL3_VULKAN_ENABLED su iOS (MoltenVK)
 tp_p = pathlib.Path(sys.argv[1])
 tp_src = tp_p.read_text(encoding="utf-8")
-if "CMAKE_SYSTEM_NAME STREQUAL \"iOS\"" not in tp_src:
+if 'CMAKE_SYSTEM_NAME STREQUAL "iOS"' not in tp_src:
     tp_src = tp_src.replace(
         'if (CMAKE_SYSTEM_NAME MATCHES "Linux")',
         'if (CMAKE_SYSTEM_NAME MATCHES "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "iOS")'
@@ -481,12 +483,11 @@ if plume_p.exists():
         'cmake_dependent_option(PLUME_SDL3_VULKAN_ENABLED "Enable SDL3 Vulkan integration" OFF IS_LINUX OFF)',
         'option(PLUME_SDL3_VULKAN_ENABLED "Enable SDL3 Vulkan integration" OFF)'
     )
-    # Rimuovi doppio PUBLIC typo se presente in plume upstream
     plume_src = plume_src.replace("PUBLIC PUBLIC SDL3::Headers", "PUBLIC SDL3::Headers")
     plume_p.write_text(plume_src, encoding="utf-8")
     print("Patched plume/CMakeLists.txt")
 
-# 5c. XShaderRecomp: su iOS non compilare XShaderRecompTool (eseguibile host) e non linkare libdxcompiler.dylib macOS nel binario iOS
+# 5c. XShaderRecomp/CMakeLists.txt: su iOS non compilare XShaderRecompTool e non linkare libdxcompiler.dylib macOS
 xsr_p = pathlib.Path(sys.argv[3])
 if xsr_p.exists():
     xsr_src = xsr_p.read_text(encoding="utf-8")
@@ -497,13 +498,11 @@ if xsr_p.exists():
         )
         xsr_src = xsr_src.replace(
             "add_executable(XShaderRecompTool",
-            "if(NOT SHADOW_IOS_PORT)\nadd_executable(XShaderRecompTool"
+            "if(NOT SHADOW_IOS_PORT)\\nadd_executable(XShaderRecompTool"
         )
-        xsr_src += "\nif(NOT SHADOW_IOS_PORT)\nendif()\n"
-        # Fix nesting cleanly if target_precompile_headers(XShaderRecompTool ...) was wrapped
         xsr_src = xsr_src.replace(
-            "target_precompile_headers(XShaderRecompTool REUSE_FROM XShaderRecompLib)\nif(NOT SHADOW_IOS_PORT)\nendif()",
-            "target_precompile_headers(XShaderRecompTool REUSE_FROM XShaderRecompLib)\nendif()\nif(SHADOW_IOS_PORT)\n    target_include_directories(XShaderRecompLib PRIVATE \"\${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/dxc-bin/inc\")\nendif()"
+            "target_precompile_headers(XShaderRecompTool REUSE_FROM XShaderRecompLib)",
+            'target_precompile_headers(XShaderRecompTool REUSE_FROM XShaderRecompLib)\\nendif()\\nif(SHADOW_IOS_PORT)\\n    target_compile_definitions(XShaderRecompLib PRIVATE SHADOW_IOS_PORT=1)\\n    target_include_directories(XShaderRecompLib PRIVATE "\${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/dxc-bin/inc")\\nendif()'
         )
         xsr_p.write_text(xsr_src, encoding="utf-8")
         print("Patched XShaderRecomp/CMakeLists.txt")
@@ -518,6 +517,23 @@ if xsr_tp.exists():
         )
         xsr_tp.write_text(xsr_tp_src, encoding="utf-8")
         print("Patched XShaderRecomp/thirdparty/CMakeLists.txt")
+
+# 5d. dxc_compiler.cpp: su iOS gli shader sono precompilati al build time (fornisce stub DxcCreateInstance se referenziato)
+dxc_cpp = pathlib.Path(sys.argv[5])
+if dxc_cpp.exists():
+    dxc_src = dxc_cpp.read_text(encoding="utf-8")
+    if "SHADOW_IOS_PORT" not in dxc_src and "DxcCreateInstance" in dxc_src and "dlopen" not in dxc_src:
+        ios_dxc_stub = '''
+#if defined(SHADOW_IOS_PORT)
+extern "C" HRESULT DxcCreateInstance(REFCLSID, REFIID, LPVOID* ppv)
+{
+    if (ppv) *ppv = nullptr;
+    return E_NOTIMPL;
+}
+#endif
+'''
+        dxc_cpp.write_text(dxc_src + ios_dxc_stub, encoding="utf-8")
+        print("Patched dxc_compiler.cpp with iOS DxcCreateInstance stub")
 PY_TP
 
 echo "==> [6/7] Patch ShadowRecomp/CMakeLists.txt e ShadowRecompLib/CMakeLists.txt per iOS arm64..."
@@ -534,13 +550,21 @@ sr_src = sr_src.replace(
 )
 
 # Su iOS, SDL3 gestisce UIApplicationMain tramite SDL_main: rimuovi SDL_MAIN_HANDLED su iOS
-sr_src = sr_src.replace(
-    "add_compile_definitions(\n    SDL_MAIN_HANDLED",
-    "if(NOT SHADOW_IOS_PORT)\n    add_compile_definitions(SDL_MAIN_HANDLED)\nendif()\nadd_compile_definitions("
-)
+old_sdl_main = '''add_compile_definitions(
+    SDL_MAIN_HANDLED'''
+new_sdl_main = '''if(NOT SHADOW_IOS_PORT)
+    add_compile_definitions(SDL_MAIN_HANDLED)
+endif()
+add_compile_definitions('''
+sr_src = sr_src.replace(old_sdl_main, new_sdl_main)
 
 # Aggiungi sorgenti OS iOS
-ios_os_block = """elseif (CMAKE_SYSTEM_NAME STREQUAL "iOS")
+old_linux_os = '''        "os/linux/user_linux.cpp"
+    )
+endif()'''
+new_ios_os = '''        "os/linux/user_linux.cpp"
+    )
+elseif (CMAKE_SYSTEM_NAME STREQUAL "iOS")
     enable_language(OBJC OBJCXX)
     set(SHADOW_RECOMP_OS_CXX_SOURCES
         "os/ios/ios_platform.mm"
@@ -548,37 +572,39 @@ ios_os_block = """elseif (CMAKE_SYSTEM_NAME STREQUAL "iOS")
         "os/ios/ios_mod_manager.mm"
         "os/ios/curl_ios_stub.mm"
     )
-endif()"""
+endif()'''
 if "os/ios/ios_platform.mm" not in sr_src:
-    sr_src = sr_src.replace(
-        '        "os/linux/user_linux.cpp"\n    )\nendif()',
-        '        "os/linux/user_linux.cpp"\n    )\n' + ios_os_block
-    )
+    sr_src = sr_src.replace(old_linux_os, new_ios_os)
 
 # Sostituisci find_package(CURL/nfd) con target iOS nativi quando SHADOW_IOS_PORT=ON
-sr_src = sr_src.replace(
-    "find_package(CURL REQUIRED)\nfind_package(nfd REQUIRED)",
-    """if(NOT SHADOW_IOS_PORT)
+old_find_pkgs = '''find_package(CURL REQUIRED)
+find_package(nfd REQUIRED)'''
+new_find_pkgs = '''if(NOT SHADOW_IOS_PORT)
     find_package(CURL REQUIRED)
     find_package(nfd REQUIRED)
 else()
     include("\${CMAKE_SOURCE_DIR}/cmake/ShadowRecompIOS.cmake")
-endif()"""
-)
+endif()'''
+sr_src = sr_src.replace(old_find_pkgs, new_find_pkgs)
 
 # Crea ShadowRecomp come MACOSX_BUNDLE su iOS
-sr_src = sr_src.replace(
-    "else()\n    add_executable(ShadowRecomp \${SHADOW_RECOMP_CXX_SOURCES})\nendif()",
-    """elseif(SHADOW_IOS_PORT)
+old_add_exec = '''else()
+    add_executable(ShadowRecomp \${SHADOW_RECOMP_CXX_SOURCES})
+endif()'''
+new_add_exec = '''elseif(SHADOW_IOS_PORT)
     add_executable(ShadowRecomp MACOSX_BUNDLE \${SHADOW_RECOMP_CXX_SOURCES})
 else()
     add_executable(ShadowRecomp \${SHADOW_RECOMP_CXX_SOURCES})
-endif()"""
-)
+endif()'''
+sr_src = sr_src.replace(old_add_exec, new_add_exec)
 
 # Aggiungi hook finale ShadowRecompIOS_ConfigureTarget
 if "shadow_configure_ios_target" not in sr_src:
-    sr_src += "\nif(SHADOW_IOS_PORT)\n    shadow_configure_ios_target(ShadowRecomp)\nendif()\n"
+    sr_src += '''
+if(SHADOW_IOS_PORT)
+    shadow_configure_ios_target(ShadowRecomp)
+endif()
+'''
 
 sr_p.write_text(sr_src, encoding="utf-8")
 print("Patched ShadowRecomp/CMakeLists.txt")
@@ -598,7 +624,9 @@ tools_p = pathlib.Path(sys.argv[3])
 tools_src = tools_p.read_text(encoding="utf-8")
 tools_src = tools_src.replace(
     "add_subdirectory(\${SHADOW_RECOMP_TOOLS_ROOT}/file_to_c)",
-    "if(NOT SHADOW_IOS_PORT)\n    add_subdirectory(\${SHADOW_RECOMP_TOOLS_ROOT}/file_to_c)\nendif()"
+    '''if(NOT SHADOW_IOS_PORT)
+    add_subdirectory(\${SHADOW_RECOMP_TOOLS_ROOT}/file_to_c)
+endif()'''
 )
 tools_p.write_text(tools_src, encoding="utf-8")
 print("Patched tools/CMakeLists.txt")

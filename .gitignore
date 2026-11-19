@@ -1,8 +1,14 @@
-node_modules/
+# Protezione legale: impedisce di committare file protetti da copyright SEGA / Xbox nel repo Git
+private/
+*.xbe
+*.iso
+*.xiso
+*.afs
+*.one
+*.txd
 build/
-dist/
-coverage/
+build-ios/
+build-host/
+Payload/
+*.ipa
 .DS_Store
-*.log
-.env*
-!.env.example
