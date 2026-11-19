@@ -67,8 +67,16 @@ test('generateShadowRecompModProfileJson matches ModLoader::Init() schema', () =
   assert.deepEqual(def.EnabledMods, ['Shadow_Reloaded']);
 });
 
-test('buildZipArchiveBytes generates valid PKZIP binary containing all 13 files', () => {
+test('buildZipArchiveBytes generates valid PKZIP binary containing all 14 files including .gitignore', () => {
   const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  assert.equal(files.length, 14);
+  const gitignore = files.find((f) => f.path === '.gitignore')?.content ?? '';
+  assert.match(gitignore, /\*\.xbe/);
+  assert.match(gitignore, /\*\.xiso/);
+  assert.match(gitignore, /private\//);
+  const yml = files.find((f) => f.path === '.github/workflows/build-ios-ipa.yml')?.content ?? '';
+  assert.match(yml, /publish_release/);
+
   const zip = buildZipArchiveBytes(files.map((f) => ({ path: f.path, content: f.content })));
   // Local file header signature: PK\x03\x04
   assert.equal(zip[0], 0x50);

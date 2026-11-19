@@ -97,10 +97,15 @@ on:
         default: '${config.upstreamBranch}'
         type: string
       default_xbe_url:
-        description: 'URL diretto opzionale al tuo default.xbe (4.8MB) se non presente in private/default.xbe'
+        description: 'URL temporaneo opzionale al tuo default.xbe (4.8MB) se non hai impostato il Secret DEFAULT_XBE_URL'
         required: false
         default: ''
         type: string
+      publish_release:
+        description: 'Pubblica anche ShadowRecomp-iOS.ipa come GitHub Release (stile MarathonRecompilediOS)'
+        required: false
+        default: false
+        type: boolean
   push:
     branches: [ main, master ]
 
@@ -119,7 +124,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 90
     permissions:
-      contents: read
+      contents: write
     steps:
       - name: 1. Checkout Repository Porting iOS
         uses: actions/checkout@v4
@@ -151,7 +156,7 @@ jobs:
             fi
           done
 
-      - name: 3. Verifica default.xbe per Ricompilazione Statica XboxRecomp2
+      - name: 3. Recupera default.xbe in Modo Effimero (Mai Salvato su Git)
         env:
           SECRET_XBE_URL: \${{ secrets.DEFAULT_XBE_URL }}
           INPUT_XBE_URL: \${{ inputs.default_xbe_url }}
@@ -159,34 +164,24 @@ jobs:
           TARGET_XBE="\${GITHUB_WORKSPACE}/ShadowRecomp-Upstream/ShadowRecompLib/private/default.xbe"
           mkdir -p "\$(dirname "\${TARGET_XBE}")"
 
-          if [ -f "ios-port/private/default.xbe" ]; then
-            echo "==> Trovato ios-port/private/default.xbe"
-            cp "ios-port/private/default.xbe" "\${TARGET_XBE}"
-          elif [ -f "ios-port/default.xbe" ]; then
-            echo "==> Trovato ios-port/default.xbe"
-            cp "ios-port/default.xbe" "\${TARGET_XBE}"
-          elif [ -n "\${INPUT_XBE_URL}" ]; then
-            echo "==> Download default.xbe da input workflow..."
-            curl -fSL "\${INPUT_XBE_URL}" -o "\${TARGET_XBE}"
-          elif [ -n "\${SECRET_XBE_URL}" ]; then
-            echo "==> Download default.xbe da GitHub Secret DEFAULT_XBE_URL..."
+          if [ -n "\${SECRET_XBE_URL}" ]; then
+            echo "==> Download effimero default.xbe da GitHub Secret DEFAULT_XBE_URL (non salvato nel repo)..."
             curl -fSL "\${SECRET_XBE_URL}" -o "\${TARGET_XBE}"
+          elif [ -n "\${INPUT_XBE_URL}" ]; then
+            echo "==> Download effimero default.xbe da input workflow..."
+            curl -fSL "\${INPUT_XBE_URL}" -o "\${TARGET_XBE}"
+          elif [ -f "ios-port/private/default.xbe" ]; then
+            echo "==> Trovato default.xbe locale in repo privato"
+            cp "ios-port/private/default.xbe" "\${TARGET_XBE}"
           else
-            echo "::error::MANCA default.xbe (~4.8MB) per la ricompilazione statica!"
+            echo "::error::Imposta il GitHub Secret DEFAULT_XBE_URL per compilare senza mai caricare default.xbe nel repo!"
             echo "================================================================================"
-            echo "NOTA TECNICA (come MarathonRecompilediOS / Sonic '06):"
-            echo "L'IPA finale pesa solo ~34MB e NON contiene i 4GB del gioco (.iso/texture/audio):"
-            echo "quelli li importerai al primo avvio dall'App File sul tuo iPhone 16 Pro."
-            echo ""
-            echo "MA per ricompilare staticamente il codice macchina Xbox in codice nativo arm64"
-            echo "senza JIT (tramite XboxRecomp2), GitHub Actions ha bisogno SOLO del file"
-            echo "default.xbe (~4.8MB) estratto dal tuo disco originale di Shadow the Hedgehog."
-            echo ""
-            echo "SOLUZIONE RAPIDA (dal browser, senza Mac):"
-            echo "1. Carica il tuo file default.xbe in questo repo PRIVATO nel percorso:"
-            echo "      private/default.xbe"
-            echo "   OPPURE imposta il Secret GitHub DEFAULT_XBE_URL / parametro default_xbe_url."
-            echo "2. Rilancia questa GitHub Action."
+            echo "COME FUNZIONA IN SICUREZZA SU REPO PUBBLICO (stile MarathonRecompilediOS):"
+            echo "1. NON committare MAI default.xbe nel repository Git (.gitignore lo blocca)."
+            echo "2. Vai su GitHub -> Settings -> Secrets and variables -> Actions -> New repository secret."
+            echo "3. Crea il Secret 'DEFAULT_XBE_URL' con un link diretto privato al tuo default.xbe (~4.8MB)."
+            echo "4. Rilancia la Action: GitHub scarica default.xbe SOLO nella VM temporanea di build,"
+            echo "   genera l'IPA (~35MB) e distrugge subito la VM. Nessun file SEGA finisce nel repo!"
             echo "================================================================================"
             exit 1
           fi
@@ -363,6 +358,20 @@ jobs:
             \${{ env.APP_NAME }}-iOS-v\${{ env.APP_VERSION }}-Unsigned.ipa
             \${{ env.APP_NAME }}-iOS-v\${{ env.APP_VERSION }}-Unsigned.ipa.sha256
           retention-days: 90
+
+      - name: 11. Pubblica GitHub Release Opzionale (stile MarathonRecompilediOS)
+        if: \${{ inputs.publish_release == true }}
+        env:
+          GH_TOKEN: \${{ github.token }}
+        run: |
+          TAG="ios-v\${APP_VERSION}-\${GITHUB_RUN_NUMBER}"
+          cp "\${APP_NAME}-iOS-v\${APP_VERSION}-Unsigned.ipa" "\${APP_NAME}-iOS.ipa"
+          shasum -a 256 "\${APP_NAME}-iOS.ipa" > "SHA256SUMS-\${APP_NAME}.txt"
+          gh release create "\${TAG}" \\
+            "\${APP_NAME}-iOS.ipa" \\
+            "SHA256SUMS-\${APP_NAME}.txt" \\
+            --title "Shadow the Hedgehog (2005) — iOS Unsigned IPA (build \${APP_VERSION}.\${GITHUB_RUN_NUMBER})" \\
+            --notes "Unsigned IPA per Feather / LiveContainer (iPhone 16 Pro arm64). Nessun asset di gioco incluso: importa i file estratti dalla tua copia Xbox al primo avvio dall'App File di iOS."
 `;
 }
 
@@ -1338,37 +1347,52 @@ const char* curl_easy_strerror(CURLcode) { return "Update checker disabled on iO
 </dict>
 </plist>`;
 
-  const readmeMd = `# ShadowRecomp iOS Port (GitHub Actions Unsigned IPA)
+  const gitignoreContent = `# Protezione legale: impedisce di committare file protetti da copyright SEGA / Xbox nel repo Git
+private/
+*.xbe
+*.iso
+*.xiso
+*.afs
+*.one
+*.txd
+build/
+build-ios/
+build-host/
+Payload/
+*.ipa
+.DS_Store`;
 
-Porting iOS per **iPhone 16 Pro (arm64)** di [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), ispirato all'architettura iOS di [DevZer0D4Y/MarathonRecompilediOS](https://github.com/DevZer0D4Y/MarathonRecompilediOS).
+  const readmeMd = `# ShadowRecomp iOS Port (Stile MarathonRecompilediOS — Zero File Protetti su Git)
+
+Porting iOS per **iPhone 16 Pro (arm64)** di [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), basato sullo stesso flusso di [DevZer0D4Y/MarathonRecompilediOS](https://github.com/DevZer0D4Y/MarathonRecompilediOS).
 Tutta la compilazione avviene nel cloud su **GitHub Actions (\`macos-15\`)**, senza bisogno di un Mac.
 
-## Perché serve SOLO \`default.xbe\` (4.8MB) nella build, e NON la ISO da 4GB?
-Esattamente come **MarathonRecompilediOS (Sonic '06, ~34MB)**:
-- **La ISO / asset di gioco (texture, livelli, audio, video)** NON vengono mai inseriti nell'IPA: li selezionerai comodamente dall'**App File di iOS** al primo avvio dell'app su iPhone (tramite \`ios/nfd_ios.mm\` collegato a \`UIDocumentPickerViewController\`).
-- **Il solo file \`default.xbe\` (~4.8MB)** serve invece a **\`XboxRecomp2\`** durante la GitHub Action per tradurre staticamente il codice macchina x86 di Shadow the Hedgehog in C++ nativo \`arm64\`. Questo è il motivo per cui l'IPA pesa ~34MB e **non richiede JIT** su Feather o LiveContainer.
+## 100% Pulito sul Repository GitHub
+- Questo repository contiene **ZERO file protetti da copyright** (\`.gitignore\` blocca \`*.xbe\`, \`*.iso\`, \`*.xiso\` e \`private/\`).
+- Esattamente come \`MarathonRecompilediOS\` (\`Sonic06-iOS.ipa\`, ~35 MB): l'\`.ipa\` finale **non contiene nessun asset di gioco** (texture, livelli, audio, filmati).
+- Al primo avvio dell'\`.ipa\` su **iPhone 16 Pro** (installato da **Feather** o **LiveContainer**), l'app apre l'**App File di iOS** per farti selezionare la cartella con i file estratti dalla tua \`.xiso\`, completa l'importazione, e al riavvio il gioco parte!
 
-## Come compilare l'IPA da GitHub (Zero Mac)
-1. Carica tutti i file di questo pacchetto nel tuo repository **privato** GitHub (es. \`hiperema95-ctrl/edgyios\`).
-2. Carica il tuo file \`default.xbe\` (~4.8MB) estratto dal gioco originale nel percorso:
-   \`private/default.xbe\`
-   *(In alternativa puoi impostare il Secret GitHub \`DEFAULT_XBE_URL\` o incollare l'URL nel campo \`default_xbe_url\` quando avvii la Action).*
-3. Vai su **Actions → Build ShadowRecomp iOS Unsigned IPA (No-Mac Cloud Builder) → Run workflow**.
-4. Al termine della build, scarica l'artifact **\`${config.appName}-iOS-Unsigned-IPA\`** direttamente sul tuo iPhone 16 Pro.
-5. Installalo con **Feather** (o **LiveContainer**), avvia **${config.appName}** e seleziona la tua ISO / file di gioco dall'App File di iOS!
-
-## Mod Manager su iOS
-Il modulo \`ios/ios_mod_manager.mm\` gestisce le mod esattamente nel formato nativo letto da \`FoxWorkshop/ShadowRecomp/mod/mod_loader.cpp\`:
-- Cartella mod: \`Su iPhone → ${config.appName} → ShadowRecomp → mods/<NomeMod>/mod.ini\`
-- Profili attivi: \`mods/.modloader/profiles/profiles.json\` e \`Default.json\` (\`EnabledMods\`).`;
+## Come compilare l'\`.ipa\` su GitHub Actions senza MAI caricare \`default.xbe\` nel repo
+1. Carica tutti i file di questo pacchetto nel tuo repository GitHub.
+2. Vai su **Settings → Secrets and variables → Actions → New repository secret**.
+3. Crea il Secret cifrato **\`DEFAULT_XBE_URL\`** con un link diretto temporaneo/privato al tuo \`default.xbe\` (~4.8 MB).
+   - Il Secret è cifrato e invisibile a tutti; \`default.xbe\` viene scaricato **solo** nella VM temporanea \`macos-15\` durante la compilazione di \`XboxRecomp2\` e distrutto subito a fine build.
+4. Vai su **Actions → Build ShadowRecomp iOS Unsigned IPA → Run workflow** *(opzionale: spunta \`publish_release\` se vuoi creare una Release con \`${config.appName}-iOS.ipa\` come \`MarathonRecompilediOS\`)* e scarica il file \`.ipa\` su iPhone!`;
 
   return [
     {
       path: '.github/workflows/build-ios-ipa.yml',
       title: 'GitHub Action Cloud Builder (.yml)',
       language: 'yaml',
-      description: 'Clona branch master, compila XboxRecomp2 (Rust) + file_to_c + FreeType + MoltenVK, applica patch iOS e crea l’IPA unsigned.',
+      description: 'Clona branch master, recupera default.xbe via Secret effimero, compila XboxRecomp2 + MoltenVK e crea l’IPA unsigned.',
       content: workflowYml,
+    },
+    {
+      path: '.gitignore',
+      title: 'Protezione Anti-Copyright (.gitignore)',
+      language: 'bash',
+      description: 'Blocca automaticamente *.xbe, *.iso, *.xiso e private/ affinché nessun file di gioco finisca mai nel repo Git.',
+      content: gitignoreContent,
     },
     {
       path: 'scripts/apply_ios_port.sh',

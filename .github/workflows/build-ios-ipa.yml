@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       build_configuration:
-        description: 'Configurazione di compilazione CMake/Xcode'
+        description: 'Configurazione CMake/Xcode'
         required: true
         default: 'Release'
         type: choice
@@ -12,64 +12,207 @@ on:
           - Release
           - RelWithDebInfo
       upstream_branch:
-        description: 'Branch o Tag di FoxWorkshop/ShadowRecomp'
+        description: 'Branch di FoxWorkshop/ShadowRecomp (default: master)'
         required: true
-        default: 'main'
+        default: 'master'
         type: string
+      default_xbe_url:
+        description: 'URL temporaneo opzionale al tuo default.xbe (4.8MB) se non hai impostato il Secret DEFAULT_XBE_URL'
+        required: false
+        default: ''
+        type: string
+      publish_release:
+        description: 'Pubblica anche ShadowRecomp-iOS.ipa come GitHub Release (stile MarathonRecompilediOS)'
+        required: false
+        default: false
+        type: boolean
   push:
-    branches: [ main ]
+    branches: [ main, master ]
 
 env:
   APP_NAME: "ShadowRecomp"
   BUNDLE_ID: "com.foxworkshop.shadowrecomp.ios"
-  APP_VERSION: "1.1.0"
+  APP_VERSION: "1.0.0"
   IOS_DEPLOYMENT_TARGET: "17.0"
   UPSTREAM_REPO: "https://github.com/FoxWorkshop/ShadowRecomp.git"
+  MOLTENVK_VERSION: "v1.2.11"
+  FREETYPE_VERSION: "2.13.3"
 
 jobs:
   build-shadowrecomp-ios-ipa:
     name: Build Unsigned IPA on GitHub macOS-15 (iPhone 16 Pro / arm64)
     runs-on: macos-15
+    timeout-minutes: 90
     permissions:
       contents: write
     steps:
-      - name: 1. Checkout iOS Port Repository (Questo Repo)
+      - name: 1. Checkout Repository Porting iOS
         uses: actions/checkout@v4
         with:
           path: ios-port
 
-      - name: 2. Clone FoxWorkshop/ShadowRecomp con Submodules
+      - name: 2. Clone FoxWorkshop/ShadowRecomp (branch master + submodules)
         run: |
-          git clone --recursive --branch "${{ inputs.upstream_branch || 'main' }}" "${UPSTREAM_REPO}" ShadowRecomp-Upstream
+          BRANCH="${{ inputs.upstream_branch || 'master' }}"
+          echo "==> Cloning ${UPSTREAM_REPO} (branch: ${BRANCH})..."
+          if git ls-remote --exit-code --heads "${UPSTREAM_REPO}" "${BRANCH}" >/dev/null 2>&1; then
+            git clone --depth 1 --branch "${BRANCH}" "${UPSTREAM_REPO}" ShadowRecomp-Upstream
+          else
+            echo "WARN: Branch '${BRANCH}' non trovato, uso il branch predefinito del repository upstream."
+            git clone --depth 1 "${UPSTREAM_REPO}" ShadowRecomp-Upstream
+          fi
 
-      - name: 3. Seleziona Xcode 16.2 & Installa Dipendenze nel Cloud
+          cd ShadowRecomp-Upstream
+          # Inizializza tutti i submodule reali di ShadowRecomp tranne vcpkg completo (usiamo toolchain iOS dedicata)
+          git submodule sync --recursive
+          for sub in thirdparty/SDL thirdparty/SDL_mixer thirdparty/plume thirdparty/imgui thirdparty/implot \
+                     thirdparty/msdf-atlas-gen thirdparty/o1heap thirdparty/stb thirdparty/ddspp \
+                     thirdparty/unordered_dense thirdparty/concurrentqueue thirdparty/ogg thirdparty/vorbis \
+                     thirdparty/discord-rpc ShadowRecompResources tools/bc_diff tools/XboxRecomp \
+                     tools/XboxRecomp2 tools/XShaderRecomp tools/file_to_c; do
+            if git config -f .gitmodules --get "submodule.${sub}.path" >/dev/null 2>&1; then
+              echo "==> Init submodule: ${sub}"
+              git submodule update --init --recursive --depth 1 "${sub}" || git submodule update --init --recursive "${sub}"
+            fi
+          done
+
+      - name: 3. Recupera default.xbe in Modo Effimero (Mai Salvato su Git)
+        env:
+          SECRET_XBE_URL: ${{ secrets.DEFAULT_XBE_URL }}
+          INPUT_XBE_URL: ${{ inputs.default_xbe_url }}
         run: |
-          sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          TARGET_XBE="${GITHUB_WORKSPACE}/ShadowRecomp-Upstream/ShadowRecompLib/private/default.xbe"
+          mkdir -p "$(dirname "${TARGET_XBE}")"
+
+          if [ -n "${SECRET_XBE_URL}" ]; then
+            echo "==> Download effimero default.xbe da GitHub Secret DEFAULT_XBE_URL (non salvato nel repo)..."
+            curl -fSL "${SECRET_XBE_URL}" -o "${TARGET_XBE}"
+          elif [ -n "${INPUT_XBE_URL}" ]; then
+            echo "==> Download effimero default.xbe da input workflow..."
+            curl -fSL "${INPUT_XBE_URL}" -o "${TARGET_XBE}"
+          elif [ -f "ios-port/private/default.xbe" ]; then
+            echo "==> Trovato default.xbe locale in repo privato"
+            cp "ios-port/private/default.xbe" "${TARGET_XBE}"
+          else
+            echo "::error::Imposta il GitHub Secret DEFAULT_XBE_URL per compilare senza mai caricare default.xbe nel repo!"
+            echo "================================================================================"
+            echo "COME FUNZIONA IN SICUREZZA SU REPO PUBBLICO (stile MarathonRecompilediOS):"
+            echo "1. NON committare MAI default.xbe nel repository Git (.gitignore lo blocca)."
+            echo "2. Vai su GitHub -> Settings -> Secrets and variables -> Actions -> New repository secret."
+            echo "3. Crea il Secret 'DEFAULT_XBE_URL' con un link diretto privato al tuo default.xbe (~4.8MB)."
+            echo "4. Rilancia la Action: GitHub scarica default.xbe SOLO nella VM temporanea di build,"
+            echo "   genera l'IPA (~35MB) e distrugge subito la VM. Nessun file SEGA finisce nel repo!"
+            echo "================================================================================"
+            exit 1
+          fi
+          ls -lh "${TARGET_XBE}"
+
+      - name: 4. Configura Xcode, Rust, MoltenVK (iOS arm64), DXC & FreeType
+        run: |
+          if [ -d "/Applications/Xcode_16.2.app/Contents/Developer" ]; then
+            sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+          fi
           xcodebuild -version
-          brew update
-          brew install cmake ninja ldid pkg-config python3 llvm
+          brew install cmake ninja ldid pkg-config zstd
 
-      - name: 4. Compila i Tool di Ricompilazione Statica (XboxRecomp2 & XShaderRecomp)
-        working-directory: ShadowRecomp-Upstream
-        run: |
-          cmake -B build-host -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DSHADOW_BUILD_HOST_TOOLS=ON
-          cmake --build build-host --parallel
+          # 4a. Scarica MoltenVK ufficiale per iOS arm64 (traduce Vulkan/SPIR-V di Plume in Apple Metal 3)
+          mkdir -p "${GITHUB_WORKSPACE}/ios-deps/moltenvk"
+          curl -fSL "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-all.tar" -o /tmp/MoltenVK-all.tar
+          tar -xf /tmp/MoltenVK-all.tar -C "${GITHUB_WORKSPACE}/ios-deps/moltenvk"
+          find "${GITHUB_WORKSPACE}/ios-deps/moltenvk" -name "libMoltenVK.a"
 
-      - name: 5. Applica Patch iOS (UIKit Launcher, Mod Manager & Metal Backend)
-        run: |
-          chmod +x ios-port/scripts/apply_ios_port.sh
-          ./ios-port/scripts/apply_ios_port.sh "${GITHUB_WORKSPACE}/ShadowRecomp-Upstream" "${GITHUB_WORKSPACE}/ios-port"
+          # 4b. Prepara DXC macOS host per compilare gli shader HLSL -> .spirv.h durante la build
+          mkdir -p "${GITHUB_WORKSPACE}/ios-deps/dxc"
+          DXC_FOUND="$(find "${GITHUB_WORKSPACE}/ShadowRecomp-Upstream/tools/XShaderRecomp" -type f -name "dxc*" -perm +111 2>/dev/null | grep -i mac | head -n 1 || true)"
+          if [ -z "${DXC_FOUND}" ]; then
+            brew install directx-shader-compiler || true
+            DXC_FOUND="$(which dxc || true)"
+          fi
+          if [ -z "${DXC_FOUND}" ]; then
+            echo "::error::Impossibile trovare eseguibile macOS dxc per generare gli shader SPIR-V."
+            exit 1
+          fi
+          echo "DIRECTX_DXC_TOOL=${DXC_FOUND}" >> "${GITHUB_ENV}"
+          echo "==> DXC Host Tool: ${DXC_FOUND}"
 
-      - name: 6. Configura CMake per iOS arm64 (iPhone 16 Pro - A18 Pro)
-        working-directory: ShadowRecomp-Upstream
-        run: |
-          cmake -B build-ios -G Xcode \
+          # 4c. Compila FreeType statico per iOS arm64 (richiesto da msdf-atlas-gen)
+          IOS_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          mkdir -p "${GITHUB_WORKSPACE}/ios-deps/freetype-src" "${GITHUB_WORKSPACE}/ios-deps/freetype-install"
+          curl -fSL "https://download.savannah.gnu.org/releases/freetype/freetype-${FREETYPE_VERSION}.tar.gz" -o /tmp/freetype.tar.gz
+          tar -xzf /tmp/freetype.tar.gz -C "${GITHUB_WORKSPACE}/ios-deps/freetype-src" --strip-components=1
+          cmake -S "${GITHUB_WORKSPACE}/ios-deps/freetype-src" -B "${GITHUB_WORKSPACE}/ios-deps/freetype-build" -G Ninja \
             -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT="${IOS_SDK}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DCMAKE_OSX_DEPLOYMENT_TARGET="${IOS_DEPLOYMENT_TARGET}" \
-            -DCMAKE_OSX_SYSROOT=iphoneos \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DFT_DISABLE_HARFBUZZ=ON \
+            -DFT_DISABLE_PNG=ON \
+            -DFT_DISABLE_BZIP2=ON \
+            -DFT_DISABLE_BROTLI=ON \
+            -DFT_DISABLE_ZLIB=OFF \
+            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/ios-deps/freetype-install"
+          cmake --build "${GITHUB_WORKSPACE}/ios-deps/freetype-build" --parallel
+          cmake --install "${GITHUB_WORKSPACE}/ios-deps/freetype-build"
+
+      - name: 5. Compila Tool Nativi Host macOS (XboxRecomp2 Rust + file_to_c)
+        working-directory: ShadowRecomp-Upstream
+        run: |
+          mkdir -p "${GITHUB_WORKSPACE}/build-host"
+
+          # 5a. Compila XboxRecomp2 (Rust) per ricompilazione statica di default.xbe
+          echo "==> Compilazione XboxRecomp2 (Rust) su macOS arm64..."
+          cargo build --release --manifest-path tools/XboxRecomp2/Cargo.toml
+          XBOXRECOMP2_BIN="$(find tools/XboxRecomp2/target/release -maxdepth 1 -type f -perm +111 \( -name 'xbox-recomp2*' -o -name 'XboxRecomp2*' \) | head -n 1)"
+          if [ -z "${XBOXRECOMP2_BIN}" ]; then
+            echo "::error::Binario XboxRecomp2 non trovato dopo cargo build!"
+            exit 1
+          fi
+          cp "${XBOXRECOMP2_BIN}" "${GITHUB_WORKSPACE}/build-host/xbox-recomp2"
+          chmod +x "${GITHUB_WORKSPACE}/build-host/xbox-recomp2"
+          echo "XBOXRECOMP2_HOST_BIN=${GITHUB_WORKSPACE}/build-host/xbox-recomp2" >> "${GITHUB_ENV}"
+
+          # 5b. Compila file_to_c nativo macOS (usato da BIN2C durante cross-compilazione iOS)
+          echo "==> Compilazione file_to_c host macOS..."
+          ZSTD_PREFIX="$(brew --prefix zstd)"
+          clang++ -std=c++17 -O2 tools/file_to_c/file_to_c.cpp \
+            -I"${ZSTD_PREFIX}/include" -L"${ZSTD_PREFIX}/lib" -lzstd \
+            -o "${GITHUB_WORKSPACE}/build-host/file_to_c"
+          chmod +x "${GITHUB_WORKSPACE}/build-host/file_to_c"
+          echo "FILE_TO_C_HOST_BIN=${GITHUB_WORKSPACE}/build-host/file_to_c" >> "${GITHUB_ENV}"
+
+      - name: 6. Applica Patch Porting iOS Reale (OS iOS, App File NFD, Mod Manager, MoltenVK)
+        run: |
+          chmod +x ios-port/scripts/apply_ios_port.sh
+          ./ios-port/scripts/apply_ios_port.sh \
+            "${GITHUB_WORKSPACE}/ShadowRecomp-Upstream" \
+            "${GITHUB_WORKSPACE}/ios-port" \
+            "${GITHUB_WORKSPACE}/ios-deps"
+
+      - name: 7. Configura CMake Cross-Compile per iOS arm64 (iPhone 16 Pro)
+        working-directory: ShadowRecomp-Upstream
+        env:
+          # Toolchain stub compatibile con il check VCPKG_ROOT del CMakeLists.txt di ShadowRecomp
+          VCPKG_ROOT: ${{ github.workspace }}/ios-deps/vcpkg-ios-stub
+        run: |
+          CONFIG="${{ inputs.build_configuration || 'Release' }}"
+          IOS_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
+          MOLTENVK_LIB="$(find "${GITHUB_WORKSPACE}/ios-deps/moltenvk" -path "*ios-arm64*" -name "libMoltenVK.a" | head -n 1)"
+          if [ -z "${MOLTENVK_LIB}" ]; then
+            MOLTENVK_LIB="$(find "${GITHUB_WORKSPACE}/ios-deps/moltenvk" -path "*iOS*" -name "libMoltenVK.a" | head -n 1)"
+          fi
+          echo "==> MoltenVK Static Library: ${MOLTENVK_LIB}"
+
+          cmake -B build-ios -G Xcode \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_SYSROOT="${IOS_SDK}" \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_OSX_DEPLOYMENT_TARGET="${IOS_DEPLOYMENT_TARGET}" \
+            -DCMAKE_BUILD_TYPE="${CONFIG}" \
+            -DCMAKE_PREFIX_PATH="${GITHUB_WORKSPACE}/ios-deps/freetype-install" \
+            -DFREETYPE_INCLUDE_DIRS="${GITHUB_WORKSPACE}/ios-deps/freetype-install/include/freetype2" \
+            -DFREETYPE_LIBRARY="${GITHUB_WORKSPACE}/ios-deps/freetype-install/lib/libfreetype.a" \
             -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO \
             -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="" \
             -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO \
@@ -77,23 +220,23 @@ jobs:
             -DCMAKE_XCODE_ATTRIBUTE_ENABLE_BITCODE=NO \
             -DCMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER="${BUNDLE_ID}" \
             -DCMAKE_XCODE_ATTRIBUTE_MARKETING_VERSION="${APP_VERSION}" \
-            -DCMAKE_C_FLAGS="-march=armv8.6-a+simd+crypto -Wl,-pie -fPIC" \
-            -DCMAKE_CXX_FLAGS="-march=armv8.6-a+simd+crypto -Wl,-pie -fPIC" \
-            -DSHADOW_HOST_TOOLS_DIR="${GITHUB_WORKSPACE}/ShadowRecomp-Upstream/build-host" \
+            -DCMAKE_C_FLAGS="-Wl,-pie -fPIC" \
+            -DCMAKE_CXX_FLAGS="-Wl,-pie -fPIC" \
             -DSHADOW_IOS_PORT=ON \
-            -DPLUME_METAL_BACKEND=ON \
-            -DSHADOW_PROMOTION_120HZ=ON \
+            -DPLUME_SDL3_VULKAN_ENABLED=ON \
+            -DSHADOW_RECOMP_XBOXRECOMP2_EXECUTABLE="${XBOXRECOMP2_HOST_BIN}" \
+            -DSHADOW_HOST_FILE_TO_C="${FILE_TO_C_HOST_BIN}" \
+            -DDIRECTX_DXC_TOOL="${DIRECTX_DXC_TOOL}" \
+            -DMOLTENVK_STATIC_LIB="${MOLTENVK_LIB}" \
             -DSDL_STATIC=ON \
-            -DSDL_SHARED=OFF
+            -DSDL_SHARED=OFF \
+            -DSDL_TESTS=OFF
 
-      - name: 7. Compila ShadowRecomp.app (Unsigned arm64)
+      - name: 8. Compila ShadowRecomp.app (arm64 Unsigned)
         working-directory: ShadowRecomp-Upstream
         run: |
           CONFIG="${{ inputs.build_configuration || 'Release' }}"
-          xcodebuild build \
-            -project build-ios/ShadowRecomp.xcodeproj \
-            -scheme "${APP_NAME}" \
-            -configuration "${CONFIG}" \
+          cmake --build build-ios --config "${CONFIG}" --target ShadowRecomp -- \
             -sdk iphoneos \
             -arch arm64 \
             CODE_SIGN_IDENTITY="" \
@@ -101,23 +244,33 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES
 
-      - name: 8. Firma Ad-Hoc con ldid & Impacchetta IPA per Feather e LiveContainer
+      - name: 9. Firma Ad-Hoc (ldid) & Impacchetta IPA Unsigned per Feather / LiveContainer
         run: |
           CONFIG="${{ inputs.build_configuration || 'Release' }}"
-          APP_BUNDLE="ShadowRecomp-Upstream/build-ios/${CONFIG}-iphoneos/${APP_NAME}.app"
+          APP_BUNDLE="$(find ShadowRecomp-Upstream/build-ios -type d -name "${APP_NAME}.app" | head -n 1)"
+          if [ -z "${APP_BUNDLE}" ]; then
+            echo "::error::Bundle ${APP_NAME}.app non trovato in build-ios!"
+            find ShadowRecomp-Upstream/build-ios -maxdepth 4
+            exit 1
+          fi
+          echo "==> Trovato bundle: ${APP_BUNDLE}"
 
           rm -rf Payload
           mkdir -p Payload
           cp -R "${APP_BUNDLE}" "Payload/${APP_NAME}.app"
           cp ios-port/ios/Info.plist "Payload/${APP_NAME}.app/Info.plist"
 
+          # Rimuove eventuali firme residui e applica firma ad-hoc con entitlement RAM aumentata
+          rm -rf "Payload/${APP_NAME}.app/_CodeSignature"
           ldid -Sios-port/ios/Entitlements.plist "Payload/${APP_NAME}.app/${APP_NAME}"
           chmod +x "Payload/${APP_NAME}.app/${APP_NAME}"
 
-          zip -qry "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa" Payload
-          shasum -a 256 "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa" > "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa.sha256"
+          IPA_NAME="${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa"
+          zip -qry "${IPA_NAME}" Payload
+          ls -lh "${IPA_NAME}"
+          shasum -a 256 "${IPA_NAME}" > "${IPA_NAME}.sha256"
 
-      - name: 9. Carica File IPA pronto da scaricare su iPhone
+      - name: 10. Carica Artifact IPA Pronto per Feather / LiveContainer
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.APP_NAME }}-iOS-Unsigned-IPA
@@ -125,3 +278,17 @@ jobs:
             ${{ env.APP_NAME }}-iOS-v${{ env.APP_VERSION }}-Unsigned.ipa
             ${{ env.APP_NAME }}-iOS-v${{ env.APP_VERSION }}-Unsigned.ipa.sha256
           retention-days: 90
+
+      - name: 11. Pubblica GitHub Release Opzionale (stile MarathonRecompilediOS)
+        if: ${{ inputs.publish_release == true }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ios-v${APP_VERSION}-${GITHUB_RUN_NUMBER}"
+          cp "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa" "${APP_NAME}-iOS.ipa"
+          shasum -a 256 "${APP_NAME}-iOS.ipa" > "SHA256SUMS-${APP_NAME}.txt"
+          gh release create "${TAG}" \
+            "${APP_NAME}-iOS.ipa" \
+            "SHA256SUMS-${APP_NAME}.txt" \
+            --title "Shadow the Hedgehog (2005) — iOS Unsigned IPA (build ${APP_VERSION}.${GITHUB_RUN_NUMBER})" \
+            --notes "Unsigned IPA per Feather / LiveContainer (iPhone 16 Pro arm64). Nessun asset di gioco incluso: importa i file estratti dalla tua copia Xbox al primo avvio dall'App File di iOS."
