@@ -141,12 +141,38 @@ if plume_p.exists():
 
 plume_dir = pathlib.Path(sys.argv[7])
 if plume_dir.exists():
-    for mm_file in plume_dir.rglob("*.mm"):
-        mm_src = mm_file.read_text(encoding="utf-8")
-        if "TARGET_OS_IPHONE" not in mm_src and any(k in mm_src for k in ("Cocoa/Cocoa.h", "AppKit/AppKit.h", "NSWindow", "NSView")):
+    for src_file in list(plume_dir.rglob("*.mm")) + list(plume_dir.rglob("plume_metal.cpp")):
+        mm_src = src_file.read_text(encoding="utf-8")
+        if "TARGET_OS_IPHONE" not in mm_src and any(k in mm_src for k in ("Cocoa/Cocoa.h", "AppKit/AppKit.h", "CocoaWindow", "NSWindow", "NSView")):
             guarded = "#include <TargetConditionals.h>\n#if !TARGET_OS_IPHONE\n" + mm_src + "\n#endif\n"
-            mm_file.write_text(guarded, encoding="utf-8")
-            print(f"Guarded macOS-only ObjC++ file for iOS: {mm_file.name}")
+            src_file.write_text(guarded, encoding="utf-8")
+            print(f"Guarded macOS-only Plume file for iOS: {src_file.name}")
+
+    # Consenti a volk di risolvere vkGetInstanceProcAddr da libMoltenVK.a linkata staticamente su iOS
+    volk_c = plume_dir / "contrib" / "volk" / "volk.c"
+    if volk_c.exists():
+        v_src = volk_c.read_text(encoding="utf-8")
+        if "SHADOW_IOS_STATIC_MOLTENVK" not in v_src and "volkInitialize(" in v_src:
+            if "TargetConditionals.h" not in v_src:
+                v_src = "#if defined(__APPLE__)\n#include <TargetConditionals.h>\n#include <dlfcn.h>\n#endif\n" + v_src
+            v_src = re.sub(
+                r'(VkResult\s+volkInitialize\s*\(\s*void\s*\)\s*\{)',
+                r'''\1
+#if defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+    {
+        /* SHADOW_IOS_STATIC_MOLTENVK: risolvi vkGetInstanceProcAddr da libMoltenVK.a */
+        PFN_vkGetInstanceProcAddr staticProc = (PFN_vkGetInstanceProcAddr)dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr");
+        if (staticProc != NULL) {
+            volkInitializeCustom(staticProc);
+            return VK_SUCCESS;
+        }
+    }
+#endif''',
+                v_src,
+                count=1
+            )
+            volk_c.write_text(v_src, encoding="utf-8")
+            print("Patched volk.c for static libMoltenVK.a lookup on iOS")
 
 # 5e. discord-rpc/src/discord_register_linux.cpp: rimuovi system() (vietato su iOS SDK)
 discord_reg = pathlib.Path(sys.argv[6])

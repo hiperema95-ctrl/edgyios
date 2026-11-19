@@ -42,11 +42,12 @@ function(shadow_configure_ios_target TARGET_NAME)
             COMPILE_OPTIONS "-fobjc-arc"
     )
 
-    # Link statico MoltenVK (Vulkan -> Apple Metal 3)
+    # Link statico MoltenVK (Vulkan -> Apple Metal 3) + forza export simbolo vkGetInstanceProcAddr per SDL3/Volk
     if(MOLTENVK_STATIC_LIB AND EXISTS "${MOLTENVK_STATIC_LIB}")
         target_link_libraries(${TARGET_NAME} PRIVATE "${MOLTENVK_STATIC_LIB}")
+        target_link_options(${TARGET_NAME} PRIVATE "-Wl,-u,_vkGetInstanceProcAddr" "-Wl,-export_dynamic")
     else()
-        message(WARNING "MOLTENVK_STATIC_LIB non trovato; verificare il download di MoltenVK-all.tar")
+        message(WARNING "MOLTENVK_STATIC_LIB non trovato; verificare il download di MoltenVK-ios.tar")
     endif()
 
     # Framework Apple iOS necessari per Metal 3, SDL3, App File, Controller e Audio
