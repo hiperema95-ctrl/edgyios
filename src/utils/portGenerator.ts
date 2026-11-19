@@ -73,9 +73,13 @@ export function generateShadowRecompModProfileJson(mods: ShadowModProfileEntry[]
 }
 
 export function generateGitHubWorkflowYaml(config: PortBuildConfig): string {
-  const pieFlags =
+  const picFlags =
     config.targetInstaller === 'livecontainer' || config.targetInstaller === 'both'
-      ? '-Wl,-pie -fPIC'
+      ? '-fPIC'
+      : '';
+  const pieLinkerFlags =
+    config.targetInstaller === 'livecontainer' || config.targetInstaller === 'both'
+      ? '-Wl,-pie'
       : '';
 
   return `name: Build ShadowRecomp iOS Unsigned IPA (No-Mac Cloud Builder)
@@ -297,8 +301,9 @@ jobs:
             -DCMAKE_PREFIX_PATH="\${GITHUB_WORKSPACE}/ios-deps/freetype-install" \\
             -DFREETYPE_INCLUDE_DIRS="\${GITHUB_WORKSPACE}/ios-deps/freetype-install/include/freetype2" \\
             -DFREETYPE_LIBRARY="\${GITHUB_WORKSPACE}/ios-deps/freetype-install/lib/libfreetype.a" \\
-            -DCMAKE_C_FLAGS="${pieFlags}" \\
-            -DCMAKE_CXX_FLAGS="${pieFlags}" \\
+            -DCMAKE_C_FLAGS="${picFlags}" \\
+            -DCMAKE_CXX_FLAGS="${picFlags}" \\
+            -DCMAKE_EXE_LINKER_FLAGS="${pieLinkerFlags}" \\
             -DSHADOW_IOS_PORT=ON \\
             -DPLUME_SDL3_VULKAN_ENABLED=ON \\
             -DSHADOW_RECOMP_XBOXRECOMP2_EXECUTABLE="\${XBOXRECOMP2_HOST_BIN}" \\
@@ -308,6 +313,46 @@ jobs:
             -DSDL_STATIC=ON \\
             -DSDL_SHARED=OFF \\
             -DSDL_TESTS=OFF
+
+          # Patch x86_context.h generato da XboxRecomp2 per AppleClang 16 (LLVM 17 non ha __builtin_elementwise_sqrt / __builtin_issignaling)
+          python3 - "build-ios/ShadowRecompLib/x86/x86_context.h" << 'PY_X86_CTX'
+          import sys, pathlib
+          p = pathlib.Path(sys.argv[1])
+          if p.exists():
+              src = p.read_text(encoding="utf-8")
+              if "SHADOW_IOS_CLANG_BUILTINS_H" not in src:
+                  polyfill = '''#ifndef SHADOW_IOS_CLANG_BUILTINS_H
+          #define SHADOW_IOS_CLANG_BUILTINS_H
+          #if defined(__APPLE__) && defined(__cplusplus)
+          #include <bit>
+          #include <cmath>
+          #include <cstdint>
+          #if !__has_builtin(__builtin_elementwise_sqrt)
+          static inline float shadow_ios_builtin_sqrt(float x) { return std::sqrt(x); }
+          static inline double shadow_ios_builtin_sqrt(double x) { return std::sqrt(x); }
+          static inline long double shadow_ios_builtin_sqrt(long double x) { return std::sqrt(x); }
+          #define __builtin_elementwise_sqrt(x) shadow_ios_builtin_sqrt(x)
+          #endif
+          #if !__has_builtin(__builtin_issignaling)
+          static inline bool shadow_ios_builtin_issignaling(float x) {
+              uint32_t bits = std::bit_cast<uint32_t>(x);
+              return ((bits & 0x7F800000u) == 0x7F800000u) && ((bits & 0x00400000u) == 0u) && ((bits & 0x003FFFFFu) != 0u);
+          }
+          static inline bool shadow_ios_builtin_issignaling(double x) {
+              uint64_t bits = std::bit_cast<uint64_t>(x);
+              return ((bits & 0x7FF0000000000000ull) == 0x7FF0000000000000ull) && ((bits & 0x0008000000000000ull) == 0ull) && ((bits & 0x0007FFFFFFFFFFFFull) != 0ull);
+          }
+          static inline bool shadow_ios_builtin_issignaling(long double x) {
+              return shadow_ios_builtin_issignaling(static_cast<double>(x));
+          }
+          #define __builtin_issignaling(x) shadow_ios_builtin_issignaling(x)
+          #endif
+          #endif
+          #endif
+          '''
+                  p.write_text(polyfill + src, encoding="utf-8")
+                  print("Patched build-ios/ShadowRecompLib/x86/x86_context.h for AppleClang 16 builtins")
+          PY_X86_CTX
 
       - name: 8. Compila ShadowRecomp.app (arm64 Unsigned via Ninja)
         working-directory: ShadowRecomp-Upstream
