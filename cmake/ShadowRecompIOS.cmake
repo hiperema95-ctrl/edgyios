@@ -31,13 +31,15 @@ function(shadow_configure_ios_target TARGET_NAME)
         SHADOW_IOS_PROMOTION_120HZ=1
     )
 
-    # Disabilita PCH sui file Objective-C++ (.mm)
+    # Disabilita PCH e abilita ARC (-fobjc-arc) sui file Objective-C++ (.mm) per Ninja/AppleClang
     set_source_files_properties(
         "os/ios/ios_platform.mm"
         "os/ios/nfd_ios.mm"
         "os/ios/ios_mod_manager.mm"
         "os/ios/curl_ios_stub.mm"
-        PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+        PROPERTIES
+            SKIP_PRECOMPILE_HEADERS ON
+            COMPILE_OPTIONS "-fobjc-arc"
     )
 
     # Link statico MoltenVK (Vulkan -> Apple Metal 3)

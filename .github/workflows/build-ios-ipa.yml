@@ -208,7 +208,7 @@ jobs:
           fi
           echo "==> MoltenVK Static Library: ${MOLTENVK_LIB}"
 
-          cmake -B build-ios -G Xcode \
+          cmake -B build-ios -G Ninja \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_SYSROOT="${IOS_SDK}" \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
@@ -217,13 +217,6 @@ jobs:
             -DCMAKE_PREFIX_PATH="${GITHUB_WORKSPACE}/ios-deps/freetype-install" \
             -DFREETYPE_INCLUDE_DIRS="${GITHUB_WORKSPACE}/ios-deps/freetype-install/include/freetype2" \
             -DFREETYPE_LIBRARY="${GITHUB_WORKSPACE}/ios-deps/freetype-install/lib/libfreetype.a" \
-            -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO \
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="" \
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO \
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \
-            -DCMAKE_XCODE_ATTRIBUTE_ENABLE_BITCODE=NO \
-            -DCMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER="${BUNDLE_ID}" \
-            -DCMAKE_XCODE_ATTRIBUTE_MARKETING_VERSION="${APP_VERSION}" \
             -DCMAKE_C_FLAGS="-Wl,-pie -fPIC" \
             -DCMAKE_CXX_FLAGS="-Wl,-pie -fPIC" \
             -DSHADOW_IOS_PORT=ON \
@@ -236,21 +229,13 @@ jobs:
             -DSDL_SHARED=OFF \
             -DSDL_TESTS=OFF
 
-      - name: 8. Compila ShadowRecomp.app (arm64 Unsigned)
+      - name: 8. Compila ShadowRecomp.app (arm64 Unsigned via Ninja)
         working-directory: ShadowRecomp-Upstream
         run: |
-          CONFIG="${{ inputs.build_configuration || 'Release' }}"
-          cmake --build build-ios --config "${CONFIG}" --target ShadowRecomp -- \
-            -sdk iphoneos \
-            -arch arm64 \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          cmake --build build-ios --target ShadowRecomp --parallel "$(sysctl -n hw.ncpu)"
 
       - name: 9. Firma Ad-Hoc (ldid) & Impacchetta IPA Unsigned per Feather / LiveContainer
         run: |
-          CONFIG="${{ inputs.build_configuration || 'Release' }}"
           APP_BUNDLE="$(find ShadowRecomp-Upstream/build-ios -type d -name "${APP_NAME}.app" | head -n 1)"
           if [ -z "${APP_BUNDLE}" ]; then
             echo "::error::Bundle ${APP_NAME}.app non trovato in build-ios!"
@@ -260,11 +245,24 @@ jobs:
           echo "==> Trovato bundle: ${APP_BUNDLE}"
 
           rm -rf Payload
-          mkdir -p Payload
-          cp -R "${APP_BUNDLE}" "Payload/${APP_NAME}.app"
-          cp ios-port/ios/Info.plist "Payload/${APP_NAME}.app/Info.plist"
+          mkdir -p "Payload/${APP_NAME}.app"
+          if [ -f "${APP_BUNDLE}/${APP_NAME}" ]; then
+            cp -R "${APP_BUNDLE}/." "Payload/${APP_NAME}.app/"
+          elif [ -f "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" ]; then
+            cp "${APP_BUNDLE}/Contents/MacOS/${APP_NAME}" "Payload/${APP_NAME}.app/${APP_NAME}"
+            if [ -d "${APP_BUNDLE}/Contents/Resources" ]; then
+              cp -R "${APP_BUNDLE}/Contents/Resources/." "Payload/${APP_NAME}.app/"
+            fi
+          else
+            echo "::error::Binario ${APP_NAME} non trovato dentro ${APP_BUNDLE}!"
+            find "${APP_BUNDLE}" -maxdepth 4
+            exit 1
+          fi
 
-          # Rimuove eventuali firme residui e applica firma ad-hoc con entitlement RAM aumentata
+          cp ios-port/ios/Info.plist "Payload/${APP_NAME}.app/Info.plist"
+          file "Payload/${APP_NAME}.app/${APP_NAME}"
+
+          # Rimuove eventuali firme residue e applica firma ad-hoc con entitlement RAM aumentata
           rm -rf "Payload/${APP_NAME}.app/_CodeSignature"
           ldid -Sios-port/ios/Entitlements.plist "Payload/${APP_NAME}.app/${APP_NAME}"
           chmod +x "Payload/${APP_NAME}.app/${APP_NAME}"

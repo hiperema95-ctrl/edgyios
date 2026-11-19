@@ -288,7 +288,7 @@ jobs:
           fi
           echo "==> MoltenVK Static Library: \${MOLTENVK_LIB}"
 
-          cmake -B build-ios -G Xcode \\
+          cmake -B build-ios -G Ninja \\
             -DCMAKE_SYSTEM_NAME=iOS \\
             -DCMAKE_OSX_SYSROOT="\${IOS_SDK}" \\
             -DCMAKE_OSX_ARCHITECTURES=arm64 \\
@@ -297,13 +297,6 @@ jobs:
             -DCMAKE_PREFIX_PATH="\${GITHUB_WORKSPACE}/ios-deps/freetype-install" \\
             -DFREETYPE_INCLUDE_DIRS="\${GITHUB_WORKSPACE}/ios-deps/freetype-install/include/freetype2" \\
             -DFREETYPE_LIBRARY="\${GITHUB_WORKSPACE}/ios-deps/freetype-install/lib/libfreetype.a" \\
-            -DCMAKE_XCODE_ATTRIBUTE_ONLY_ACTIVE_ARCH=NO \\
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY="" \\
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_REQUIRED=NO \\
-            -DCMAKE_XCODE_ATTRIBUTE_CODE_SIGNING_ALLOWED=NO \\
-            -DCMAKE_XCODE_ATTRIBUTE_ENABLE_BITCODE=NO \\
-            -DCMAKE_XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER="\${BUNDLE_ID}" \\
-            -DCMAKE_XCODE_ATTRIBUTE_MARKETING_VERSION="\${APP_VERSION}" \\
             -DCMAKE_C_FLAGS="${pieFlags}" \\
             -DCMAKE_CXX_FLAGS="${pieFlags}" \\
             -DSHADOW_IOS_PORT=ON \\
@@ -316,21 +309,13 @@ jobs:
             -DSDL_SHARED=OFF \\
             -DSDL_TESTS=OFF
 
-      - name: 8. Compila ShadowRecomp.app (arm64 Unsigned)
+      - name: 8. Compila ShadowRecomp.app (arm64 Unsigned via Ninja)
         working-directory: ShadowRecomp-Upstream
         run: |
-          CONFIG="\${{ inputs.build_configuration || '${config.buildConfiguration}' }}"
-          cmake --build build-ios --config "\${CONFIG}" --target ShadowRecomp -- \\
-            -sdk iphoneos \\
-            -arch arm64 \\
-            CODE_SIGN_IDENTITY="" \\
-            CODE_SIGNING_REQUIRED=NO \\
-            CODE_SIGNING_ALLOWED=NO \\
-            AD_HOC_CODE_SIGNING_ALLOWED=YES
+          cmake --build build-ios --target ShadowRecomp --parallel "\$(sysctl -n hw.ncpu)"
 
       - name: 9. Firma Ad-Hoc (ldid) & Impacchetta IPA Unsigned per Feather / LiveContainer
         run: |
-          CONFIG="\${{ inputs.build_configuration || '${config.buildConfiguration}' }}"
           APP_BUNDLE="\$(find ShadowRecomp-Upstream/build-ios -type d -name "\${APP_NAME}.app" | head -n 1)"
           if [ -z "\${APP_BUNDLE}" ]; then
             echo "::error::Bundle \${APP_NAME}.app non trovato in build-ios!"
@@ -340,11 +325,24 @@ jobs:
           echo "==> Trovato bundle: \${APP_BUNDLE}"
 
           rm -rf Payload
-          mkdir -p Payload
-          cp -R "\${APP_BUNDLE}" "Payload/\${APP_NAME}.app"
-          cp ios-port/ios/Info.plist "Payload/\${APP_NAME}.app/Info.plist"
+          mkdir -p "Payload/\${APP_NAME}.app"
+          if [ -f "\${APP_BUNDLE}/\${APP_NAME}" ]; then
+            cp -R "\${APP_BUNDLE}/." "Payload/\${APP_NAME}.app/"
+          elif [ -f "\${APP_BUNDLE}/Contents/MacOS/\${APP_NAME}" ]; then
+            cp "\${APP_BUNDLE}/Contents/MacOS/\${APP_NAME}" "Payload/\${APP_NAME}.app/\${APP_NAME}"
+            if [ -d "\${APP_BUNDLE}/Contents/Resources" ]; then
+              cp -R "\${APP_BUNDLE}/Contents/Resources/." "Payload/\${APP_NAME}.app/"
+            fi
+          else
+            echo "::error::Binario \${APP_NAME} non trovato dentro \${APP_BUNDLE}!"
+            find "\${APP_BUNDLE}" -maxdepth 4
+            exit 1
+          fi
 
-          # Rimuove eventuali firme residui e applica firma ad-hoc con entitlement RAM aumentata
+          cp ios-port/ios/Info.plist "Payload/\${APP_NAME}.app/Info.plist"
+          file "Payload/\${APP_NAME}.app/\${APP_NAME}"
+
+          # Rimuove eventuali firme residue e applica firma ad-hoc con entitlement RAM aumentata
           rm -rf "Payload/\${APP_NAME}.app/_CodeSignature"
           ldid -Sios-port/ios/Entitlements.plist "Payload/\${APP_NAME}.app/\${APP_NAME}"
           chmod +x "Payload/\${APP_NAME}.app/\${APP_NAME}"
@@ -738,13 +736,15 @@ function(shadow_configure_ios_target TARGET_NAME)
         ${config.enable120HzProMotion ? 'SHADOW_IOS_PROMOTION_120HZ=1' : 'SHADOW_IOS_PROMOTION_120HZ=0'}
     )
 
-    # Disabilita PCH sui file Objective-C++ (.mm)
+    # Disabilita PCH e abilita ARC (-fobjc-arc) sui file Objective-C++ (.mm) per Ninja/AppleClang
     set_source_files_properties(
         "os/ios/ios_platform.mm"
         "os/ios/nfd_ios.mm"
         "os/ios/ios_mod_manager.mm"
         "os/ios/curl_ios_stub.mm"
-        PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+        PROPERTIES
+            SKIP_PRECOMPILE_HEADERS ON
+            COMPILE_OPTIONS "-fobjc-arc"
     )
 
     # Link statico MoltenVK (Vulkan -> Apple Metal 3)
@@ -1158,6 +1158,7 @@ const char* NFD_GetError(void) {
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -1366,21 +1367,34 @@ extern "C" {
 typedef void CURL;
 typedef int CURLcode;
 typedef int CURLoption;
+typedef int CURLINFO;
+struct curl_slist { char* data; struct curl_slist* next; };
 
 #define CURLE_OK 0
 #define CURLE_UNSUPPORTED_PROTOCOL 1
+#define CURL_GLOBAL_DEFAULT 3L
 #define CURLOPT_URL 10002
 #define CURLOPT_USERAGENT 10018
 #define CURLOPT_WRITEFUNCTION 20011
 #define CURLOPT_WRITEDATA 10001
 #define CURLOPT_FOLLOWLOCATION 52
 #define CURLOPT_TIMEOUT 13
+#define CURLOPT_CONNECTTIMEOUT 78
+#define CURLOPT_HTTPHEADER 10023
+#define CURLOPT_FAILONERROR 45
+#define CURLOPT_SSL_VERIFYPEER 64
+#define CURLINFO_RESPONSE_CODE 0x200002
 
+CURLcode curl_global_init(long flags);
+void curl_global_cleanup(void);
 CURL* curl_easy_init(void);
 CURLcode curl_easy_setopt(CURL* curl, CURLoption option, ...);
 CURLcode curl_easy_perform(CURL* curl);
+CURLcode curl_easy_getinfo(CURL* curl, CURLINFO info, ...);
 void curl_easy_cleanup(CURL* curl);
 const char* curl_easy_strerror(CURLcode code);
+struct curl_slist* curl_slist_append(struct curl_slist* list, const char* string);
+void curl_slist_free_all(struct curl_slist* list);
 
 #ifdef __cplusplus
 }
@@ -1390,11 +1404,16 @@ const char* curl_easy_strerror(CURLcode code);
 #include <curl/curl.h>
 
 extern "C" {
+CURLcode curl_global_init(long) { return CURLE_OK; }
+void curl_global_cleanup(void) {}
 CURL* curl_easy_init(void) { return reinterpret_cast<CURL*>(1); }
 CURLcode curl_easy_setopt(CURL*, CURLoption, ...) { return CURLE_OK; }
 CURLcode curl_easy_perform(CURL*) { return CURLE_UNSUPPORTED_PROTOCOL; }
+CURLcode curl_easy_getinfo(CURL*, CURLINFO, ...) { return CURLE_OK; }
 void curl_easy_cleanup(CURL*) {}
 const char* curl_easy_strerror(CURLcode) { return "Update checker disabled on iOS sideload"; }
+struct curl_slist* curl_slist_append(struct curl_slist* list, const char*) { return list; }
+void curl_slist_free_all(struct curl_slist*) {}
 }`;
 
   const infoPlist = `<?xml version="1.0" encoding="UTF-8"?>

@@ -1,0 +1,2569 @@
+Run CONFIG="Release"
+==> MoltenVK Static Library: /Users/runner/work/edgyios/edgyios/ios-deps/moltenvk/MoltenVK/MoltenVK/static/MoltenVK.xcframework/ios-arm64/libMoltenVK.a
+-- ShadowRecomp iOS: uso toolchain iOS nativa invece di vcpkg desktop.
+-- The C compiler identification is AppleClang 16.0.0.16000026
+-- The CXX compiler identification is AppleClang 16.0.0.16000026
+-- Detecting C compiler ABI info
+-- Detecting C compiler ABI info - done
+-- Check for working C compiler: /Applications/Xcode_16.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang - skipped
+-- Detecting C compile features
+-- Detecting C compile features - done
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /Applications/Xcode_16.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Detected architecture: arm64
+-- Performing Test SHADOW_RECOMP_HAS_ZERO_CALL_USED_REGS
+-- Performing Test SHADOW_RECOMP_HAS_ZERO_CALL_USED_REGS - Success
+-- Found Freetype: /Users/runner/work/edgyios/edgyios/ios-deps/freetype-install/lib/libfreetype.a
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+-- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+-- Found Threads: TRUE
+-- Found PkgConfig: /opt/homebrew/bin/pkg-config (found version "3.0.10")
+-- The OBJC compiler identification is AppleClang 16.0.0.16000026
+-- Detecting OBJC compiler ABI info
+-- Detecting OBJC compiler ABI info - done
+-- Check for working OBJC compiler: /Applications/Xcode_16.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang - skipped
+-- Performing Test HAVE_GCC_WALL
+-- Performing Test HAVE_GCC_WALL - Success
+-- Performing Test HAVE_GCC_WUNDEF
+-- Performing Test HAVE_GCC_WUNDEF - Success
+-- Performing Test HAVE_GCC_WFLOAT_CONVERSION
+-- Performing Test HAVE_GCC_WFLOAT_CONVERSION - Success
+-- Performing Test HAVE_GCC_NO_STRICT_ALIASING
+-- Performing Test HAVE_GCC_NO_STRICT_ALIASING - Success
+-- Performing Test HAVE_GCC_WDOCUMENTATION
+-- Performing Test HAVE_GCC_WDOCUMENTATION - Success
+-- Performing Test HAVE_GCC_WDOCUMENTATION_UNKNOWN_COMMAND
+-- Performing Test HAVE_GCC_WDOCUMENTATION_UNKNOWN_COMMAND - Success
+-- Performing Test HAVE_GCC_COMMENT_BLOCK_COMMANDS
+-- Performing Test HAVE_GCC_COMMENT_BLOCK_COMMANDS - Success
+-- Performing Test HAVE_GCC_WSHADOW
+-- Performing Test HAVE_GCC_WSHADOW - Success
+-- Performing Test HAVE_GCC_WUNUSED_LOCAL_TYPEDEFS
+-- Performing Test HAVE_GCC_WUNUSED_LOCAL_TYPEDEFS - Success
+-- Performing Test HAVE_GCC_WIMPLICIT_FALLTHROUGH
+-- Performing Test HAVE_GCC_WIMPLICIT_FALLTHROUGH - Success
+-- Performing Test COMPILER_SUPPORTS_FCOLOR_DIAGNOSTICS
+-- Performing Test COMPILER_SUPPORTS_FCOLOR_DIAGNOSTICS - Success
+-- Looking for __GLIBC__
+-- Looking for __GLIBC__ - not found
+-- Performing Test HAVE_WL_VERSION_SCRIPT
+-- Performing Test HAVE_WL_VERSION_SCRIPT - Failed
+-- Performing Test COMPILER_SUPPORTS_GCC_ATOMICS
+-- Performing Test COMPILER_SUPPORTS_GCC_ATOMICS - Success
+-- Performing Test HAVE_GCC_FVISIBILITY
+-- Performing Test HAVE_GCC_FVISIBILITY - Failed
+-- Performing Test COMPILER_SUPPORTS_WNO_ERROR_DEPRECATED_DECLARATIONS
+-- Performing Test COMPILER_SUPPORTS_WNO_ERROR_DEPRECATED_DECLARATIONS - Success
+-- Performing Test COMPILER_SUPPORTS_WNO_DEPRECATED_DECLARATIONS
+-- Performing Test COMPILER_SUPPORTS_WNO_DEPRECATED_DECLARATIONS - Success
+-- Performing Test LINKER_SUPPORTS_WL_NO_UNDEFINED
+-- Performing Test LINKER_SUPPORTS_WL_NO_UNDEFINED - Failed
+-- Performing Test COMPILER_SUPPORTS_ARMNEON
+-- Performing Test COMPILER_SUPPORTS_ARMNEON - Success
+-- Looking for alloca.h
+-- Looking for alloca.h - found
+-- Looking for float.h
+-- Looking for float.h - found
+-- Looking for iconv.h
+-- Looking for iconv.h - found
+-- Looking for inttypes.h
+-- Looking for inttypes.h - found
+-- Looking for limits.h
+-- Looking for limits.h - found
+-- Looking for malloc.h
+-- Looking for malloc.h - not found
+-- Looking for math.h
+-- Looking for math.h - found
+-- Looking for memory.h
+-- Looking for memory.h - found
+-- Looking for signal.h
+-- Looking for signal.h - found
+-- Looking for stdarg.h
+-- Looking for stdarg.h - found
+-- Looking for stdbool.h
+-- Looking for stdbool.h - found
+-- Looking for stddef.h
+-- Looking for stddef.h - found
+-- Looking for stdint.h
+-- Looking for stdint.h - found
+-- Looking for stdio.h
+-- Looking for stdio.h - found
+-- Looking for stdlib.h
+-- Looking for stdlib.h - found
+-- Looking for string.h
+-- Looking for string.h - found
+-- Looking for strings.h
+-- Looking for strings.h - found
+-- Looking for sys/types.h
+-- Looking for sys/types.h - found
+-- Looking for time.h
+-- Looking for time.h - found
+-- Looking for wchar.h
+-- Looking for wchar.h - found
+-- Looking for pow in m
+-- Looking for pow in m - found
+-- Looking for abs
+-- Looking for abs - found
+-- Looking for acos
+-- Looking for acos - found
+-- Looking for acosf
+-- Looking for acosf - found
+-- Looking for asin
+-- Looking for asin - found
+-- Looking for asinf
+-- Looking for asinf - found
+-- Looking for atan
+-- Looking for atan - found
+-- Looking for atan2
+-- Looking for atan2 - found
+-- Looking for atan2f
+-- Looking for atan2f - found
+-- Looking for atanf
+-- Looking for atanf - found
+-- Looking for atof
+-- Looking for atof - found
+-- Looking for atoi
+-- Looking for atoi - found
+-- Looking for bcopy
+-- Looking for bcopy - found
+-- Looking for ceil
+-- Looking for ceil - found
+-- Looking for ceilf
+-- Looking for ceilf - found
+-- Looking for copysign
+-- Looking for copysign - found
+-- Looking for copysignf
+-- Looking for copysignf - found
+-- Looking for cos
+-- Looking for cos - found
+-- Looking for cosf
+-- Looking for cosf - found
+-- Looking for _Exit
+-- Looking for _Exit - found
+-- Looking for exp
+-- Looking for exp - found
+-- Looking for expf
+-- Looking for expf - found
+-- Looking for fabs
+-- Looking for fabs - found
+-- Looking for fabsf
+-- Looking for fabsf - found
+-- Looking for floor
+-- Looking for floor - found
+-- Looking for floorf
+-- Looking for floorf - found
+-- Looking for fmod
+-- Looking for fmod - found
+-- Looking for fmodf
+-- Looking for fmodf - found
+-- Looking for fopen64
+-- Looking for fopen64 - not found
+-- Looking for fseeko
+-- Looking for fseeko - found
+-- Looking for fseeko64
+-- Looking for fseeko64 - not found
+-- Looking for getenv
+-- Looking for getenv - found
+-- Looking for _i64toa
+-- Looking for _i64toa - not found
+-- Looking for index
+-- Looking for index - found
+-- Looking for itoa
+-- Looking for itoa - not found
+-- Looking for log
+-- Looking for log - found
+-- Looking for log10
+-- Looking for log10 - found
+-- Looking for log10f
+-- Looking for log10f - found
+-- Looking for logf
+-- Looking for logf - found
+-- Looking for lround
+-- Looking for lround - found
+-- Looking for lroundf
+-- Looking for lroundf - found
+-- Looking for _ltoa
+-- Looking for _ltoa - not found
+-- Looking for malloc
+-- Looking for malloc - found
+-- Looking for memcmp
+-- Looking for memcmp - found
+-- Looking for memcpy
+-- Looking for memcpy - found
+-- Looking for memmove
+-- Looking for memmove - found
+-- Looking for memset
+-- Looking for memset - found
+-- Looking for modf
+-- Looking for modf - found
+-- Looking for modff
+-- Looking for modff - found
+-- Looking for pow
+-- Looking for pow - found
+-- Looking for powf
+-- Looking for powf - found
+-- Looking for putenv
+-- Looking for putenv - found
+-- Looking for rindex
+-- Looking for rindex - found
+-- Looking for round
+-- Looking for round - found
+-- Looking for roundf
+-- Looking for roundf - found
+-- Looking for scalbn
+-- Looking for scalbn - found
+-- Looking for scalbnf
+-- Looking for scalbnf - found
+-- Looking for setenv
+-- Looking for setenv - found
+-- Looking for sin
+-- Looking for sin - found
+-- Looking for sinf
+-- Looking for sinf - found
+-- Looking for sqr
+-- Looking for sqr - not found
+-- Looking for sqrt
+-- Looking for sqrt - found
+-- Looking for sqrtf
+-- Looking for sqrtf - found
+-- Looking for sscanf
+-- Looking for sscanf - found
+-- Looking for strchr
+-- Looking for strchr - found
+-- Looking for strcmp
+-- Looking for strcmp - found
+-- Looking for strlcat
+-- Looking for strlcat - found
+-- Looking for strlcpy
+-- Looking for strlcpy - found
+-- Looking for strlen
+-- Looking for strlen - found
+-- Looking for strncmp
+-- Looking for strncmp - found
+-- Looking for strnlen
+-- Looking for strnlen - found
+-- Looking for strpbrk
+-- Looking for strpbrk - found
+-- Looking for strrchr
+-- Looking for strrchr - found
+-- Looking for strstr
+-- Looking for strstr - found
+-- Looking for strnstr
+-- Looking for strnstr - found
+-- Looking for strtod
+-- Looking for strtod - found
+-- Looking for strtok_r
+-- Looking for strtok_r - found
+-- Looking for strtol
+-- Looking for strtol - found
+-- Looking for strtoll
+-- Looking for strtoll - found
+-- Looking for strtoul
+-- Looking for strtoul - found
+-- Looking for strtoull
+-- Looking for strtoull - found
+-- Looking for tan
+-- Looking for tan - found
+-- Looking for tanf
+-- Looking for tanf - found
+-- Looking for trunc
+-- Looking for trunc - found
+-- Looking for truncf
+-- Looking for truncf - found
+-- Looking for unsetenv
+-- Looking for unsetenv - found
+-- Looking for vsnprintf
+-- Looking for vsnprintf - found
+-- Looking for vsscanf
+-- Looking for vsscanf - found
+-- Looking for wcsnlen
+-- Looking for wcsnlen - found
+-- Looking for wcscmp
+-- Looking for wcscmp - found
+-- Looking for wcsdup
+-- Looking for wcsdup - found
+-- Looking for wcslcat
+-- Looking for wcslcat - found
+-- Looking for wcslcpy
+-- Looking for wcslcpy - found
+-- Looking for wcslen
+-- Looking for wcslen - found
+-- Looking for wcsncmp
+-- Looking for wcsncmp - found
+-- Looking for wcsstr
+-- Looking for wcsstr - found
+-- Looking for wcstol
+-- Looking for wcstol - found
+-- Looking for strcasestr
+-- Looking for strcasestr - found
+-- Performing Test LIBC_HAS_ISINF
+-- Performing Test LIBC_HAS_ISINF - Failed
+-- Performing Test LIBC_ISINF_HANDLES_FLOAT
+-- Performing Test LIBC_ISINF_HANDLES_FLOAT - Failed
+-- Performing Test LIBC_HAS_ISINFF
+-- Performing Test LIBC_HAS_ISINFF - Failed
+-- Performing Test LIBC_HAS_ISNAN
+-- Performing Test LIBC_HAS_ISNAN - Failed
+-- Performing Test LIBC_ISNAN_HANDLES_FLOAT
+-- Performing Test LIBC_ISNAN_HANDLES_FLOAT - Failed
+-- Performing Test LIBC_HAS_ISNANF
+-- Performing Test LIBC_HAS_ISNANF - Failed
+-- Looking for fdatasync
+-- Looking for fdatasync - not found
+-- Looking for gethostname
+-- Looking for gethostname - found
+-- Looking for getpagesize
+-- Looking for getpagesize - found
+-- Looking for getresgid
+-- Looking for getresgid - not found
+-- Looking for getresuid
+-- Looking for getresuid - not found
+-- Looking for sigaction
+-- Looking for sigaction - found
+-- Looking for sigtimedwait
+-- Looking for sigtimedwait - not found
+-- Looking for setjmp
+-- Looking for setjmp - found
+-- Looking for nanosleep
+-- Looking for nanosleep - found
+-- Looking for gmtime_r
+-- Looking for gmtime_r - found
+-- Looking for localtime_r
+-- Looking for localtime_r - found
+-- Looking for nl_langinfo
+-- Looking for nl_langinfo - found
+-- Looking for sysconf
+-- Looking for sysconf - found
+-- Looking for sysctlbyname
+-- Looking for sysctlbyname - found
+-- Looking for getauxval
+-- Looking for getauxval - not found
+-- Looking for elf_aux_info
+-- Looking for elf_aux_info - not found
+-- Looking for ppoll
+-- Looking for ppoll - not found
+-- Looking for memfd_create
+-- Looking for memfd_create - not found
+-- Looking for posix_fallocate
+-- Looking for posix_fallocate - not found
+-- Looking for posix_spawn_file_actions_addchdir
+-- Looking for posix_spawn_file_actions_addchdir - not found
+-- Looking for posix_spawn_file_actions_addchdir_np
+-- Looking for posix_spawn_file_actions_addchdir_np - not found
+-- Looking for dlopen
+-- Looking for dlopen - found
+-- Performing Test HAVE_O_CLOEXEC
+-- Performing Test HAVE_O_CLOEXEC - Success
+-- Checking for module 'libusb-1.0>=1.0.16'
+--   Found libusb-1.0, version 1.0.30
+-- Could NOT find LibUSB (missing: LibUSB_LIBRARY LibUSB_INCLUDE_PATH) (found version "LibUSB_VERSION-NOTFOUND")
+-- Performing Test HAVE_FRAMEWORK_METAL
+-- Performing Test HAVE_FRAMEWORK_METAL - Success
+-- Performing Test HAVE_PTHREADS
+-- Performing Test HAVE_PTHREADS - Success
+-- Performing Test HAVE_RECURSIVE_MUTEXES
+-- Performing Test HAVE_RECURSIVE_MUTEXES - Success
+-- Performing Test HAVE_PTHREADS_SEM
+-- Performing Test HAVE_PTHREADS_SEM - Success
+-- Performing Test COMPILER_HAS_SEM_TIMEDWAIT
+-- Performing Test COMPILER_HAS_SEM_TIMEDWAIT - Failed
+-- Looking for pthread.h
+-- Looking for pthread.h - found
+-- Looking for pthread_np.h
+-- Looking for pthread_np.h - not found
+-- Performing Test HAVE_PTHREAD_SETNAME_NP
+-- Performing Test HAVE_PTHREAD_SETNAME_NP - Success
+-- Performing Test HAVE_POSIX_SPAWN
+-- Performing Test HAVE_POSIX_SPAWN - Success
+-- Performing Test COMPILER_SUPPORTS_FOBJC_ARC
+-- Performing Test COMPILER_SUPPORTS_FOBJC_ARC - Success
+-- 
+-- SDL3 was configured with the following options:
+-- 
+-- Platform: iOS
+-- 64-bit:   TRUE
+-- Compiler: /Applications/Xcode_16.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang
+-- Revision: SDL-3.4.18-829a65d
+-- Vendor:   
+-- 
+-- Subsystems:
+--   Audio:    ON
+--   Video:    ON
+--   GPU:      ON
+--   Render:   ON
+--   Camera:   ON
+--   Joystick: ON
+--   Haptic:   ON
+--   Hidapi:   ON
+--   Power:    ON
+--   Sensor:   ON
+--   Dialog:   ON
+--   Tray:     ON
+-- 
+-- Options:
+--   SDL_ALSA                    (Wanted: OFF): OFF
+--   SDL_ALSA_SHARED             (Wanted: OFF): OFF
+--   SDL_ALTIVEC                 (Wanted: OFF): OFF
+--   SDL_ARMNEON                 (Wanted: ON): ON
+--   SDL_ASAN                    (Wanted: OFF): OFF
+--   SDL_ASSEMBLY                (Wanted: ON): ON
+--   SDL_ASSERTIONS              (Wanted: auto): auto
+--   SDL_AVX                     (Wanted: OFF): OFF
+--   SDL_AVX2                    (Wanted: OFF): OFF
+--   SDL_AVX512F                 (Wanted: OFF): OFF
+--   SDL_BACKGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_CCACHE                  (Wanted: OFF): OFF
+--   SDL_CLANG_TIDY              (Wanted: OFF): OFF
+--   SDL_CLOCK_GETTIME           (Wanted: OFF): OFF
+--   SDL_COCOA                   (Wanted: ON): OFF
+--   SDL_DBUS                    (Wanted: OFF): OFF
+--   SDL_DEPS_SHARED             (Wanted: ON): OFF
+--   SDL_DIRECTX                 (Wanted: OFF): OFF
+--   SDL_DISKAUDIO               (Wanted: ON): ON
+--   SDL_DLOPEN_NOTES            (Wanted: OFF): OFF
+--   SDL_DUMMYAUDIO              (Wanted: ON): ON
+--   SDL_DUMMYCAMERA             (Wanted: ON): ON
+--   SDL_DUMMYVIDEO              (Wanted: ON): ON
+--   SDL_EXAMPLES                (Wanted: OFF): OFF
+--   SDL_EXAMPLES_LINK_SHARED    (Wanted: OFF): OFF
+--   SDL_FOREGROUNDING_SIGNAL    (Wanted: OFF): OFF
+--   SDL_FRIBIDI                 (Wanted: OFF): OFF
+--   SDL_FRIBIDI_SHARED          (Wanted: OFF): OFF
+--   SDL_GCC_ATOMICS             (Wanted: ON): ON
+--   SDL_HIDAPI                  (Wanted: ON): ON
+--   SDL_HIDAPI_JOYSTICK         (Wanted: ON): ON
+--   SDL_HIDAPI_LIBUSB           (Wanted: ON): OFF
+--   SDL_HIDAPI_LIBUSB_SHARED    (Wanted: ON): OFF
+--   SDL_IBUS                    (Wanted: OFF): OFF
+--   SDL_INSTALL                 (Wanted: OFF): OFF
+--   SDL_INSTALL_TESTS           (Wanted: OFF): OFF
+--   SDL_JACK                    (Wanted: OFF): OFF
+--   SDL_JACK_SHARED             (Wanted: OFF): OFF
+--   SDL_KMSDRM                  (Wanted: OFF): OFF
+--   SDL_KMSDRM_SHARED           (Wanted: OFF): OFF
+--   SDL_LASX                    (Wanted: OFF): OFF
+--   SDL_LIBC                    (Wanted: ON): ON
+--   SDL_LIBICONV                (Wanted: OFF): OFF
+--   SDL_LIBTHAI                 (Wanted: OFF): OFF
+--   SDL_LIBTHAI_SHARED          (Wanted: OFF): OFF
+--   SDL_LIBUDEV                 (Wanted: ON): OFF
+--   SDL_LIBURING                (Wanted: OFF): OFF
+--   SDL_LSX                     (Wanted: OFF): OFF
+--   SDL_METAL                   (Wanted: ON): ON
+--   SDL_MMX                     (Wanted: OFF): OFF
+--   SDL_OFFSCREEN               (Wanted: ON): ON
+--   SDL_OPENGL                  (Wanted: OFF): OFF
+--   SDL_OPENGLES                (Wanted: ON): ON
+--   SDL_OPENVR                  (Wanted: OFF): OFF
+--   SDL_OSS                     (Wanted: OFF): OFF
+--   SDL_PIPEWIRE                (Wanted: OFF): OFF
+--   SDL_PIPEWIRE_SHARED         (Wanted: OFF): OFF
+--   SDL_PTHREADS                (Wanted: ON): ON
+--   SDL_PTHREADS_SEM            (Wanted: ON): ON
+--   SDL_PULSEAUDIO              (Wanted: OFF): OFF
+--   SDL_PULSEAUDIO_SHARED       (Wanted: OFF): OFF
+--   SDL_RENDER_D3D              (Wanted: OFF): OFF
+--   SDL_RENDER_D3D11            (Wanted: OFF): OFF
+--   SDL_RENDER_D3D12            (Wanted: OFF): OFF
+--   SDL_RENDER_GPU              (Wanted: ON): ON
+--   SDL_RENDER_METAL            (Wanted: ON): ON
+--   SDL_RENDER_VULKAN           (Wanted: ON): ON
+--   SDL_ROCKCHIP                (Wanted: OFF): OFF
+--   SDL_RPATH                   (Wanted: ON): OFF
+--   SDL_RPI                     (Wanted: OFF): OFF
+--   SDL_SNDIO                   (Wanted: OFF): OFF
+--   SDL_SNDIO_SHARED            (Wanted: OFF): OFF
+--   SDL_SSE                     (Wanted: OFF): OFF
+--   SDL_SSE2                    (Wanted: OFF): OFF
+--   SDL_SSE3                    (Wanted: OFF): OFF
+--   SDL_SSE4_1                  (Wanted: OFF): OFF
+--   SDL_SSE4_2                  (Wanted: OFF): OFF
+--   SDL_SYSTEM_ICONV            (Wanted: OFF): OFF
+--   SDL_TESTS                   (Wanted: OFF): OFF
+--   SDL_TESTS_LINK_SHARED       (Wanted: OFF): OFF
+--   SDL_UNINSTALL               (Wanted: OFF): OFF
+--   SDL_VIRTUAL_JOYSTICK        (Wanted: ON): ON
+--   SDL_VIVANTE                 (Wanted: OFF): OFF
+--   SDL_VULKAN                  (Wanted: ON): ON
+--   SDL_WASAPI                  (Wanted: OFF): OFF
+--   SDL_WAYLAND                 (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR        (Wanted: OFF): OFF
+--   SDL_WAYLAND_LIBDECOR_SHARED (Wanted: OFF): OFF
+--   SDL_WAYLAND_SHARED          (Wanted: OFF): OFF
+--   SDL_X11                     (Wanted: OFF): OFF
+--   SDL_X11_SHARED              (Wanted: OFF): OFF
+--   SDL_X11_XCURSOR             (Wanted: OFF): OFF
+--   SDL_X11_XDBE                (Wanted: OFF): OFF
+--   SDL_X11_XFIXES              (Wanted: OFF): OFF
+--   SDL_X11_XINPUT              (Wanted: OFF): OFF
+--   SDL_X11_XRANDR              (Wanted: OFF): OFF
+--   SDL_X11_XSCRNSAVER          (Wanted: OFF): OFF
+--   SDL_X11_XSHAPE              (Wanted: OFF): OFF
+--   SDL_X11_XSYNC               (Wanted: OFF): OFF
+--   SDL_X11_XTEST               (Wanted: OFF): OFF
+--   SDL_XINPUT                  (Wanted: OFF): OFF
+-- 
+--  Build Shared Library: OFF
+--  Build Static Library: ON
+--  Build libraries as Apple Framework: OFF
+-- 
+-- Enabled backends:
+--   Video drivers: dummy offscreen uikit
+--   Render drivers: gpu metal ogl_es2 vulkan
+--   GPU drivers: metal vulkan
+--   Audio drivers: coreaudio disk dummy
+--   Joystick drivers: hidapi mfi virtual
+--   Camera drivers: coremedia dummy
+-- 
+-- If something was not detected, although the libraries
+-- were installed, then make sure you have set the
+-- CMAKE_C_FLAGS and CMAKE_PREFIX_PATH CMake variables correctly.
+-- 
+-- Configuring SDL3_mixer 3.2.4
+-- Performing Test LINKER_SUPPORTS_VERSION_SCRIPT
+-- Performing Test LINKER_SUPPORTS_VERSION_SCRIPT - Failed
+-- SDL3_mixer backends:
+-- - enabled:  vorbis_stb wave aiff voc au
+-- - disabled: opus vorbis_tremor vorbis_vorbisfile flac_libflac flac_drflac gme mod_xmp mp3_drmp3 mp3_mpg123 midi_fluidsynth midi_timidity wavpack
+-- The OBJCXX compiler identification is AppleClang 16.0.0.16000026
+-- Detecting OBJCXX compiler ABI info
+-- Detecting OBJCXX compiler ABI info - done
+-- Check for working OBJCXX compiler: /Applications/Xcode_16.2.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang++ - skipped
+-- Plume - Building with backends: Vulkan=1 Metal=1 D3D12=
+-- Plume - SDL2 Vulkan integration: OFF
+-- Plume - SDL3 Vulkan integration: ON
+-- Plume - D3D12 Agility SDK: OFF
+-- Plume - Building examples: OFF
+CMake Warning (deprecated) at tools/XboxRecomp/thirdparty/zydis/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+CMake Warning (deprecated) at tools/XboxRecomp/thirdparty/zydis/dependencies/zycore/CMakeLists.txt:5 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+-- Could NOT find Doxygen (missing: DOXYGEN_EXECUTABLE) 
+-- {fmt} version: 11.1.5
+-- Build type: Release
+-- Performing Test HAS_NULLPTR_WARNING
+-- Performing Test HAS_NULLPTR_WARNING - Success
+-- C++ modules support is disabled. Enable with -DTOMLPLUSPLUS_BUILD_MODULES=ON
+CMake Warning (deprecated) at tools/XboxRecomp/thirdparty/xxHash/cmake_unofficial/CMakeLists.txt:8 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+-- Architecture: arm64
+CMake Warning (deprecated) at tools/XboxRecomp/XboxRecomp/CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 3.10 will be removed from a future version of
+  CMake.
+  Update the VERSION argument <min> value.  Or, use the <min>...<max> syntax
+  to tell CMake that the project requires at least <min> but has been updated
+  to work with policies introduced by <max> or earlier.
+This warning is for project developers.  Use -Wno-author or -Wno-deprecated
+to suppress it.
+-- ZSTD VERSION: 1.6.0
+-- CMAKE_INSTALL_PREFIX: /usr/local
+-- CMAKE_INSTALL_LIBDIR: lib
+-- ZSTD_LEGACY_SUPPORT disabled
+-- Multi-threading support enabled
+-- Performing Test C_FLAG_WALL
+-- Performing Test C_FLAG_WALL - Success
+-- Performing Test CXX_FLAG_WALL
+-- Performing Test CXX_FLAG_WALL - Success
+-- Performing Test C_FLAG_WEXTRA
+-- Performing Test C_FLAG_WEXTRA - Success
+-- Performing Test CXX_FLAG_WEXTRA
+-- Performing Test CXX_FLAG_WEXTRA - Success
+-- Performing Test C_FLAG_WUNDEF
+-- Performing Test C_FLAG_WUNDEF - Success
+-- Performing Test CXX_FLAG_WUNDEF
+-- Performing Test CXX_FLAG_WUNDEF - Success
+-- Performing Test C_FLAG_WSHADOW
+-- Performing Test C_FLAG_WSHADOW - Success
+-- Performing Test CXX_FLAG_WSHADOW
+-- Performing Test CXX_FLAG_WSHADOW - Success
+-- Performing Test C_FLAG_WCAST_ALIGN
+-- Performing Test C_FLAG_WCAST_ALIGN - Success
+-- Performing Test CXX_FLAG_WCAST_ALIGN
+-- Performing Test CXX_FLAG_WCAST_ALIGN - Success
+-- Performing Test C_FLAG_WCAST_QUAL
+-- Performing Test C_FLAG_WCAST_QUAL - Success
+-- Performing Test CXX_FLAG_WCAST_QUAL
+-- Performing Test CXX_FLAG_WCAST_QUAL - Success
+-- Performing Test C_FLAG_WSTRICT_PROTOTYPES
+-- Performing Test C_FLAG_WSTRICT_PROTOTYPES - Success
+-- Performing Test LD_FLAG_WL_Z_NOEXECSTACK
+-- Performing Test LD_FLAG_WL_Z_NOEXECSTACK - Failed
+-- Performing Test C_FLAG_QUNUSED_ARGUMENTS
+-- Performing Test C_FLAG_QUNUSED_ARGUMENTS - Success
+-- Performing Test CXX_FLAG_QUNUSED_ARGUMENTS
+-- Performing Test CXX_FLAG_QUNUSED_ARGUMENTS - Success
+-- Performing Test C_FLAG_WA_NOEXECSTACK
+-- Performing Test C_FLAG_WA_NOEXECSTACK - Success
+-- Performing Test CXX_FLAG_WA_NOEXECSTACK
+-- Performing Test CXX_FLAG_WA_NOEXECSTACK - Success
+-- Looking for _LIBCPP_VERSION
+-- Looking for _LIBCPP_VERSION - found
+-- XboxRecomp2: using /Users/runner/work/edgyios/edgyios/build-host/xboxrecomp2
+[XboxRecomp2] Init...
+[XboxRecomp2] Loading config file /Users/runner/work/edgyios/edgyios/ShadowRecomp-Upstream/build-ios/ShadowRecompLib/recompile/config.toml...
+Searching for functions...
+Fallback function 0x11020: not found from known entry points
+Fallback function 0x11050: not found from known entry points
+Fallback function 0x11070: not found from known entry points
+Fallback function 0x110A0: not found from known entry points
+Fallback function 0x11100: not found from known entry points
+Unresolved Call at 0x1112D in function 0x11100
+Fallback function 0x111E0: not found from known entry points
+Fallback function 0x11210: not found from known entry points
+Unresolved Call at 0x1123C in function 0x11210
+Unresolved Call at 0x11254 in function 0x11210
+Fallback function 0x11410: not found from known entry points
+Fallback function 0x11430: not found from known entry points
+Fallback function 0x115B0: not found from known entry points
+Fallback function 0x115C0: not found from known entry points
+Fallback function 0x115D0: not found from known entry points
+Fallback function 0x115F0: not found from known entry points
+Fallback function 0x11630: not found from known entry points
+Unresolved Call at 0x1164A in function 0x11630
+Fallback function 0x11660: not found from known entry points
+Fallback function 0x11680: not found from known entry points
+Fallback function 0x116B0: not found from known entry points
+Fallback function 0x116E0: not found from known entry points
+Unresolved Call at 0x116E7 in function 0x116E0
+Unresolved Call at 0x116F4 in function 0x116E0
+Unresolved Call at 0x11706 in function 0x116E0
+Unresolved Call at 0x1172E in function 0x116E0
+Unresolved Call at 0x11754 in function 0x116E0
+Unresolved Call at 0x1175F in function 0x116E0
+Unresolved Call at 0x11768 in function 0x116E0
+Unresolved Call at 0x1177B in function 0x116E0
+Fallback function 0x11790: not found from known entry points
+Unresolved Jump at 0x1179C in function 0x11790
+Fallback function 0x117B0: not found from known entry points
+Fallback function 0x11D20: not found from known entry points
+Fallback function 0x11D40: not found from known entry points
+Fallback function 0x11DB0: not found from known entry points
+Fallback function 0x11DE0: not found from known entry points
+Fallback function 0x11EF0: not found from known entry points
+Fallback function 0x11F10: not found from known entry points
+Fallback function 0x11F20: not found from known entry points
+Fallback function 0x11FA0: not found from known entry points
+Fallback function 0x11FB0: not found from known entry points
+Fallback function 0x11FF0: not found from known entry points
+Unresolved Call at 0x12038 in function 0x12030
+Unresolved Jump at 0x120AB in function 0x12070
+Fallback function 0x12078: not found from known entry points
+Unresolved Jump at 0x120AB in function 0x12078
+Fallback function 0x12130: not found from known entry points
+Fallback function 0x12290: not found from known entry points
+Unresolved Call at 0x12388 in function 0x12350
+Fallback function 0x123A0: not found from known entry points
+Fallback function 0x12420: not found from known entry points
+Fallback function 0x12460: not found from known entry points
+Fallback function 0x12520: not found from known entry points
+Fallback function 0x125B0: not found from known entry points
+Fallback function 0x12700: not found from known entry points
+Fallback function 0x127D0: not found from known entry points
+Fallback function 0x12980: not found from known entry points
+Fallback function 0x12A3C: not found from known entry points
+Fallback function 0x12A60: not found from known entry points
+Fallback function 0x12B20: not found from known entry points
+Fallback function 0x12B30: not found from known entry points
+Fallback function 0x12BB0: not found from known entry points
+Fallback function 0x12C00: not found from known entry points
+Fallback function 0x12CD0: not found from known entry points
+Fallback function 0x12DF0: not found from known entry points
+Fallback function 0x12F00: not found from known entry points
+Fallback function 0x12FC0: not found from known entry points
+Fallback function 0x12FE0: not found from known entry points
+Fallback function 0x13170: not found from known entry points
+Fallback function 0x13180: not found from known entry points
+Fallback function 0x131B0: not found from known entry points
+Fallback function 0x131C0: not found from known entry points
+Fallback function 0x131F0: not found from known entry points
+Fallback function 0x13380: not found from known entry points
+Fallback function 0x13440: not found from known entry points
+Fallback function 0x13DC0: not found from known entry points
+Fallback function 0x146A0: not found from known entry points
+Fallback function 0x14710: not found from known entry points
+Fallback function 0x147C0: not found from known entry points
+Fallback function 0x14810: not found from known entry points
+Fallback function 0x14880: not found from known entry points
+Fallback function 0x148E0: not found from known entry points
+Unresolved Call at 0x148F5 in function 0x148E0
+Unresolved Call at 0x1490E in function 0x14900
+Unresolved Call at 0x14938 in function 0x14920
+Fallback function 0x14940: not found from known entry points
+Fallback function 0x14960: not found from known entry points
+Fallback function 0x149B0: not found from known entry points
+Fallback function 0x14A50: not found from known entry points
+Unresolved Call at 0x14AAB in function 0x14A70
+Unresolved Call at 0x14AC2 in function 0x14A70
+Unresolved Call at 0x14AC8 in function 0x14A70
+Unresolved Call at 0x14AD7 in function 0x14A70
+Unresolved Call at 0x14AE6 in function 0x14A70
+Unresolved Call at 0x14AF3 in function 0x14A70
+Unresolved Call at 0x14AFF in function 0x14A70
+Unresolved Call at 0x14B17 in function 0x14A70
+Unresolved Call at 0x14B6B in function 0x14B30
+Unresolved Call at 0x14B76 in function 0x14B30
+Unresolved Call at 0x14B81 in function 0x14B30
+Unresolved Call at 0x14B87 in function 0x14B30
+Unresolved Call at 0x14B96 in function 0x14B30
+Unresolved Call at 0x14BA5 in function 0x14B30
+Unresolved Call at 0x14BB2 in function 0x14B30
+Unresolved Call at 0x14BBE in function 0x14B30
+Unresolved Call at 0x14BD6 in function 0x14B30
+Fallback function 0x14C10: not found from known entry points
+Fallback function 0x14C20: not found from known entry points
+Unresolved Call at 0x14C5A in function 0x14C40
+Unresolved Call at 0x14C9A in function 0x14C80
+Unresolved Call at 0x14CCA in function 0x14CB0
+Fallback function 0x14E10: not found from known entry points
+Fallback function 0x14E40: not found from known entry points
+Fallback function 0x14EA0: not found from known entry points
+Fallback function 0x14F90: not found from known entry points
+Fallback function 0x14FC0: not found from known entry points
+Unresolved Call at 0x15017 in function 0x14FE0
+Unresolved Call at 0x15087 in function 0x15050
+Unresolved Call at 0x150F7 in function 0x150C0
+Fallback function 0x15130: not found from known entry points
+Fallback function 0x15170: not found from known entry points
+Fallback function 0x151D0: not found from known entry points
+Fallback function 0x15220: not found from known entry points
+Fallback function 0x15290: not found from known entry points
+Fallback function 0x154D3: not found from known entry points
+Fallback function 0x154DC: not found from known entry points
+Unresolved Call at 0x155C7 in function 0x15590
+Fallback function 0x15610: not found from known entry points
+Fallback function 0x15630: not found from known entry points
+Fallback function 0x15660: not found from known entry points
+Fallback function 0x15680: not found from known entry points
+Fallback function 0x156D0: not found from known entry points
+Unresolved Call at 0x15738 in function 0x156D0
+Fallback function 0x15750: not found from known entry points
+Unresolved Call at 0x157C3 in function 0x15750
+Fallback function 0x15810: not found from known entry points
+Fallback function 0x158D0: not found from known entry points
+Fallback function 0x158F0: not found from known entry points
+Fallback function 0x15920: not found from known entry points
+Fallback function 0x159C0: not found from known entry points
+Fallback function 0x159E0: not found from known entry points
+Fallback function 0x15A40: not found from known entry points
+Fallback function 0x15C70: not found from known entry points
+Fallback function 0x15CB0: not found from known entry points
+Fallback function 0x15CF0: not found from known entry points
+Fallback function 0x15F10: not found from known entry points
+Fallback function 0x15F30: not found from known entry points
+Fallback function 0x16040: not found from known entry points
+Fallback function 0x16070: not found from known entry points
+Fallback function 0x16110: not found from known entry points
+Fallback function 0x162A0: not found from known entry points
+Fallback function 0x16310: not found from known entry points
+Fallback function 0x16380: not found from known entry points
+Fallback function 0x163A0: not found from known entry points
+Fallback function 0x16690: not found from known entry points
+Fallback function 0x166D0: not found from known entry points
+Fallback function 0x16710: not found from known entry points
+Fallback function 0x16750: not found from known entry points
+Fallback function 0x16790: not found from known entry points
+Fallback function 0x167D0: not found from known entry points
+Fallback function 0x16840: not found from known entry points
+Fallback function 0x16900: not found from known entry points
+Fallback function 0x169C0: not found from known entry points
+Fallback function 0x169E0: not found from known entry points
+Fallback function 0x16A40: not found from known entry points
+Fallback function 0x16B00: not found from known entry points
+Fallback function 0x16BC0: not found from known entry points
+Fallback function 0x16C80: not found from known entry points
+Fallback function 0x16D40: not found from known entry points
+Fallback function 0x16E00: not found from known entry points
+Fallback function 0x16E30: not found from known entry points
+Fallback function 0x16E60: not found from known entry points
+Fallback function 0x16EB0: not found from known entry points
+Fallback function 0x16EE0: not found from known entry points
+Fallback function 0x171B0: not found from known entry points
+Fallback function 0x174F0: not found from known entry points
+Fallback function 0x17500: not found from known entry points
+Fallback function 0x17510: not found from known entry points
+Fallback function 0x17580: not found from known entry points
+Fallback function 0x175D0: not found from known entry points
+Fallback function 0x17600: not found from known entry points
+Fallback function 0x17630: not found from known entry points
+Fallback function 0x17670: not found from known entry points
+Fallback function 0x176D0: not found from known entry points
+Fallback function 0x17730: not found from known entry points
+Fallback function 0x17780: not found from known entry points
+Fallback function 0x17850: not found from known entry points
+Fallback function 0x178C0: not found from known entry points
+Fallback function 0x17950: not found from known entry points
+Fallback function 0x17980: not found from known entry points
+Fallback function 0x17A50: not found from known entry points
+Unresolved Call at 0x17A69 in function 0x17A50
+Fallback function 0x17A80: not found from known entry points
+Unresolved Call at 0x17AB2 in function 0x17A80
+Fallback function 0x17B50: not found from known entry points
+Unresolved Call at 0x17B82 in function 0x17B50
+Fallback function 0x17C50: not found from known entry points
+Unresolved Call at 0x17C82 in function 0x17C50
+Fallback function 0x17D10: not found from known entry points
+Fallback function 0x17DB0: not found from known entry points
+Fallback function 0x17E30: not found from known entry points
+Fallback function 0x17E80: not found from known entry points
+Fallback function 0x17ED0: not found from known entry points
+Unresolved Call at 0x18030 in function 0x17FF0
+Unresolved Call at 0x18047 in function 0x17FF0
+Unresolved Call at 0x18053 in function 0x17FF0
+Unresolved Call at 0x1805A in function 0x17FF0
+Unresolved Call at 0x18069 in function 0x17FF0
+Unresolved Call at 0x18079 in function 0x17FF0
+Unresolved Call at 0x18086 in function 0x17FF0
+Unresolved Call at 0x18092 in function 0x17FF0
+Unresolved Call at 0x180AB in function 0x17FF0
+Fallback function 0x180D0: not found from known entry points
+Fallback function 0x180F0: not found from known entry points
+Fallback function 0x18110: not found from known entry points
+Fallback function 0x18130: not found from known entry points
+Fallback function 0x181C0: not found from known entry points
+Fallback function 0x18310: not found from known entry points
+Fallback function 0x184A0: not found from known entry points
+Fallback function 0x184C0: not found from known entry points
+Fallback function 0x184E0: not found from known entry points
+Fallback function 0x184F0: not found from known entry points
+Fallback function 0x18550: not found from known entry points
+Unresolved Call at 0x185CA in function 0x185B0
+Unresolved Call at 0x185FA in function 0x185E0
+Fallback function 0x18610: not found from known entry points
+Unresolved Call at 0x18697 in function 0x18660
+Fallback function 0x186D0: not found from known entry points
+Fallback function 0x186F0: not found from known entry points
+Unresolved Call at 0x18745 in function 0x186F0
+Fallback function 0x18780: not found from known entry points
+Unresolved Call at 0x187D7 in function 0x187A0
+Unresolved Call at 0x18857 in function 0x18820
+Unresolved Call at 0x188D7 in function 0x188A0
+Fallback function 0x18920: not found from known entry points
+Unresolved Call at 0x18966 in function 0x18920
+Fallback function 0x18A40: not found from known entry points
+Unresolved Call at 0x18A77 in function 0x18A40
+Fallback function 0x18AC0: not found from known entry points
+Unresolved Call at 0x18B17 in function 0x18AE0
+Fallback function 0x18B50: not found from known entry points
+Fallback function 0x18C80: not found from known entry points
+Fallback function 0x18D20: not found from known entry points
+Fallback function 0x18DC0: not found from known entry points
+Fallback function 0x18E50: not found from known entry points
+Fallback function 0x19120: not found from known entry points
+Fallback function 0x191B0: not found from known entry points
+Fallback function 0x192E0: not found from known entry points
+Fallback function 0x193B0: not found from known entry points
+Unresolved Call at 0x193CF in function 0x193B0
+Fallback function 0x194B0: not found from known entry points
+Fallback function 0x19540: not found from known entry points
+Fallback function 0x195B0: not found from known entry points
+Fallback function 0x195D0: not found from known entry points
+Fallback function 0x195F0: not found from known entry points
+Fallback function 0x196A0: not found from known entry points
+Fallback function 0x196D0: not found from known entry points
+Fallback function 0x196F0: not found from known entry points
+Fallback function 0x19700: not found from known entry points
+Fallback function 0x19720: not found from known entry points
+Fallback function 0x19730: not found from known entry points
+Unresolved Call at 0x1973F in function 0x19730
+Unresolved Call at 0x1974C in function 0x19730
+Unresolved Call at 0x19759 in function 0x19730
+Unresolved Call at 0x19766 in function 0x19730
+Unresolved Call at 0x19770 in function 0x19730
+Unresolved Call at 0x1977A in function 0x19730
+Unresolved Call at 0x19784 in function 0x19730
+Unresolved Call at 0x1978E in function 0x19730
+Unresolved Call at 0x1979B in function 0x19730
+Unresolved Call at 0x197B5 in function 0x19730
+Unresolved Call at 0x19824 in function 0x19730
+Unresolved Call at 0x19835 in function 0x19730
+Unresolved Call at 0x19845 in function 0x19730
+Unresolved Call at 0x19852 in function 0x19730
+Unresolved Call at 0x1985F in function 0x19730
+Unresolved Call at 0x1986C in function 0x19730
+Fallback function 0x19880: not found from known entry points
+Fallback function 0x19940: not found from known entry points
+Unresolved Call at 0x19991 in function 0x19940
+Unresolved Call at 0x19A39 in function 0x19940
+Fallback function 0x19A70: not found from known entry points
+Fallback function 0x19C20: not found from known entry points
+Fallback function 0x19C70: not found from known entry points
+Fallback function 0x19CC0: not found from known entry points
+Fallback function 0x19D10: not found from known entry points
+Fallback function 0x19D30: not found from known entry points
+Fallback function 0x1A050: not found from known entry points
+Fallback function 0x1A0B0: not found from known entry points
+Fallback function 0x1A0D0: not found from known entry points
+Fallback function 0x1A0F0: not found from known entry points
+Fallback function 0x1A120: not found from known entry points
+Fallback function 0x1A1E0: not found from known entry points
+Fallback function 0x1A230: not found from known entry points
+Fallback function 0x1A330: not found from known entry points
+Unresolved Call at 0x1A3A8 in function 0x1A3A0
+Fallback function 0x1A400: not found from known entry points
+Fallback function 0x1A574: not found from known entry points
+Fallback function 0x1A5C0: not found from known entry points
+Fallback function 0x1A600: not found from known entry points
+Fallback function 0x1A680: not found from known entry points
+Unresolved Call at 0x1A6B2 in function 0x1A680
+Fallback function 0x1A6D0: not found from known entry points
+Fallback function 0x1A740: not found from known entry points
+Fallback function 0x1A760: not found from known entry points
+Fallback function 0x1A790: not found from known entry points
+Fallback function 0x1A840: not found from known entry points
+Fallback function 0x1A8B0: not found from known entry points
+Fallback function 0x1A900: not found from known entry points
+Fallback function 0x1A970: not found from known entry points
+Fallback function 0x1ABE0: not found from known entry points
+Fallback function 0x1AC60: not found from known entry points
+Fallback function 0x1AD50: not found from known entry points
+Fallback function 0x1AE30: not found from known entry points
+Fallback function 0x1AF90: not found from known entry points
+Fallback function 0x1AFF0: not found from known entry points
+Fallback function 0x1B010: not found from known entry points
+Fallback function 0x1B040: not found from known entry points
+Fallback function 0x1B0D0: not found from known entry points
+Fallback function 0x1B120: not found from known entry points
+Fallback function 0x1B2C0: not found from known entry points
+Fallback function 0x1B3A0: not found from known entry points
+Fallback function 0x1B640: not found from known entry points
+Fallback function 0x1B6C0: not found from known entry points
+Fallback function 0x1B7A0: not found from known entry points
+Fallback function 0x1B840: not found from known entry points
+Fallback function 0x1B880: not found from known entry points
+Unresolved Call at 0x1BAC0 in function 0x1BA60
+Unresolved Call at 0x1BACA in function 0x1BA60
+Unresolved Call at 0x1BAD4 in function 0x1BA60
+Unresolved Call at 0x1BAE9 in function 0x1BA60
+Unresolved Call at 0x1BAF3 in function 0x1BA60
+Unresolved Call at 0x1BAFD in function 0x1BA60
+Unresolved Call at 0x1BB10 in function 0x1BA60
+Unresolved Call at 0x1BB1A in function 0x1BA60
+Unresolved Call at 0x1BB29 in function 0x1BA60
+Unresolved Call at 0x1BB33 in function 0x1BA60
+Unresolved Call at 0x1BB42 in function 0x1BA60
+Unresolved Call at 0x1BB57 in function 0x1BA60
+Unresolved Call at 0x1BB65 in function 0x1BA60
+Unresolved Call at 0x1BB6F in function 0x1BA60
+Unresolved Call at 0x1BB85 in function 0x1BA60
+Unresolved Call at 0x1BB9B in function 0x1BA60
+Unresolved Call at 0x1BBB3 in function 0x1BA60
+Unresolved Call at 0x1BBC6 in function 0x1BA60
+Fallback function 0x1BBE0: not found from known entry points
+Fallback function 0x1BC00: not found from known entry points
+Fallback function 0x1BCB0: not found from known entry points
+Fallback function 0x1BD90: not found from known entry points
+Fallback function 0x1BE20: not found from known entry points
+Fallback function 0x1BF90: not found from known entry points
+Fallback function 0x1C000: not found from known entry points
+Fallback function 0x1C100: not found from known entry points
+Fallback function 0x1C150: not found from known entry points
+Fallback function 0x1C1B0: not found from known entry points
+Unresolved Call at 0x1C251 in function 0x1C1B0
+Fallback function 0x1C2D0: not found from known entry points
+Fallback function 0x1C680: not found from known entry points
+Fallback function 0x1C6C0: not found from known entry points
+Fallback function 0x1C6F0: not found from known entry points
+Fallback function 0x1C710: not found from known entry points
+Fallback function 0x1C750: not found from known entry points
+Fallback function 0x1C770: not found from known entry points
+Fallback function 0x1C7D0: not found from known entry points
+Fallback function 0x1C8A0: not found from known entry points
+Fallback function 0x1C9A0: not found from known entry points
+Fallback function 0x1CA10: not found from known entry points
+Fallback function 0x1CA40: not found from known entry points
+Fallback function 0x1CA60: not found from known entry points
+Fallback function 0x1CBB0: not found from known entry points
+Fallback function 0x1CC30: not found from known entry points
+Fallback function 0x1CCA0: not found from known entry points
+Fallback function 0x1CCF0: not found from known entry points
+Fallback function 0x1CED0: not found from known entry points
+Fallback function 0x1CF20: not found from known entry points
+Fallback function 0x1D030: not found from known entry points
+Fallback function 0x1D170: not found from known entry points
+Fallback function 0x1D1D0: not found from known entry points
+Fallback function 0x1D250: not found from known entry points
+Fallback function 0x1D290: not found from known entry points
+Fallback function 0x1D470: not found from known entry points
+Fallback function 0x1D5F0: not found from known entry points
+Fallback function 0x1D650: not found from known entry points
+Fallback function 0x1D6B0: not found from known entry points
+Fallback function 0x1D6D0: not found from known entry points
+Fallback function 0x1D6E0: not found from known entry points
+Fallback function 0x1D700: not found from known entry points
+Fallback function 0x1D740: not found from known entry points
+Fallback function 0x1DB80: not found from known entry points
+Fallback function 0x1DC10: not found from known entry points
+Fallback function 0x1E020: not found from known entry points
+Fallback function 0x1E090: not found from known entry points
+Fallback function 0x1E170: not found from known entry points
+Fallback function 0x1E1D0: not found from known entry points
+Fallback function 0x1E210: not found from known entry points
+Fallback function 0x1E280: not found from known entry points
+Fallback function 0x1E2D0: not found from known entry points
+Fallback function 0x1E370: not found from known entry points
+Fallback function 0x1E410: not found from known entry points
+Fallback function 0x1E4D0: not found from known entry points
+Fallback function 0x1E5A0: not found from known entry points
+Unresolved Call at 0x1E71C in function 0x1E5A0
+Unresolved Call at 0x1E729 in function 0x1E5A0
+Unresolved Call at 0x1E736 in function 0x1E5A0
+Unresolved Call at 0x1E743 in function 0x1E5A0
+Unresolved Call at 0x1E7EF in function 0x1E5A0
+Unresolved Call at 0x1E7F9 in function 0x1E5A0
+Unresolved Call at 0x1E803 in function 0x1E5A0
+Unresolved Call at 0x1E856 in function 0x1E5A0
+Unresolved Call at 0x1E860 in function 0x1E5A0
+Unresolved Call at 0x1E86A in function 0x1E5A0
+Unresolved Call at 0x1E8E0 in function 0x1E5A0
+Unresolved Call at 0x1E8EF in function 0x1E5A0
+Unresolved Call at 0x1E8FE in function 0x1E5A0
+Unresolved Call at 0x1E90C in function 0x1E5A0
+Fallback function 0x1E930: not found from known entry points
+Fallback function 0x1E9D0: not found from known entry points
+Unresolved Call at 0x1EC1A in function 0x1E9D0
+Fallback function 0x1EC50: not found from known entry points
+Fallback function 0x1ED50: not found from known entry points
+Fallback function 0x1EE70: not found from known entry points
+Unresolved Call at 0x1EF2D in function 0x1EF10
+Fallback function 0x1EF60: not found from known entry points
+Unresolved Call at 0x1EF7E in function 0x1EF60
+Fallback function 0x1F150: not found from known entry points
+Fallback function 0x1F1C0: not found from known entry points
+Fallback function 0x1F2F0: not found from known entry points
+Fallback function 0x1F310: not found from known entry points
+Fallback function 0x1F320: not found from known entry points
+Fallback function 0x1F340: not found from known entry points
+Fallback function 0x1F350: not found from known entry points
+Unresolved Call at 0x1F412 in function 0x1F3F0
+Unresolved Call at 0x1F43E in function 0x1F3F0
+Fallback function 0x1F470: not found from known entry points
+Unresolved Call at 0x1F545 in function 0x1F500
+Fallback function 0x1F570: not found from known entry points
+Fallback function 0x1F8C0: not found from known entry points
+Fallback function 0x1F920: not found from known entry points
+Unresolved Call at 0x1FB53 in function 0x1F940
+Unresolved Call at 0x1FDC2 in function 0x1FB90
+Unresolved Call at 0x20035 in function 0x1FFD0
+Unresolved Call at 0x202A1 in function 0x20070
+Fallback function 0x202E0: not found from known entry points
+Unresolved Call at 0x20515 in function 0x202E0
+Fallback function 0x20550: not found from known entry points
+Unresolved Call at 0x2077C in function 0x20550
+Fallback function 0x20A70: not found from known entry points
+Fallback function 0x20B20: not found from known entry points
+Fallback function 0x20C10: not found from known entry points
+Fallback function 0x20C20: not found from known entry points
+Fallback function 0x20C60: not found from known entry points
+Fallback function 0x20D00: not found from known entry points
+Fallback function 0x20D70: not found from known entry points
+Fallback function 0x20FB0: not found from known entry points
+Fallback function 0x21080: not found from known entry points
+Fallback function 0x210F0: not found from known entry points
+Fallback function 0x21160: not found from known entry points
+Unresolved Call at 0x2126F in function 0x21250
+Fallback function 0x21330: not found from known entry points
+Fallback function 0x21450: not found from known entry points
+Fallback function 0x21740: not found from known entry points
+Unresolved Call at 0x21862 in function 0x21820
+Unresolved Call at 0x21896 in function 0x21880
+Fallback function 0x218E0: not found from known entry points
+Fallback function 0x21920: not found from known entry points
+Fallback function 0x21A00: not found from known entry points
+Fallback function 0x21B10: not found from known entry points
+Fallback function 0x21C10: not found from known entry points
+Unresolved Call at 0x21DA8 in function 0x21D10
+Unresolved Call at 0x21DFA in function 0x21D10
+Unresolved Call at 0x21E27 in function 0x21D10
+Fallback function 0x21E60: not found from known entry points
+Unresolved Call at 0x22834 in function 0x227D0
+Unresolved Call at 0x2288F in function 0x227D0
+Fallback function 0x228B0: not found from known entry points
+Fallback function 0x22B10: not found from known entry points
+Fallback function 0x22CA0: not found from known entry points
+Fallback function 0x22CD0: not found from known entry points
+Fallback function 0x231B0: not found from known entry points
+Fallback function 0x23380: not found from known entry points
+Fallback function 0x234C0: not found from known entry points
+Fallback function 0x23570: not found from known entry points
+Fallback function 0x23620: not found from known entry points
+Fallback function 0x236A0: not found from known entry points
+Fallback function 0x236C0: not found from known entry points
+Fallback function 0x237A0: not found from known entry points
+Fallback function 0x237D0: not found from known entry points
+Fallback function 0x23950: not found from known entry points
+Fallback function 0x23C60: not found from known entry points
+Fallback function 0x23CC0: not found from known entry points
+Fallback function 0x23F70: not found from known entry points
+Fallback function 0x24190: not found from known entry points
+Fallback function 0x241D0: not found from known entry points
+Fallback function 0x242E0: not found from known entry points
+Fallback function 0x24420: not found from known entry points
+Fallback function 0x244B0: not found from known entry points
+Fallback function 0x244F0: not found from known entry points
+Fallback function 0x245B0: not found from known entry points
+Fallback function 0x246C0: not found from known entry points
+Fallback function 0x24740: not found from known entry points
+Fallback function 0x247F0: not found from known entry points
+Fallback function 0x24870: not found from known entry points
+Fallback function 0x24930: not found from known entry points
+Fallback function 0x249B0: not found from known entry points
+Fallback function 0x24A90: not found from known entry points
+Fallback function 0x24B50: not found from known entry points
+Fallback function 0x24B70: not found from known entry points
+Fallback function 0x24BF0: not found from known entry points
+Unresolved Call at 0x24C2B in function 0x24BF0
+Fallback function 0x24CF0: not found from known entry points
+Unresolved Call at 0x24D92 in function 0x24CF0
+Unresolved Call at 0x24D9C in function 0x24CF0
+Unresolved Call at 0x24DA6 in function 0x24CF0
+Unresolved Call at 0x24DB0 in function 0x24CF0
+Unresolved Call at 0x24DBA in function 0x24CF0
+Unresolved Call at 0x24DC3 in function 0x24CF0
+Unresolved Call at 0x24DD2 in function 0x24CF0
+Fallback function 0x24DF0: not found from known entry points
+Fallback function 0x24EA0: not found from known entry points
+Fallback function 0x24F00: not found from known entry points
+Fallback function 0x24F60: not found from known entry points
+Fallback function 0x24F80: not found from known entry points
+Unresolved Call at 0x24FB2 in function 0x24F80
+Fallback function 0x25290: not found from known entry points
+Fallback function 0x25530: not found from known entry points
+Fallback function 0x255F0: not found from known entry points
+Fallback function 0x25630: not found from known entry points
+Fallback function 0x25670: not found from known entry points
+Unresolved Call at 0x25726 in function 0x25670
+Unresolved Call at 0x257B5 in function 0x25670
+Fallback function 0x257F0: not found from known entry points
+Fallback function 0x25810: not found from known entry points
+Unresolved Call at 0x2599B in function 0x25810
+Unresolved Call at 0x259A5 in function 0x25810
+Unresolved Call at 0x259AF in function 0x25810
+Unresolved Call at 0x259B9 in function 0x25810
+Unresolved Call at 0x259C3 in function 0x25810
+Fallback function 0x25A80: not found from known entry points
+Fallback function 0x25AA0: not found from known entry points
+Fallback function 0x25AD0: not found from known entry points
+Fallback function 0x25B40: not found from known entry points
+Fallback function 0x25B60: not found from known entry points
+Fallback function 0x25B90: not found from known entry points
+Fallback function 0x25BD0: not found from known entry points
+Fallback function 0x25C50: not found from known entry points
+Fallback function 0x25CB0: not found from known entry points
+Fallback function 0x25D80: not found from known entry points
+Fallback function 0x25D90: not found from known entry points
+Unresolved Call at 0x25DCD in function 0x25D90
+Unresolved Call at 0x25DDA in function 0x25D90
+Fallback function 0x25DF0: not found from known entry points
+Fallback function 0x25E80: not found from known entry points
+Fallback function 0x25ED0: not found from known entry points
+Fallback function 0x26020: not found from known entry points
+Fallback function 0x26090: not found from known entry points
+Fallback function 0x260E0: not found from known entry points
+Fallback function 0x261C0: not found from known entry points
+Fallback function 0x263D0: not found from known entry points
+Fallback function 0x26410: not found from known entry points
+Fallback function 0x26460: not found from known entry points
+Fallback function 0x26770: not found from known entry points
+Fallback function 0x267A0: not found from known entry points
+Fallback function 0x26840: not found from known entry points
+Fallback function 0x268E0: not found from known entry points
+Fallback function 0x26900: not found from known entry points
+Unresolved Call at 0x26974 in function 0x26920
+Unresolved Call at 0x26A96 in function 0x26A10
+Unresolved Call at 0x26B66 in function 0x26AD0
+Unresolved Call at 0x26C32 in function 0x26BA0
+Unresolved Call at 0x26D05 in function 0x26C60
+Fallback function 0x26E70: not found from known entry points
+Unresolved Call at 0x26EDB in function 0x26ED0
+Unresolved Call at 0x26EE8 in function 0x26ED0
+Unresolved Call at 0x26EF5 in function 0x26ED0
+Unresolved Call at 0x26EFF in function 0x26ED0
+Unresolved Call at 0x26F09 in function 0x26ED0
+Unresolved Call at 0x26F13 in function 0x26ED0
+Unresolved Call at 0x26F1D in function 0x26ED0
+Unresolved Call at 0x26F27 in function 0x26ED0
+Unresolved Call at 0x26F34 in function 0x26ED0
+Unresolved Call at 0x26F3E in function 0x26ED0
+Unresolved Call at 0x2702A in function 0x26ED0
+Unresolved Call at 0x27037 in function 0x26ED0
+Unresolved Call at 0x27044 in function 0x26ED0
+Fallback function 0x27050: not found from known entry points
+Unresolved Call at 0x27059 in function 0x27050
+Unresolved Call at 0x27066 in function 0x27050
+Unresolved Call at 0x27070 in function 0x27050
+Unresolved Call at 0x2722D in function 0x27050
+Unresolved Call at 0x2723A in function 0x27050
+Fallback function 0x274A0: not found from known entry points
+Fallback function 0x27510: not found from known entry points
+Fallback function 0x27550: not found from known entry points
+Fallback function 0x275F0: not found from known entry points
+Fallback function 0x27670: not found from known entry points
+Fallback function 0x27840: not found from known entry points
+Fallback function 0x27880: not found from known entry points
+Fallback function 0x278C0: not found from known entry points
+Fallback function 0x27990: not found from known entry points
+Fallback function 0x279F0: not found from known entry points
+Fallback function 0x27AA0: not found from known entry points
+Fallback function 0x27AE0: not found from known entry points
+Fallback function 0x27B10: not found from known entry points
+Fallback function 0x27C20: not found from known entry points
+Fallback function 0x27C70: not found from known entry points
+Fallback function 0x27CE0: not found from known entry points
+Fallback function 0x27D70: not found from known entry points
+Fallback function 0x27DD0: not found from known entry points
+Fallback function 0x27DE0: not found from known entry points
+Fallback function 0x27E30: not found from known entry points
+Fallback function 0x27EA0: not found from known entry points
+Fallback function 0x27EC0: not found from known entry points
+Fallback function 0x27F20: not found from known entry points
+Fallback function 0x28090: not found from known entry points
+Unresolved Call at 0x281C0 in function 0x28090
+Fallback function 0x281D0: not found from known entry points
+Unresolved Call at 0x2822F in function 0x281D0
+Unresolved Call at 0x2826D in function 0x281D0
+Unresolved Call at 0x282B3 in function 0x281D0
+Fallback function 0x283E0: not found from known entry points
+Fallback function 0x28420: not found from known entry points
+Fallback function 0x284F0: not found from known entry points
+Fallback function 0x28580: not found from known entry points
+Fallback function 0x28650: not found from known entry points
+Fallback function 0x28680: not found from known entry points
+Fallback function 0x286A0: not found from known entry points
+Fallback function 0x286C0: not found from known entry points
+Fallback function 0x28710: not found from known entry points
+Fallback function 0x28770: not found from known entry points
+Fallback function 0x287C0: not found from known entry points
+Fallback function 0x28880: not found from known entry points
+Fallback function 0x288F0: not found from known entry points
+Fallback function 0x28930: not found from known entry points
+Unresolved Call at 0x289A6 in function 0x28970
+Unresolved Call at 0x289BC in function 0x28970
+Fallback function 0x289D0: not found from known entry points
+Fallback function 0x28A10: not found from known entry points
+Fallback function 0x28A50: not found from known entry points
+Unresolved Call at 0x28A8D in function 0x28A50
+Fallback function 0x28AA0: not found from known entry points
+Fallback function 0x28AE0: not found from known entry points
+Fallback function 0x28C90: not found from known entry points
+Fallback function 0x28E40: not found from known entry points
+Fallback function 0x29100: not found from known entry points
+Fallback function 0x293C0: not found from known entry points
+Fallback function 0x29480: not found from known entry points
+Fallback function 0x29540: not found from known entry points
+Fallback function 0x29600: not found from known entry points
+Fallback function 0x296C0: not found from known entry points
+Fallback function 0x29720: not found from known entry points
+Fallback function 0x29770: not found from known entry points
+Fallback function 0x297A0: not found from known entry points
+Fallback function 0x297D0: not found from known entry points
+Fallback function 0x29870: not found from known entry points
+Fallback function 0x299E0: not found from known entry points
+Fallback function 0x29A00: not found from known entry points
+Fallback function 0x29A10: not found from known entry points
+Fallback function 0x29AA0: not found from known entry points
+Fallback function 0x29AD0: not found from known entry points
+Fallback function 0x29AF0: not found from known entry points
+Fallback function 0x29B10: not found from known entry points
+Fallback function 0x29B30: not found from known entry points
+Fallback function 0x29BF0: not found from known entry points
+Fallback function 0x29DF0: not found from known entry points
+Fallback function 0x2A230: not found from known entry points
+Unresolved Call at 0x2A25F in function 0x2A230
+Fallback function 0x2A290: not found from known entry points
+Fallback function 0x2A320: not found from known entry points
+Fallback function 0x2A3B0: not found from known entry points
+Fallback function 0x2A5E0: not found from known entry points
+Fallback function 0x2A660: not found from known entry points
+Fallback function 0x2A820: not found from known entry points
+Fallback function 0x2A8E0: not found from known entry points
+Fallback function 0x2A970: not found from known entry points
+Fallback function 0x2AA2C: not found from known entry points
+Fallback function 0x2AA50: not found from known entry points
+Fallback function 0x2AB20: not found from known entry points
+Fallback function 0x2ABE0: not found from known entry points
+Unresolved Call at 0x2ACCA in function 0x2ABE0
+Fallback function 0x2AFF0: not found from known entry points
+Fallback function 0x2B060: not found from known entry points
+Unresolved Call at 0x2B1AF in function 0x2B060
+Fallback function 0x2B1E0: not found from known entry points
+Unresolved Call at 0x2B24E in function 0x2B1E0
+Fallback function 0x2B270: not found from known entry points
+Fallback function 0x2B300: not found from known entry points
+Fallback function 0x2B3C0: not found from known entry points
+Unresolved Call at 0x2B4A0 in function 0x2B3C0
+Fallback function 0x2B4C0: not found from known entry points
+Unresolved Call at 0x2B4F7 in function 0x2B4C0
+Fallback function 0x2B650: not found from known entry points
+Unresolved Call at 0x2B6FD in function 0x2B650
+Unresolved Call at 0x2B737 in function 0x2B650
+Unresolved Call at 0x2B87A in function 0x2B650
+Unresolved Call at 0x2B8D8 in function 0x2B650
+Unresolved Call at 0x2B90D in function 0x2B650
+Fallback function 0x2BA30: not found from known entry points
+Fallback function 0x2BB70: not found from known entry points
+Fallback function 0x2BBF0: not found from known entry points
+Fallback function 0x2BC50: not found from known entry points
+Unresolved Call at 0x2BC66 in function 0x2BC50
+Fallback function 0x2BC80: not found from known entry points
+Unresolved Jump at 0x2BC95 in function 0x2BC80
+Fallback function 0x2BCA0: not found from known entry points
+Fallback function 0x2BCC0: not found from known entry points
+Fallback function 0x2BF10: not found from known entry points
+Fallback function 0x2C150: not found from known entry points
+Fallback function 0x2C8C0: not found from known entry points
+Unresolved Call at 0x2CA38 in function 0x2C920
+Unresolved Call at 0x2CA6D in function 0x2C920
+Fallback function 0x2CAA0: not found from known entry points
+Fallback function 0x2CAC0: not found from known entry points
+Unresolved Call at 0x2CAF0 in function 0x2CAC0
+Fallback function 0x2CB20: not found from known entry points
+Fallback function 0x2CBC0: not found from known entry points
+Unresolved Call at 0x2CBDA in function 0x2CBC0
+Fallback function 0x2CD20: not found from known entry points
+Fallback function 0x2CF70: not found from known entry points
+Fallback function 0x2CFA0: not found from known entry points
+Fallback function 0x2D3B0: not found from known entry points
+Fallback function 0x2D3C0: not found from known entry points
+Fallback function 0x2D3D0: not found from known entry points
+Fallback function 0x2D3F0: not found from known entry points
+Fallback function 0x2D480: not found from known entry points
+Fallback function 0x2D500: not found from known entry points
+Fallback function 0x2D740: not found from known entry points
+Fallback function 0x2D750: not found from known entry points
+Fallback function 0x2D760: not found from known entry points
+Fallback function 0x2D7C0: not found from known entry points
+Fallback function 0x2D7E0: not found from known entry points
+Fallback function 0x2D850: not found from known entry points
+Fallback function 0x2D8B0: not found from known entry points
+Fallback function 0x2DD40: not found from known entry points
+Fallback function 0x2DD50: not found from known entry points
+Fallback function 0x2DD60: not found from known entry points
+Fallback function 0x2DDC0: not found from known entry points
+Fallback function 0x2DDE0: not found from known entry points
+Fallback function 0x2DE10: not found from known entry points
+Unresolved Call at 0x2DE51 in function 0x2DE10
+Unresolved Call at 0x2DE84 in function 0x2DE10
+Unresolved Call at 0x2DEB2 in function 0x2DE10
+Fallback function 0x2DEF0: not found from known entry points
+Fallback function 0x2DFC0: not found from known entry points
+Fallback function 0x2E020: not found from known entry points
+Fallback function 0x2E040: not found from known entry points
+Fallback function 0x2E180: not found from known entry points
+Unresolved Call at 0x2E1C2 in function 0x2E180
+Fallback function 0x2E1E0: not found from known entry points
+Fallback function 0x2E220: not found from known entry points
+Fallback function 0x2E250: not found from known entry points
+Unresolved Call at 0x2E40F in function 0x2E3B0
+Fallback function 0x2E520: not found from known entry points
+Fallback function 0x2E550: not found from known entry points
+Fallback function 0x2ECC0: not found from known entry points
+Fallback function 0x2ED50: not found from known entry points
+Fallback function 0x2EDEF: not found from known entry points
+Fallback function 0x2EDF3: not found from known entry points
+Fallback function 0x2EE0D: not found from known entry points
+Fallback function 0x2F030: not found from known entry points
+Fallback function 0x2F300: not found from known entry points
+Fallback function 0x2F320: not found from known entry points
+Fallback function 0x2FFFE: not found from known entry points
+Fallback function 0x30009: not found from known entry points
+Fallback function 0x300D1: not found from known entry points
+Fallback function 0x30103: not found from known entry points
+Fallback function 0x30507: not found from known entry points
+Function 0x30507: stopped at 0x30505 (OverlappingInstruction)
+Unresolved Call at 0x30665 in function 0x30600
+Unresolved Call at 0x30D0D in function 0x306B0
+Fallback function 0x327B5: not found from known entry points
+Fallback function 0x327B9: not found from known entry points
+Fallback function 0x3281B: not found from known entry points
+Fallback function 0x33F40: not found from known entry points
+Fallback function 0x34070: not found from known entry points
+Fallback function 0x34AE8: not found from known entry points
+Unresolved Call at 0x35D86 in function 0x35D40
+Fallback function 0x35EC0: not found from known entry points
+Fallback function 0x35F50: not found from known entry points
+Fallback function 0x35F90: not found from known entry points
+Unresolved Call at 0x363BA in function 0x362E0
+Fallback function 0x365A0: not found from known entry points
+Unresolved Call at 0x3666E in function 0x36660
+Unresolved Call at 0x36686 in function 0x36660
+Unresolved Call at 0x36693 in function 0x36660
+Unresolved Call at 0x366AF in function 0x36660
+Unresolved Call at 0x366D0 in function 0x366C0
+Unresolved Call at 0x366D8 in function 0x366C0
+Unresolved Call at 0x366F2 in function 0x366C0
+Unresolved Call at 0x366F9 in function 0x366C0
+Unresolved Call at 0x36720 in function 0x36710
+Unresolved Call at 0x36728 in function 0x36710
+Unresolved Call at 0x36738 in function 0x36710
+Unresolved Call at 0x3673F in function 0x36710
+Unresolved Call at 0x3677E in function 0x36770
+Unresolved Call at 0x3678A in function 0x36770
+Unresolved Call at 0x36796 in function 0x36770
+Unresolved Call at 0x36A6F in function 0x36A60
+Unresolved Call at 0x36AB0 in function 0x36A60
+Fallback function 0x36D00: not found from known entry points
+Fallback function 0x36F3C: not found from known entry points
+Unresolved Call at 0x36F96 in function 0x36F60
+Unresolved Call at 0x37025 in function 0x36FF0
+Fallback function 0x37090: not found from known entry points
+Fallback function 0x37130: not found from known entry points
+Unresolved Call at 0x37597 in function 0x37550
+Unresolved Call at 0x375D1 in function 0x37550
+Unresolved Call at 0x37720 in function 0x376E0
+Unresolved Call at 0x3773D in function 0x376E0
+Unresolved Call at 0x37745 in function 0x376E0
+Unresolved Call at 0x378F0 in function 0x378E0
+Unresolved Call at 0x37927 in function 0x378E0
+Unresolved Call at 0x3792F in function 0x378E0
+Unresolved Call at 0x37BEE in function 0x37BB0
+Unresolved Call at 0x38643 in function 0x38610
+Unresolved Call at 0x39A8A in function 0x396A0
+Unresolved Call at 0x39B3C in function 0x396A0
+Unresolved Call at 0x39D7F in function 0x396A0
+Unresolved Call at 0x39FF4 in function 0x396A0
+Unresolved Call at 0x3A29D in function 0x396A0
+Unresolved Call at 0x3A356 in function 0x396A0
+Unresolved Call at 0x3A459 in function 0x396A0
+Unresolved Call at 0x3AA6F in function 0x3AA00
+Unresolved Call at 0x3AA76 in function 0x3AA00
+Unresolved Call at 0x3AE15 in function 0x3ADD0
+Unresolved Call at 0x3AE6F in function 0x3ADD0
+Unresolved Call at 0x3AE77 in function 0x3ADD0
+Unresolved Call at 0x3AE7F in function 0x3ADD0
+Unresolved Call at 0x3AE85 in function 0x3ADD0
+Unresolved Call at 0x3AEC2 in function 0x3AEA0
+Unresolved Call at 0x3AF1F in function 0x3AEA0
+Unresolved Call at 0x3AF27 in function 0x3AEA0
+Unresolved Call at 0x3AF2F in function 0x3AEA0
+Unresolved Call at 0x3AF35 in function 0x3AEA0
+Unresolved Call at 0x3AF62 in function 0x3AF50
+Unresolved Call at 0x3AFA4 in function 0x3AF50
+Unresolved Call at 0x3AFEE in function 0x3AF50
+Unresolved Call at 0x3AFF6 in function 0x3AF50
+Unresolved Call at 0x3AFFE in function 0x3AF50
+Unresolved Call at 0x3B004 in function 0x3AF50
+Unresolved Call at 0x3B040 in function 0x3AF50
+Fallback function 0x3B050: not found from known entry points
+Fallback function 0x3B060: not found from known entry points
+Fallback function 0x3B090: not found from known entry points
+Fallback function 0x3B110: not found from known entry points
+Fallback function 0x3B130: not found from known entry points
+Fallback function 0x3B180: not found from known entry points
+Fallback function 0x3B1A0: not found from known entry points
+Unresolved Call at 0x3B1E7 in function 0x3B1A0
+Unresolved Call at 0x3B221 in function 0x3B1A0
+Fallback function 0x3B230: not found from known entry points
+Fallback function 0x3B3A0: not found from known entry points
+Fallback function 0x3B6A0: not found from known entry points
+Fallback function 0x3B7C0: not found from known entry points
+Unresolved Call at 0x3B7FC in function 0x3B7C0
+Unresolved Call at 0x3B85E in function 0x3B7C0
+Unresolved Call at 0x3B908 in function 0x3B8B0
+Fallback function 0x3BEC0: not found from known entry points
+Fallback function 0x3CB00: not found from known entry points
+Fallback function 0x3CF80: not found from known entry points
+Fallback function 0x3D400: not found from known entry points
+Fallback function 0x3D440: not found from known entry points
+Fallback function 0x3D510: not found from known entry points
+Unresolved Call at 0x3D520 in function 0x3D510
+Unresolved Call at 0x3D557 in function 0x3D510
+Unresolved Call at 0x3D55F in function 0x3D510
+Fallback function 0x3D700: not found from known entry points
+Unresolved Call at 0x3D76F in function 0x3D700
+Unresolved Call at 0x3D776 in function 0x3D700
+Fallback function 0x3D7D0: not found from known entry points
+Fallback function 0x3D890: not found from known entry points
+Unresolved Call at 0x3D8D7 in function 0x3D890
+Unresolved Call at 0x3D921 in function 0x3D890
+Unresolved Call at 0x3D929 in function 0x3D890
+Unresolved Call at 0x3D931 in function 0x3D890
+Unresolved Call at 0x3D937 in function 0x3D890
+Fallback function 0x3D950: not found from known entry points
+Unresolved Call at 0x3D973 in function 0x3D950
+Unresolved Call at 0x3D9BD in function 0x3D950
+Unresolved Call at 0x3D9C5 in function 0x3D950
+Unresolved Call at 0x3D9CD in function 0x3D950
+Unresolved Call at 0x3D9D3 in function 0x3D950
+Fallback function 0x3D9E0: not found from known entry points
+Fallback function 0x3DA60: not found from known entry points
+Fallback function 0x3DA70: not found from known entry points
+Fallback function 0x3DAA0: not found from known entry points
+Unresolved Call at 0x3DAB8 in function 0x3DAA0
+Fallback function 0x3DAC0: not found from known entry points
+Fallback function 0x3DAE0: not found from known entry points
+Unresolved Call at 0x3DB27 in function 0x3DAE0
+Unresolved Call at 0x3DB61 in function 0x3DAE0
+Fallback function 0x3DB70: not found from known entry points
+Fallback function 0x3E350: not found from known entry points
+Fallback function 0x3E660: not found from known entry points
+Fallback function 0x3F050: not found from known entry points
+Fallback function 0x3F0E0: not found from known entry points
+Unresolved Call at 0x3F0FD in function 0x3F0E0
+Unresolved Call at 0x3F130 in function 0x3F0E0
+Fallback function 0x3F1B0: not found from known entry points
+Fallback function 0x3F930: not found from known entry points
+Fallback function 0x3FBF0: not found from known entry points
+Unresolved Call at 0x3FDB1 in function 0x3FBF0
+Fallback function 0x40004: not found from known entry points
+Fallback function 0x40005: not found from known entry points
+Fallback function 0x40006: not found from known entry points
+Fallback function 0x40101: not found from known entry points
+Fallback function 0x40116: not found from known entry points
+Fallback function 0x4011E: not found from known entry points
+Fallback function 0x401A1: not found from known entry points
+Fallback function 0x401A2: not found from known entry points
+Fallback function 0x401C0: not found from known entry points
+Unresolved Call at 0x40200 in function 0x401C0
+Unresolved Call at 0x4021D in function 0x401C0
+Unresolved Call at 0x40225 in function 0x401C0
+Unresolved Call at 0x4021D in function 0x40208
+Unresolved Call at 0x40225 in function 0x40208
+Unresolved Call at 0x4021D in function 0x40214
+Unresolved Call at 0x40225 in function 0x40214
+Fallback function 0x40A30: not found from known entry points
+Fallback function 0x40A64: not found from known entry points
+Fallback function 0x40A7C: not found from known entry points
+Fallback function 0x41400: not found from known entry points
+Unresolved Call at 0x4146F in function 0x41400
+Unresolved Call at 0x41476 in function 0x41400
+Fallback function 0x414D0: not found from known entry points
+Fallback function 0x41590: not found from known entry points
+Fallback function 0x415E0: not found from known entry points
+Fallback function 0x41630: not found from known entry points
+Unresolved Call at 0x41642 in function 0x41630
+Unresolved Call at 0x41684 in function 0x41630
+Unresolved Call at 0x416CE in function 0x41630
+Unresolved Call at 0x416D6 in function 0x41630
+Unresolved Call at 0x416DE in function 0x41630
+Unresolved Call at 0x416E4 in function 0x41630
+Unresolved Call at 0x41715 in function 0x41630
+Fallback function 0x417F0: not found from known entry points
+Fallback function 0x418A0: not found from known entry points
+Fallback function 0x418E0: not found from known entry points
+Fallback function 0x418F0: not found from known entry points
+Fallback function 0x41900: not found from known entry points
+Fallback function 0x41930: not found from known entry points
+Unresolved Call at 0x41936 in function 0x41930
+Fallback function 0x419B0: not found from known entry points
+Unresolved Call at 0x419B2 in function 0x419B0
+Fallback function 0x419C0: not found from known entry points
+Unresolved Call at 0x419CC in function 0x419C0
+Unresolved Call at 0x419D3 in function 0x419C0
+Fallback function 0x419E0: not found from known entry points
+Unresolved Call at 0x419EA in function 0x419E0
+Unresolved Call at 0x419F9 in function 0x419E0
+Fallback function 0x41A40: not found from known entry points
+Fallback function 0x41A60: not found from known entry points
+Fallback function 0x41A80: not found from known entry points
+Unresolved Call at 0x41ABE in function 0x41A80
+Unresolved Call at 0x41AF0 in function 0x41A80
+Unresolved Call at 0x41B08 in function 0x41A80
+Unresolved Call at 0x41B42 in function 0x41A80
+Fallback function 0x41B50: not found from known entry points
+Fallback function 0x41CF0: not found from known entry points
+Fallback function 0x41E24: not found from known entry points
+Fallback function 0x41E60: not found from known entry points
+Unresolved Call at 0x41F0C in function 0x41EA0
+Unresolved Call at 0x41F3A in function 0x41EA0
+Unresolved Call at 0x41F0C in function 0x41EA4
+Unresolved Call at 0x41F3A in function 0x41EA4
+Fallback function 0x420B0: not found from known entry points
+Unresolved Call at 0x420BF in function 0x420B0
+Fallback function 0x427C0: not found from known entry points
+Fallback function 0x42890: not found from known entry points
+Unresolved Call at 0x428A1 in function 0x42890
+Fallback function 0x428C0: not found from known entry points
+Unresolved Call at 0x428D1 in function 0x428C0
+Fallback function 0x428F0: not found from known entry points
+Unresolved Call at 0x42901 in function 0x428F0
+Fallback function 0x42920: not found from known entry points
+Unresolved Call at 0x42936 in function 0x42920
+Fallback function 0x42950: not found from known entry points
+Unresolved Call at 0x42997 in function 0x42950
+Unresolved Call at 0x429E8 in function 0x42950
+Unresolved Call at 0x429EE in function 0x42950
+Fallback function 0x42A00: not found from known entry points
+Unresolved Call at 0x42A12 in function 0x42A00
+Unresolved Call at 0x42A54 in function 0x42A00
+Unresolved Call at 0x42AA5 in function 0x42A00
+Unresolved Call at 0x42AAB in function 0x42A00
+Unresolved Call at 0x42AB6 in function 0x42A00
+Unresolved Call at 0x42AC1 in function 0x42A00
+Fallback function 0x42B10: not found from known entry points
+Fallback function 0x4302C: not found from known entry points
+Unresolved Call at 0x4324C in function 0x43210
+Fallback function 0x436E0: not found from known entry points
+Fallback function 0x437E0: not found from known entry points
+Fallback function 0x43820: not found from known entry points
+Fallback function 0x43920: not found from known entry points
+Unresolved Call at 0x43BFD in function 0x43BC0
+Fallback function 0x44540: not found from known entry points
+Unresolved Call at 0x446F6 in function 0x44540
+Fallback function 0x44A30: not found from known entry points
+Fallback function 0x44C60: not found from known entry points
+Fallback function 0x44F90: not found from known entry points
+Fallback function 0x44FF0: not found from known entry points
+Fallback function 0x45020: not found from known entry points
+Unresolved Call at 0x456A7 in function 0x45020
+Fallback function 0x45860: not found from known entry points
+Fallback function 0x45C50: not found from known entry points
+Fallback function 0x45CD0: not found from known entry points
+Fallback function 0x45CF0: not found from known entry points
+Unresolved Call at 0x45E65 in function 0x45CF0
+Unresolved Call at 0x45E9A in function 0x45CF0
+Fallback function 0x45F50: not found from known entry points
+Fallback function 0x46490: not found from known entry points
+Fallback function 0x464B0: not found from known entry points
+Unresolved Call at 0x47229 in function 0x46EB0
+Unresolved Call at 0x4725E in function 0x46EB0
+Fallback function 0x47280: not found from known entry points
+Fallback function 0x472E0: not found from known entry points
+Fallback function 0x473E0: not found from known entry points
+Unresolved Call at 0x475EB in function 0x47430
+Unresolved Call at 0x47641 in function 0x47430
+Unresolved Call at 0x47BB6 in function 0x47430
+Unresolved Call at 0x47BEB in function 0x47430
+Fallback function 0x3C47A8: not found from known entry points
+Fallback function 0x3C47C0: not found from known entry points
+Fallback function 0x3C47C8: not found from known entry points
+Fallback function 0x3C47E0: not found from known entry points
+Fallback function 0x3C47E8: not found from known entry points
+Fallback function 0x3C4800: not found from known entry points
+Fallback function 0x3C4810: not found from known entry points
+Fallback function 0x3C4820: not found from known entry points
+Fallback function 0x3C4838: not found from known entry points
+Fallback function 0x3C4850: not found from known entry points
+Fallback function 0x3C4860: not found from known entry points
+Fallback function 0x3C4870: not found from known entry points
+Fallback function 0x3C4883: not found from known entry points
+Fallback function 0x3C4890: not found from known entry points
+Fallback function 0x3C489B: not found from known entry points
+Fallback function 0x3C48B0: not found from known entry points
+Fallback function 0x3C48C3: not found from known entry points
+Fallback function 0x3C48D0: not found from known entry points
+Fallback function 0x3C48E0: not found from known entry points
+Fallback function 0x3C48F3: not found from known entry points
+Fallback function 0x3C4900: not found from known entry points
+Fallback function 0x3C4908: not found from known entry points
+Fallback function 0x3C4920: not found from known entry points
+Fallback function 0x3C4928: not found from known entry points
+Fallback function 0x3C4940: not found from known entry points
+Fallback function 0x3C4964: not found from known entry points
+Fallback function 0x3C4970: not found from known entry points
+Fallback function 0x3C4983: not found from known entry points
+Fallback function 0x3C4990: not found from known entry points
+Fallback function 0x3C49B0: not found from known entry points
+Fallback function 0x3C49B8: not found from known entry points
+Fallback function 0x3C49D0: not found from known entry points
+Fallback function 0x3C49D8: not found from known entry points
+Fallback function 0x3C49F0: not found from known entry points
+Fallback function 0x3C4A00: not found from known entry points
+Fallback function 0x3C4A10: not found from known entry points
+Fallback function 0x3C4A23: not found from known entry points
+Fallback function 0x3C4A30: not found from known entry points
+Fallback function 0x3C4A3B: not found from known entry points
+Fallback function 0x3C4A50: not found from known entry points
+Fallback function 0x3C4A58: not found from known entry points
+Fallback function 0x3C4A70: not found from known entry points
+Fallback function 0x3C4A78: not found from known entry points
+Fallback function 0x3C4A90: not found from known entry points
+Fallback function 0x3C4AA3: not found from known entry points
+Fallback function 0x3C4AB0: not found from known entry points
+Fallback function 0x3C4AD0: not found from known entry points
+Fallback function 0x3C4AD8: not found from known entry points
+Fallback function 0x3C4AF0: not found from known entry points
+Fallback function 0x3C4AF8: not found from known entry points
+Fallback function 0x3C4B10: not found from known entry points
+Fallback function 0x3C4B30: not found from known entry points
+Fallback function 0x3C4B38: not found from known entry points
+Fallback function 0x3C4B50: not found from known entry points
+Fallback function 0x3C4B5B: not found from known entry points
+Fallback function 0x3C4B70: not found from known entry points
+Fallback function 0x3C4B7B: not found from known entry points
+Fallback function 0x3C4B90: not found from known entry points
+Fallback function 0x3C4B9B: not found from known entry points
+Fallback function 0x3C4BB0: not found from known entry points
+Fallback function 0x3C4BBB: not found from known entry points
+Fallback function 0x3C4BD0: not found from known entry points
+Fallback function 0x3C4BE3: not found from known entry points
+Fallback function 0x3C4BF0: not found from known entry points
+Fallback function 0x3C4BF8: not found from known entry points
+Fallback function 0x3C4C10: not found from known entry points
+Fallback function 0x3C4C23: not found from known entry points
+Fallback function 0x3C4C30: not found from known entry points
+Fallback function 0x3C4C38: not found from known entry points
+Fallback function 0x3C4C50: not found from known entry points
+Fallback function 0x3C4C71: not found from known entry points
+Fallback function 0x3C4C80: not found from known entry points
+Fallback function 0x3C4C88: not found from known entry points
+Fallback function 0x3C4CA0: not found from known entry points
+Fallback function 0x3C4CB0: not found from known entry points
+Fallback function 0x3C4CD6: not found from known entry points
+Fallback function 0x3C4CF0: not found from known entry points
+Fallback function 0x3C4D00: not found from known entry points
+Fallback function 0x3C4D20: not found from known entry points
+Fallback function 0x3C4D30: not found from known entry points
+Fallback function 0x3C4D3B: not found from known entry points
+Fallback function 0x3C4D50: not found from known entry points
+Fallback function 0x3C4D6E: not found from known entry points
+Fallback function 0x3C4D80: not found from known entry points
+Fallback function 0x3C4DC1: not found from known entry points
+Fallback function 0x3C4DD0: not found from known entry points
+Fallback function 0x3C4DDB: not found from known entry points
+Fallback function 0x3C4DF0: not found from known entry points
+Fallback function 0x3C4E03: not found from known entry points
+Fallback function 0x3C4E10: not found from known entry points
+Fallback function 0x3C4E18: not found from known entry points
+Fallback function 0x3C4E30: not found from known entry points
+Fallback function 0x3C4E3B: not found from known entry points
+Fallback function 0x3C4E50: not found from known entry points
+Fallback function 0x3C4E5B: not found from known entry points
+Fallback function 0x3C4E70: not found from known entry points
+Fallback function 0x3C4E83: not found from known entry points
+Fallback function 0x3C4E90: not found from known entry points
+Fallback function 0x3C4EB0: not found from known entry points
+Fallback function 0x3C4EB8: not found from known entry points
+Fallback function 0x3C4ED0: not found from known entry points
+Fallback function 0x3C4ED8: not found from known entry points
+Fallback function 0x3C4EF0: not found from known entry points
+Fallback function 0x3C4F03: not found from known entry points
+Fallback function 0x3C4F10: not found from known entry points
+Fallback function 0x3C4F30: not found from known entry points
+Fallback function 0x3C4F38: not found from known entry points
+Fallback function 0x3C4F50: not found from known entry points
+Fallback function 0x3C4F58: not found from known entry points
+Fallback function 0x3C4F70: not found from known entry points
+Fallback function 0x3C4F7B: not found from known entry points
+Fallback function 0x3C4F90: not found from known entry points
+Fallback function 0x3C4FA3: not found from known entry points
+Fallback function 0x3C4FB0: not found from known entry points
+Fallback function 0x3C4FBB: not found from known entry points
+Fallback function 0x3C4FD0: not found from known entry points
+Fallback function 0x3C4FD8: not found from known entry points
+Fallback function 0x3C4FF0: not found from known entry points
+Fallback function 0x3C4FF8: not found from known entry points
+Fallback function 0x3C5010: not found from known entry points
+Fallback function 0x3C5023: not found from known entry points
+Fallback function 0x3C5030: not found from known entry points
+Fallback function 0x3C5050: not found from known entry points
+Fallback function 0x3C5058: not found from known entry points
+Fallback function 0x3C5070: not found from known entry points
+Fallback function 0x3C5078: not found from known entry points
+Fallback function 0x3C5090: not found from known entry points
+Fallback function 0x3C509B: not found from known entry points
+Fallback function 0x3C50B0: not found from known entry points
+Fallback function 0x3C50E0: not found from known entry points
+Fallback function 0x3C50EB: not found from known entry points
+Fallback function 0x3C5100: not found from known entry points
+Fallback function 0x3C5108: not found from known entry points
+Fallback function 0x3C5120: not found from known entry points
+Fallback function 0x3C5128: not found from known entry points
+Fallback function 0x3C5140: not found from known entry points
+Fallback function 0x3C5153: not found from known entry points
+Fallback function 0x3C5160: not found from known entry points
+Fallback function 0x3C5168: not found from known entry points
+Fallback function 0x3C5180: not found from known entry points
+Fallback function 0x3C5193: not found from known entry points
+Fallback function 0x3C51A0: not found from known entry points
+Fallback function 0x3C51C0: not found from known entry points
+Fallback function 0x3C51C8: not found from known entry points
+Fallback function 0x3C51E0: not found from known entry points
+Fallback function 0x3C51E8: not found from known entry points
+Fallback function 0x3C5200: not found from known entry points
+Fallback function 0x3C5220: not found from known entry points
+Fallback function 0x3C5240: not found from known entry points
+Fallback function 0x3C5260: not found from known entry points
+Fallback function 0x3C527F: not found from known entry points
+Fallback function 0x3C5290: not found from known entry points
+Fallback function 0x3C52B0: not found from known entry points
+Fallback function 0x3C52E0: not found from known entry points
+Fallback function 0x3C5300: not found from known entry points
+Fallback function 0x3C5330: not found from known entry points
+Fallback function 0x3C5350: not found from known entry points
+Fallback function 0x3C5370: not found from known entry points
+Fallback function 0x3C53A0: not found from known entry points
+Fallback function 0x3C53C0: not found from known entry points
+Fallback function 0x3C53E0: not found from known entry points
+Fallback function 0x3C5400: not found from known entry points
+Fallback function 0x3C5450: not found from known entry points
+Fallback function 0x3C5470: not found from known entry points
+Fallback function 0x3C5490: not found from known entry points
+Fallback function 0x3C54C0: not found from known entry points
+Fallback function 0x3C54E0: not found from known entry points
+Fallback function 0x3C5500: not found from known entry points
+Fallback function 0x3C5520: not found from known entry points
+Fallback function 0x3C5540: not found from known entry points
+Fallback function 0x3C5570: not found from known entry points
+Fallback function 0x3C559C: not found from known entry points
+Fallback function 0x3C55B0: not found from known entry points
+Fallback function 0x3C55D0: not found from known entry points
+Fallback function 0x3C55DB: not found from known entry points
+Fallback function 0x3C55F0: not found from known entry points
+Fallback function 0x3C55F8: not found from known entry points
+Fallback function 0x3C5610: not found from known entry points
+Fallback function 0x3C5623: not found from known entry points
+Fallback function 0x3C5630: not found from known entry points
+Fallback function 0x3C5638: not found from known entry points
+Fallback function 0x3C5650: not found from known entry points
+Fallback function 0x3C5663: not found from known entry points
+Fallback function 0x3C5670: not found from known entry points
+Fallback function 0x3C5690: not found from known entry points
+Fallback function 0x3C5698: not found from known entry points
+Fallback function 0x3C56B0: not found from known entry points
+Fallback function 0x3C56B8: not found from known entry points
+Fallback function 0x3C56D0: not found from known entry points
+Fallback function 0x3C56E3: not found from known entry points
+Fallback function 0x3C56F0: not found from known entry points
+Fallback function 0x3C56FB: not found from known entry points
+Fallback function 0x3C5710: not found from known entry points
+Fallback function 0x3C5718: not found from known entry points
+Fallback function 0x3C5730: not found from known entry points
+Fallback function 0x3C5738: not found from known entry points
+Fallback function 0x3C5750: not found from known entry points
+Fallback function 0x3C5760: not found from known entry points
+Fallback function 0x3C5770: not found from known entry points
+Fallback function 0x3C577B: not found from known entry points
+Fallback function 0x3C5790: not found from known entry points
+Fallback function 0x3C57B0: not found from known entry points
+Fallback function 0x3C57D0: not found from known entry points
+Fallback function 0x3C57F0: not found from known entry points
+Fallback function 0x3C5810: not found from known entry points
+Fallback function 0x3C581B: not found from known entry points
+Fallback function 0x3C5830: not found from known entry points
+Fallback function 0x3C5843: not found from known entry points
+Fallback function 0x3C5850: not found from known entry points
+Fallback function 0x3C5858: not found from known entry points
+Fallback function 0x3C5870: not found from known entry points
+Fallback function 0x3C588E: not found from known entry points
+Fallback function 0x3C58A0: not found from known entry points
+Fallback function 0x3C58A8: not found from known entry points
+Fallback function 0x3C58C0: not found from known entry points
+Fallback function 0x3C58E0: not found from known entry points
+Fallback function 0x3C5900: not found from known entry points
+Fallback function 0x3C5920: not found from known entry points
+Fallback function 0x3C5940: not found from known entry points
+Fallback function 0x3C5953: not found from known entry points
+Fallback function 0x3C5960: not found from known entry points
+Fallback function 0x3C5980: not found from known entry points
+Fallback function 0x3C5988: not found from known entry points
+Fallback function 0x3C59A0: not found from known entry points
+Fallback function 0x3C59A8: not found from known entry points
+Fallback function 0x3C59C0: not found from known entry points
+Fallback function 0x3C59CB: not found from known entry points
+Fallback function 0x3C59E0: not found from known entry points
+Fallback function 0x3C59E8: not found from known entry points
+Fallback function 0x3C5A00: not found from known entry points
+Fallback function 0x3C5A1E: not found from known entry points
+Fallback function 0x3C5A30: not found from known entry points
+Fallback function 0x3C5A40: not found from known entry points
+Fallback function 0x3C5A53: not found from known entry points
+Fallback function 0x3C5A60: not found from known entry points
+Fallback function 0x3C5ADF: not found from known entry points
+Fallback function 0x3C5AF0: not found from known entry points
+Fallback function 0x3C5B08: not found from known entry points
+Fallback function 0x3C5B20: not found from known entry points
+Fallback function 0x3C5B28: not found from known entry points
+Fallback function 0x3C5B40: not found from known entry points
+Fallback function 0x3C5B4B: not found from known entry points
+Fallback function 0x3C5B60: not found from known entry points
+Fallback function 0x3C5B68: not found from known entry points
+Fallback function 0x3C5B80: not found from known entry points
+Fallback function 0x3C5B93: not found from known entry points
+Fallback function 0x3C5BA0: not found from known entry points
+Fallback function 0x3C5BA8: not found from known entry points
+Fallback function 0x3C5BC0: not found from known entry points
+Fallback function 0x3C5BCB: not found from known entry points
+Fallback function 0x3C5BE0: not found from known entry points
+Fallback function 0x3C5BF3: not found from known entry points
+Fallback function 0x3C5C00: not found from known entry points
+Fallback function 0x3C5C08: not found from known entry points
+Fallback function 0x3C5C20: not found from known entry points
+Fallback function 0x3C5C40: not found from known entry points
+Fallback function 0x3C5C60: not found from known entry points
+Fallback function 0x3C5CA0: not found from known entry points
+Fallback function 0x3C5CC0: not found from known entry points
+Fallback function 0x3C5CE0: not found from known entry points
+Fallback function 0x3C5D00: not found from known entry points
+Fallback function 0x3C5D30: not found from known entry points
+Fallback function 0x3C5D43: not found from known entry points
+Fallback function 0x3C5D50: not found from known entry points
+Fallback function 0x3C5D5B: not found from known entry points
+Fallback function 0x3C5D70: not found from known entry points
+Fallback function 0x3C5D78: not found from known entry points
+Fallback function 0x3C5D90: not found from known entry points
+Fallback function 0x3C5D98: not found from known entry points
+Fallback function 0x3C5DB0: not found from known entry points
+Fallback function 0x3C5DBB: not found from known entry points
+Fallback function 0x3C5DD0: not found from known entry points
+Fallback function 0x3C5DD8: not found from known entry points
+Fallback function 0x3C5DF0: not found from known entry points
+Fallback function 0x3C5DFB: not found from known entry points
+Fallback function 0x3C5E10: not found from known entry points
+Fallback function 0x3C5E18: not found from known entry points
+Fallback function 0x3C5E30: not found from known entry points
+Fallback function 0x3C5E38: not found from known entry points
+Fallback function 0x3C5E50: not found from known entry points
+Fallback function 0x3C5E71: not found from known entry points
+Fallback function 0x3C5E80: not found from known entry points
+Fallback function 0x3C5E93: not found from known entry points
+Fallback function 0x3C5EA0: not found from known entry points
+Fallback function 0x3C5EC8: not found from known entry points
+Fallback function 0x3C5EE0: not found from known entry points
+Fallback function 0x3C5F0C: not found from known entry points
+Fallback function 0x3C5F20: not found from known entry points
+Fallback function 0x3C5F60: not found from known entry points
+Fallback function 0x3C5F89: not found from known entry points
+Fallback function 0x3C5FA0: not found from known entry points
+Fallback function 0x3C5FE0: not found from known entry points
+Fallback function 0x3C5FF0: not found from known entry points
+Fallback function 0x3C5FF8: not found from known entry points
+Fallback function 0x3C6010: not found from known entry points
+Fallback function 0x3C6020: not found from known entry points
+Fallback function 0x3C6030: not found from known entry points
+Fallback function 0x3C6038: not found from known entry points
+Fallback function 0x3C6050: not found from known entry points
+Fallback function 0x3C6099: not found from known entry points
+Fallback function 0x3C60B0: not found from known entry points
+Fallback function 0x3C60BB: not found from known entry points
+Fallback function 0x3C60D0: not found from known entry points
+Fallback function 0x3C60EE: not found from known entry points
+Fallback function 0x3C6100: not found from known entry points
+Fallback function 0x3C6113: not found from known entry points
+Fallback function 0x3C6120: not found from known entry points
+Fallback function 0x3C619F: not found from known entry points
+Fallback function 0x3C61B0: not found from known entry points
+Fallback function 0x3C61B8: not found from known entry points
+Fallback function 0x3C61D0: not found from known entry points
+Fallback function 0x3C61E3: not found from known entry points
+Fallback function 0x3C61F0: not found from known entry points
+Fallback function 0x3C6210: not found from known entry points
+Fallback function 0x3C6218: not found from known entry points
+Fallback function 0x3C6230: not found from known entry points
+Fallback function 0x3C6238: not found from known entry points
+Fallback function 0x3C6250: not found from known entry points
+Fallback function 0x3C625B: not found from known entry points
+Fallback function 0x3C6270: not found from known entry points
+Fallback function 0x3C6299: not found from known entry points
+Fallback function 0x3C62B0: not found from known entry points
+Fallback function 0x3C62C3: not found from known entry points
+Fallback function 0x3C62D0: not found from known entry points
+Fallback function 0x3C62D8: not found from known entry points
+Fallback function 0x3C62F0: not found from known entry points
+Fallback function 0x3C6300: not found from known entry points
+Fallback function 0x3C6310: not found from known entry points
+Fallback function 0x3C632E: not found from known entry points
+Fallback function 0x3C6340: not found from known entry points
+Fallback function 0x3C637B: not found from known entry points
+Fallback function 0x3C6390: not found from known entry points
+Fallback function 0x3C63A0: not found from known entry points
+Fallback function 0x3C63B0: not found from known entry points
+Fallback function 0x3C63B8: not found from known entry points
+Fallback function 0x3C63D0: not found from known entry points
+Fallback function 0x3C63D8: not found from known entry points
+Fallback function 0x3C63F0: not found from known entry points
+Fallback function 0x3C6403: not found from known entry points
+Fallback function 0x3C6410: not found from known entry points
+Fallback function 0x3C642E: not found from known entry points
+Fallback function 0x3C6440: not found from known entry points
+Fallback function 0x3C6448: not found from known entry points
+Fallback function 0x3C6460: not found from known entry points
+Fallback function 0x3C6468: not found from known entry points
+Fallback function 0x3C6480: not found from known entry points
+Fallback function 0x3C64B6: not found from known entry points
+Fallback function 0x3C64CB: not found from known entry points
+Fallback function 0x3C64E0: not found from known entry points
+Fallback function 0x3C64FE: not found from known entry points
+Fallback function 0x3C6510: not found from known entry points
+Fallback function 0x3C6518: not found from known entry points
+Fallback function 0x3C6530: not found from known entry points
+Fallback function 0x3C6550: not found from known entry points
+Fallback function 0x3C6560: not found from known entry points
+Fallback function 0x3C657E: not found from known entry points
+Fallback function 0x3C6590: not found from known entry points
+Fallback function 0x3C659B: not found from known entry points
+Fallback function 0x3C65B0: not found from known entry points
+Fallback function 0x3C65B8: not found from known entry points
+Fallback function 0x3C65D0: not found from known entry points
+Fallback function 0x3C65F9: not found from known entry points
+Fallback function 0x3C6610: not found from known entry points
+Fallback function 0x3C6618: not found from known entry points
+Fallback function 0x3C6630: not found from known entry points
+Fallback function 0x3C6638: not found from known entry points
+Fallback function 0x3C6650: not found from known entry points
+Fallback function 0x3C6689: not found from known entry points
+Fallback function 0x3C66A0: not found from known entry points
+Fallback function 0x3C66AB: not found from known entry points
+Fallback function 0x3C66C0: not found from known entry points
+Fallback function 0x3C66C8: not found from known entry points
+Fallback function 0x3C66E0: not found from known entry points
+Fallback function 0x3C66E8: not found from known entry points
+Fallback function 0x3C6700: not found from known entry points
+Fallback function 0x3C6708: not found from known entry points
+Fallback function 0x3C6720: not found from known entry points
+Fallback function 0x3C6728: not found from known entry points
+Fallback function 0x3C6740: not found from known entry points
+Fallback function 0x3C6748: not found from known entry points
+Fallback function 0x3C6760: not found from known entry points
+Fallback function 0x3C677E: not found from known entry points
+Fallback function 0x3C6790: not found from known entry points
+Fallback function 0x3C67C6: not found from known entry points
+Fallback function 0x3C67DB: not found from known entry points
+Fallback function 0x3C67F0: not found from known entry points
+Fallback function 0x3C67F8: not found from known entry points
+Fallback function 0x3C6810: not found from known entry points
+Fallback function 0x3C6867: not found from known entry points
+Fallback function 0x3C6880: not found from known entry points
+Fallback function 0x3C6888: not found from known entry points
+Fallback function 0x3C68A0: not found from known entry points
+Fallback function 0x3C68A8: not found from known entry points
+Fallback function 0x3C68C0: not found from known entry points
+Fallback function 0x3C68C8: not found from known entry points
+Fallback function 0x3C68E0: not found from known entry points
+Fallback function 0x3C6909: not found from known entry points
+Fallback function 0x3C6920: not found from known entry points
+Fallback function 0x3C6943: not found from known entry points
+Fallback function 0x3C6950: not found from known entry points
+Fallback function 0x3C6994: not found from known entry points
+Fallback function 0x3C69A0: not found from known entry points
+Fallback function 0x3C69AB: not found from known entry points
+Fallback function 0x3C69C0: not found from known entry points
+Fallback function 0x3C69C8: not found from known entry points
+Fallback function 0x3C69E0: not found from known entry points
+Fallback function 0x3C6A09: not found from known entry points
+Fallback function 0x3C6A20: not found from known entry points
+Fallback function 0x3C6A28: not found from known entry points
+Fallback function 0x3C6A40: not found from known entry points
+Fallback function 0x3C6A50: not found from known entry points
+Fallback function 0x3C6A60: not found from known entry points
+Fallback function 0x3C6A68: not found from known entry points
+Fallback function 0x3C6A80: not found from known entry points
+Fallback function 0x3C6AB1: not found from known entry points
+Fallback function 0x3C6AC0: not found from known entry points
+Fallback function 0x3C6ACB: not found from known entry points
+Fallback function 0x3C6AE0: not found from known entry points
+Fallback function 0x3C6AF6: not found from known entry points
+Fallback function 0x3C6B08: not found from known entry points
+Fallback function 0x3C6B20: not found from known entry points
+Fallback function 0x3C6B2B: not found from known entry points
+Fallback function 0x3C6B40: not found from known entry points
+Fallback function 0x3C6B48: not found from known entry points
+Fallback function 0x3C6B60: not found from known entry points
+Fallback function 0x3C6B68: not found from known entry points
+Fallback function 0x3C6B80: not found from known entry points
+Fallback function 0x3C6B88: not found from known entry points
+Fallback function 0x3C6BA0: not found from known entry points
+Fallback function 0x3C6BA8: not found from known entry points
+Fallback function 0x3C6BC0: not found from known entry points
+Fallback function 0x3C6BE9: not found from known entry points
+Fallback function 0x3C6C00: not found from known entry points
+Fallback function 0x3C6C28: not found from known entry points
+Fallback function 0x3C6C40: not found from known entry points
+Fallback function 0x3C6C69: not found from known entry points
+Fallback function 0x3C6C80: not found from known entry points
+Fallback function 0x3C6C8B: not found from known entry points
+Fallback function 0x3C6CA0: not found from known entry points
+Fallback function 0x3C6CB3: not found from known entry points
+Fallback function 0x3C6CC0: not found from known entry points
+Fallback function 0x3C6D0E: not found from known entry points
+Fallback function 0x3C6D20: not found from known entry points
+Fallback function 0x3C6D2B: not found from known entry points
+Fallback function 0x3C6D40: not found from known entry points
+Fallback function 0x3C6D50: not found from known entry points
+Fallback function 0x3C6D60: not found from known entry points
+Fallback function 0x3C6D68: not found from known entry points
+Fallback function 0x3C6D80: not found from known entry points
+Fallback function 0x3C6DC9: not found from known entry points
+Fallback function 0x3C6DE0: not found from known entry points
+Fallback function 0x3C6E09: not found from known entry points
+Fallback function 0x3C6E20: not found from known entry points
+Fallback function 0x3C6E41: not found from known entry points
+Fallback function 0x3C6E50: not found from known entry points
+Fallback function 0x3C6E9C: not found from known entry points
+Fallback function 0x3C6EB0: not found from known entry points
+Fallback function 0x3C6EB8: not found from known entry points
+Fallback function 0x3C6ED0: not found from known entry points
+Fallback function 0x3C6F35: not found from known entry points
+Fallback function 0x3C6F40: not found from known entry points
+Fallback function 0x3C6F4B: not found from known entry points
+Fallback function 0x3C6F60: not found from known entry points
+Fallback function 0x3C6F7E: not found from known entry points
+Fallback function 0x3C6F90: not found from known entry points
+Fallback function 0x3C6FB8: not found from known entry points
+Fallback function 0x3C6FD0: not found from known entry points
+Fallback function 0x3C6FF0: not found from known entry points
+Fallback function 0x3C7000: not found from known entry points
+Fallback function 0x3C7058: not found from known entry points
+Fallback function 0x3C7070: not found from known entry points
+Fallback function 0x3C7080: not found from known entry points
+Fallback function 0x3C7088: not found from known entry points
+Fallback function 0x3C70A0: not found from known entry points
+Fallback function 0x3C70F7: not found from known entry points
+Fallback function 0x3C7110: not found from known entry points
+Fallback function 0x3C7123: not found from known entry points
+Fallback function 0x3C7130: not found from known entry points
+Fallback function 0x3C714E: not found from known entry points
+Fallback function 0x3C7160: not found from known entry points
+Fallback function 0x3C7190: not found from known entry points
+Fallback function 0x3C71A0: not found from known entry points
+Fallback function 0x3C71A8: not found from known entry points
+Fallback function 0x3C71C0: not found from known entry points
+Fallback function 0x3C723F: not found from known entry points
+Fallback function 0x3C7250: not found from known entry points
+Fallback function 0x3C7263: not found from known entry points
+Fallback function 0x3C7270: not found from known entry points
+Fallback function 0x3C728E: not found from known entry points
+Fallback function 0x3C72A0: not found from known entry points
+Fallback function 0x3C72A8: not found from known entry points
+Fallback function 0x3C72C0: not found from known entry points
+Fallback function 0x3C72F0: not found from known entry points
+Fallback function 0x3C7300: not found from known entry points
+Fallback function 0x3C7308: not found from known entry points
+Fallback function 0x3C7320: not found from known entry points
+Fallback function 0x3C73A4: not found from known entry points
+Fallback function 0x3C73B0: not found from known entry points
+Fallback function 0x3C73C3: not found from known entry points
+Fallback function 0x3C73D0: not found from known entry points
+Fallback function 0x3C73E3: not found from known entry points
+Fallback function 0x4248A6: not found from known entry points
+Unresolved Call at 0x4248AA in function 0x4248A6
+Unresolved Call at 0x42490C in function 0x4248A6
+Fallback function 0x42496E: not found from known entry points
+Fallback function 0x424973: not found from known entry points
+Unresolved Call at 0x424974 in function 0x424973
+Unresolved Call at 0x424989 in function 0x424973
+Fallback function 0x424995: not found from known entry points
+Unresolved Call at 0x4249B1 in function 0x424995
+Unresolved Call at 0x4249E8 in function 0x424995
+Unresolved Call at 0x424A16 in function 0x424A02
+Fallback function 0x424ABB: not found from known entry points
+Unresolved Call at 0x424C0C in function 0x424B66
+Fallback function 0x424C17: not found from known entry points
+Unresolved Call at 0x424C45 in function 0x424C17
+Fallback function 0x424CD3: not found from known entry points
+Unresolved Call at 0x424DED in function 0x424DD3
+Unresolved Jump at 0x424DF7 in function 0x424DD3
+Unresolved Call at 0x424E6E in function 0x424E66
+Fallback function 0x424E77: not found from known entry points
+Unresolved Call at 0x424EA2 in function 0x424E77
+Unresolved Call at 0x424EBB in function 0x424E77
+Unresolved Call at 0x424ECC in function 0x424EC4
+Unresolved Call at 0x424F57 in function 0x424F4E
+Unresolved Call at 0x425093 in function 0x42508D
+Unresolved Call at 0x42511E in function 0x425118
+Unresolved Call at 0x4251C7 in function 0x4251A3
+Fallback function 0x4251DE: not found from known entry points
+Unresolved Call at 0x4251E8 in function 0x4251DE
+Unresolved Call at 0x425202 in function 0x4251DE
+Unresolved Call at 0x425235 in function 0x4251DE
+Unresolved Call at 0x425243 in function 0x4251DE
+Unresolved Call at 0x42524E in function 0x4251DE
+Unresolved Call at 0x425281 in function 0x425272
+Unresolved Call at 0x4252C0 in function 0x425272
+Unresolved Call at 0x425393 in function 0x425272
+Unresolved Call at 0x425486 in function 0x42547E
+Fallback function 0x425572: not found from known entry points
+Unresolved Call at 0x42558F in function 0x425572
+Unresolved Call at 0x425646 in function 0x425572
+Unresolved Call at 0x425708 in function 0x425572
+Unresolved Call at 0x42571B in function 0x425572
+Unresolved Call at 0x425742 in function 0x425572
+Unresolved Call at 0x4257A4 in function 0x425572
+Unresolved Call at 0x4258E9 in function 0x4257C2
+Unresolved Call at 0x425D8C in function 0x425CB7
+Fallback function 0x425E2E: not found from known entry points
+Unresolved Call at 0x425EE7 in function 0x425ED8
+Unresolved Call at 0x425F77 in function 0x425F6A
+Unresolved Call at 0x425F98 in function 0x425F6A
+Unresolved Call at 0x425FB7 in function 0x425F6A
+Unresolved Call at 0x425FC2 in function 0x425F6A
+Fallback function 0x425FD2: not found from known entry points
+Unresolved Call at 0x42605F in function 0x426016
+Unresolved Call at 0x4260CE in function 0x426016
+Unresolved Call at 0x4260F5 in function 0x4260DA
+Fallback function 0x4260FC: not found from known entry points
+Unresolved Call at 0x426144 in function 0x4260FC
+Unresolved Call at 0x42616F in function 0x42614D
+Fallback function 0x4261EB: not found from known entry points
+Unresolved Call at 0x426304 in function 0x4262DD
+Unresolved Call at 0x426321 in function 0x4262DD
+Unresolved Call at 0x426399 in function 0x42632F
+Unresolved Call at 0x4263D3 in function 0x42632F
+Fallback function 0x42651B: not found from known entry points
+Unresolved Call at 0x4265D3 in function 0x4265CE
+Unresolved Call at 0x4267DE in function 0x4267BF
+Unresolved Call at 0x4267F9 in function 0x4267F3
+Unresolved Call at 0x4268D8 in function 0x4268CE
+Unresolved Call at 0x426B1D in function 0x426B15
+Unresolved Call at 0x426D91 in function 0x426D80
+Unresolved Call at 0x426EE8 in function 0x426D80
+Fallback function 0x427097: not found from known entry points
+Unresolved Call at 0x4270AE in function 0x427097
+Unresolved Call at 0x4270C8 in function 0x427097
+Unresolved Call at 0x4270E9 in function 0x4270D2
+Unresolved Call at 0x42717B in function 0x4270D2
+Unresolved Call at 0x427194 in function 0x427189
+Unresolved Call at 0x4271E0 in function 0x427189
+Unresolved Call at 0x4271FE in function 0x4271F0
+Unresolved Call at 0x427235 in function 0x4271F0
+Unresolved Call at 0x42736B in function 0x42735B
+Unresolved Call at 0x42738C in function 0x427387
+Unresolved Call at 0x4274BF in function 0x4274AF
+Unresolved Call at 0x427508 in function 0x4274AF
+Unresolved Call at 0x427546 in function 0x427512
+Unresolved Call at 0x42769C in function 0x427660
+Unresolved Call at 0x4279CF in function 0x427995
+Unresolved Call at 0x427D24 in function 0x427D0F
+Unresolved Call at 0x427DC0 in function 0x427DBA
+Unresolved Call at 0x427E4B in function 0x427E36
+Unresolved Call at 0x428013 in function 0x427F5C
+Fallback function 0x42803E: not found from known entry points
+Unresolved Call at 0x42810F in function 0x4280CD
+Fallback function 0x428137: not found from known entry points
+Unresolved Call at 0x42815C in function 0x428137
+Fallback function 0x428162: not found from known entry points
+Unresolved Call at 0x4281C0 in function 0x428162
+Unresolved Call at 0x4281DD in function 0x428162
+Fallback function 0x428221: not found from known entry points
+Fallback function 0x4286AD: not found from known entry points
+Unresolved Call at 0x428727 in function 0x4286AD
+Fallback function 0x428767: not found from known entry points
+Fallback function 0x42887A: not found from known entry points
+Unresolved Call at 0x428897 in function 0x42887A
+Fallback function 0x4288F6: not found from known entry points
+Fallback function 0x428928: not found from known entry points
+Fallback function 0x428A1C: not found from known entry points
+Fallback function 0x428AC8: not found from known entry points
+Fallback function 0x428BCA: not found from known entry points
+Fallback function 0x428C20: not found from known entry points
+Fallback function 0x428CA7: not found from known entry points
+Fallback function 0x428D81: not found from known entry points
+Unresolved Call at 0x428EBE in function 0x428EA9
+Unresolved Call at 0x42904A in function 0x428EA9
+Unresolved Call at 0x429061 in function 0x429056
+Unresolved Call at 0x42908A in function 0x429056
+Fallback function 0x42909A: not found from known entry points
+Unresolved Call at 0x4290D6 in function 0x42909A
+Unresolved Call at 0x4290EF in function 0x42909A
+Unresolved Call at 0x42913D in function 0x429123
+Unresolved Call at 0x4291F8 in function 0x429123
+Unresolved Call at 0x429201 in function 0x429123
+Unresolved Call at 0x429215 in function 0x429123
+Unresolved Call at 0x429272 in function 0x429123
+Unresolved Call at 0x4292A8 in function 0x42928A
+Unresolved Call at 0x4292DB in function 0x42928A
+Unresolved Call at 0x4292F4 in function 0x42928A
+Unresolved Call at 0x4292FA in function 0x42928A
+Unresolved Call at 0x42938C in function 0x42928A
+Unresolved Call at 0x4293B7 in function 0x4293A9
+Unresolved Call at 0x4293EC in function 0x4293A9
+Fallback function 0x429403: not found from known entry points
+Unresolved Call at 0x4294B5 in function 0x429403
+Unresolved Call at 0x4294CA in function 0x429403
+Unresolved Call at 0x4294EB in function 0x429403
+Unresolved Call at 0x42958C in function 0x429583
+Unresolved Call at 0x4296B9 in function 0x4295BD
+Unresolved Call at 0x429A6E in function 0x429A53
+Unresolved Call at 0x429ACC in function 0x429A53
+Discovery: 5343 functions from known entry points, 25484 fallback functions, 3 functions reached from fallback, 7606 unresolved transfers
+Analysed 30826 functions.
+eliminate-stack-args: rewrote 1463 calls (416 callees), removed 46 pushes
+eliminate-return-slot: rewrote 7200 calls (1839 callees)
+stack-slots-in-locals: 1078 functions
+flag-boundaries: 30720 of 30826 functions return fewer flags
+WARNING: Host-replaced function 0x934D0 has 0 x87 values at entry and 1 at exit; keep that in the replacement
+WARNING: Host-replaced function 0x25E860 has 0 x87 values at entry and 1 at exit; keep that in the replacement
+WARNING: Host-replaced function 0x2621A0 has 0 x87 values at entry and 1 at exit; keep that in the replacement
+WARNING: Host-replaced function 0x379D20 has 0 x87 values at entry and 1 at exit; keep that in the replacement
+optimize-x87: 1608 functions hinted, 1590 with a local copy
+optimize-x87: 4709 syncs to ctx.fpu, 5081 reloads, 142 hook syncs
+optimize-x87: skipped 3: Opaque(DepthConflict)
+optimize-x87: skipped 4: Opaque(Unfollowable)
+optimize-x87: skipped 5: Opaque(ExitConflict)
+optimize-x87: skipped 1: Opaque(MissingValuesAfterCall)
+optimize-x87: skipped 4: CallsUntrustedFunction
+optimize-x87: skipped 15: UnknownEntry
+optimize-x87: skipped 3: StateWide
+optimize-mmx: 16 functions with local MMX registers (0 kept)
+Recompiling functions... 0%
+Terminal barrier after instruction at 0x12280: INT3 reached
+Terminal barrier after instruction at 0x12413: INT3 reached
+Terminal barrier after instruction at 0x16309: INT3 reached
+Terminal barrier after instruction at 0x18DB9: INT3 reached
+Terminal barrier after instruction at 0x20D69: INT3 reached
+Terminal barrier after instruction at 0x21810: INT3 reached
+Recompiling functions... 2%
+Terminal barrier after instruction at 0x22D99: INT3 reached
+Terminal barrier after instruction at 0x29D79: INT3 reached
+Terminal barrier after instruction at 0x29DE9: INT3 reached
+Terminal barrier after instruction at 0x2A763: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2C3C9: INT3 reached
+Terminal barrier after instruction at 0x2C439: INT3 reached
+Terminal barrier after instruction at 0x30504: Selected block ends without control transfer
+Recompiling functions... 4%
+Terminal barrier after instruction at 0x461F9: INT3 reached
+Terminal barrier after instruction at 0x4FB59: INT3 reached
+Terminal barrier after instruction at 0x58704: Selected block ends without control transfer
+Recompiling functions... 6%
+Terminal barrier after instruction at 0x58B19: INT3 reached
+Terminal barrier after instruction at 0x5D629: INT3 reached
+Terminal barrier after instruction at 0x615D9: INT3 reached
+Terminal barrier after instruction at 0x63168: Selected block ends without control transfer
+Recompiling functions... 8%
+Terminal barrier after instruction at 0x6F9E0: Selected block ends without control transfer
+Terminal barrier after instruction at 0x70008: INT3 reached
+Terminal barrier after instruction at 0x71E4F: Selected block ends without control transfer
+Terminal barrier after instruction at 0x720AE: Selected block ends without control transfer
+Terminal barrier after instruction at 0x7285B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x72911: Selected block ends without control transfer
+Terminal barrier after instruction at 0x7292B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x72B0C: Selected block ends without control transfer
+Terminal barrier after instruction at 0x72C56: Selected block ends without control transfer
+Terminal barrier after instruction at 0x7325C: Selected block ends without control transfer
+Terminal barrier after instruction at 0x74757: Selected block ends without control transfer
+Terminal barrier after instruction at 0x77271: Selected block ends without control transfer
+Terminal barrier after instruction at 0x77DF8: Selected block ends without control transfer
+Terminal barrier after instruction at 0x7A843: Selected block ends without control transfer
+Terminal barrier after instruction at 0x7E330: Selected block ends without control transfer
+Terminal barrier after instruction at 0x7E857: Selected block ends without control transfer
+Terminal barrier after instruction at 0x8B02F: Selected block ends without control transfer
+Recompiling functions... 10%
+Terminal barrier after instruction at 0x8B949: Selected block ends without control transfer
+Terminal barrier after instruction at 0x90203: Selected block ends without control transfer
+Terminal barrier after instruction at 0x92669: INT3 reached
+Terminal barrier after instruction at 0x95E96: Selected block ends without control transfer
+Terminal barrier after instruction at 0x9BC39: INT3 reached
+Terminal barrier after instruction at 0x9C82F: Selected block ends without control transfer
+Recompiling functions... 12%
+Terminal barrier after instruction at 0xA6F49: INT3 reached
+Terminal barrier after instruction at 0xAB7E9: INT3 reached
+Terminal barrier after instruction at 0xACE69: INT3 reached
+Terminal barrier after instruction at 0xAD747: Selected block ends without control transfer
+Recompiling functions... 14%
+Terminal barrier after instruction at 0xC4305: INT3 reached
+Terminal barrier after instruction at 0xC642C: Selected block ends without control transfer
+Terminal barrier after instruction at 0xCC76C: Selected block ends without control transfer
+Recompiling functions... 16%
+Recompiling functions... 18%
+Recompiling functions... 19%
+Terminal barrier after instruction at 0x10FCC0: Selected block ends without control transfer
+Recompiling functions... 21%
+Recompiling functions... 23%
+Terminal barrier after instruction at 0x137B5E: Selected block ends without control transfer
+Terminal barrier after instruction at 0x13B54F: Selected block ends without control transfer
+Terminal barrier after instruction at 0x140E62: Selected block ends without control transfer
+Recompiling functions... 25%
+Terminal barrier after instruction at 0x14A1F7: Selected block ends without control transfer
+Terminal barrier after instruction at 0x150F35: INT3 reached
+Terminal barrier after instruction at 0x162729: INT3 reached
+Terminal barrier after instruction at 0x163919: INT3 reached
+Terminal barrier after instruction at 0x164BC9: INT3 reached
+Terminal barrier after instruction at 0x164C39: INT3 reached
+Recompiling functions... 27%
+Terminal barrier after instruction at 0x165047: Selected block ends without control transfer
+Terminal barrier after instruction at 0x165999: INT3 reached
+Terminal barrier after instruction at 0x167009: INT3 reached
+Terminal barrier after instruction at 0x169C19: INT3 reached
+Terminal barrier after instruction at 0x16C9B9: INT3 reached
+Terminal barrier after instruction at 0x16D2C9: INT3 reached
+Terminal barrier after instruction at 0x16F842: Selected block ends without control transfer
+Terminal barrier after instruction at 0x173BD2: Selected block ends without control transfer
+Terminal barrier after instruction at 0x173C4F: Selected block ends without control transfer
+Terminal barrier after instruction at 0x176E49: INT3 reached
+Recompiling functions... 29%
+Terminal barrier after instruction at 0x1804D9: INT3 reached
+Terminal barrier after instruction at 0x181F8F: Selected block ends without control transfer
+Terminal barrier after instruction at 0x182225: Selected block ends without control transfer
+Recompiling functions... 31%
+Terminal barrier after instruction at 0x1A0434: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1B13AB: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1B17EC: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1B18CB: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1B3D0E: Selected block ends without control transfer
+Recompiling functions... 33%
+Terminal barrier after instruction at 0x1C31C9: INT3 reached
+Terminal barrier after instruction at 0x1C3239: INT3 reached
+Terminal barrier after instruction at 0x1C4288: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1C5048: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1C7B04: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1CE6D9: INT3 reached
+Terminal barrier after instruction at 0x1D64B9: INT3 reached
+Terminal barrier after instruction at 0x1DAD22: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1DD840: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1DD85C: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1DD875: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1DF035: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1DF245: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1DF299: Selected block ends without control transfer
+Terminal barrier after instruction at 0x1DF330: Selected block ends without control transfer
+Recompiling functions... 35%
+Terminal barrier after instruction at 0x1FEE2D: INT3 reached
+Recompiling functions... 37%
+Terminal barrier after instruction at 0x203215: Selected block ends without control transfer
+Terminal barrier after instruction at 0x207789: INT3 reached
+Terminal barrier after instruction at 0x2147F0: Selected block ends without control transfer
+Terminal barrier after instruction at 0x21480D: Selected block ends without control transfer
+Terminal barrier after instruction at 0x21482A: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2154EF: Selected block ends without control transfer
+Terminal barrier after instruction at 0x215546: Selected block ends without control transfer
+Terminal barrier after instruction at 0x21559D: Selected block ends without control transfer
+Recompiling functions... 39%
+Terminal barrier after instruction at 0x227529: INT3 reached
+Terminal barrier after instruction at 0x2300A9: INT3 reached
+Terminal barrier after instruction at 0x231649: INT3 reached
+Terminal barrier after instruction at 0x233569: INT3 reached
+Terminal barrier after instruction at 0x235939: INT3 reached
+Terminal barrier after instruction at 0x237C7B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x237C8F: Selected block ends without control transfer
+Terminal barrier after instruction at 0x237CA8: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2386CF: Selected block ends without control transfer
+Recompiling functions... 41%
+Terminal barrier after instruction at 0x23EFC1: Selected block ends without control transfer
+Terminal barrier after instruction at 0x243D1A: Selected block ends without control transfer
+Terminal barrier after instruction at 0x24D773: Selected block ends without control transfer
+Terminal barrier after instruction at 0x24D7EA: Selected block ends without control transfer
+Terminal barrier after instruction at 0x256AF6: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2581C4: Selected block ends without control transfer
+Recompiling functions... 43%
+Terminal barrier after instruction at 0x25A429: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25BBC4: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25BD6F: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25BD94: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25DA74: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25DE34: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25DF3E: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25DFAA: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25E06D: Selected block ends without control transfer
+Terminal barrier after instruction at 0x25E2CE: Selected block ends without control transfer
+Recompiling functions... 45%
+Terminal barrier after instruction at 0x268269: INT3 reached
+Terminal barrier after instruction at 0x26A84D: Selected block ends without control transfer
+Recompiling functions... 47%
+Terminal barrier after instruction at 0x27DEDD: Selected block ends without control transfer
+Terminal barrier after instruction at 0x27E7ED: Selected block ends without control transfer
+Terminal barrier after instruction at 0x27EAF3: Selected block ends without control transfer
+Terminal barrier after instruction at 0x27EF3D: Selected block ends without control transfer
+Terminal barrier after instruction at 0x27F54A: Selected block ends without control transfer
+Terminal barrier after instruction at 0x27FE3B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x280571: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2898F9: INT3 reached
+Terminal barrier after instruction at 0x289969: INT3 reached
+Terminal barrier after instruction at 0x28A2D5: Selected block ends without control transfer
+Terminal barrier after instruction at 0x28A846: Selected block ends without control transfer
+Terminal barrier after instruction at 0x28B5B9: INT3 reached
+Terminal barrier after instruction at 0x29E9DC: Selected block ends without control transfer
+Recompiling functions... 49%
+Terminal barrier after instruction at 0x29F329: INT3 reached
+Terminal barrier after instruction at 0x2A732B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2A8589: INT3 reached
+Terminal barrier after instruction at 0x2A85F9: INT3 reached
+Terminal barrier after instruction at 0x2A8C2B: INT3 reached
+Terminal barrier after instruction at 0x2AA4C9: INT3 reached
+Terminal barrier after instruction at 0x2AAF09: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2ADF0A: INT3 reached
+Terminal barrier after instruction at 0x2ADF0A: INT3 reached
+Terminal barrier after instruction at 0x2AEE1C: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2B0CE0: INT3 reached
+Unrecognised instruction at 0x2B1915: jmp
+Terminal barrier after instruction at 0x2B2C46: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2B2E0B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x2B4009: INT3 reached
+Recompiling functions... 51%
+Recompiling functions... 53%
+Recompiling functions... 55%
+Recompiling functions... 56%
+Recompiling functions... 58%
+Recompiling functions... 60%
+Recompiling functions... 62%
+Terminal barrier after instruction at 0x37D716: INT3 reached
+Terminal barrier after instruction at 0x37D756: INT3 reached
+Recompiling functions... 64%
+Terminal barrier after instruction at 0x37D7FB: INT3 reached
+Terminal barrier after instruction at 0x37E1A4: INT3 reached
+Terminal barrier after instruction at 0x37E68E: INT3 reached
+Terminal barrier after instruction at 0x37F0C0: INT3 reached
+Terminal barrier after instruction at 0x37F0C0: INT3 reached
+Terminal barrier after instruction at 0x38201A: INT3 reached
+Terminal barrier after instruction at 0x38201A: INT3 reached
+Terminal barrier after instruction at 0x3829D9: INT3 reached
+Terminal barrier after instruction at 0x3829D9: INT3 reached
+Recompiling functions... 66%
+Recompiling functions... 68%
+Recompiling functions... 70%
+Recompiling functions... 72%
+Recompiling functions... 74%
+Recompiling functions... 76%
+Recompiling functions... 78%
+Recompiling functions... 80%
+Recompiling functions... 82%
+Recompiling functions... 84%
+Recompiling functions... 86%
+Recompiling functions... 88%
+Recompiling functions... 90%
+Recompiling functions... 91%
+Recompiling functions... 93%
+Terminal barrier after instruction at 0x3CE69B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x3CE72B: Selected block ends without control transfer
+Terminal barrier after instruction at 0x3CE7DB: Selected block ends without control transfer
+Terminal barrier after instruction at 0x3CE86B: Selected block ends without control transfer
+Recompiling functions... 95%
+Terminal barrier after instruction at 0x3D7503: INT3 reached
+Terminal barrier after instruction at 0x3D773A: INT3 reached
+Terminal barrier after instruction at 0x3D78E8: INT3 reached
+Recompiling functions... 97%
+Terminal barrier after instruction at 0x40C967: INT3 reached
+Terminal barrier after instruction at 0x40FA97: INT3 reached
+Terminal barrier after instruction at 0x40FFCE: INT3 reached
+Terminal barrier after instruction at 0x4100CE: INT3 reached
+Terminal barrier after instruction at 0x4101CE: INT3 reached
+Terminal barrier after instruction at 0x4102CE: INT3 reached
+Terminal barrier after instruction at 0x4103D0: INT3 reached
+Terminal barrier after instruction at 0x4105AD: INT3 reached
+Recompiling functions... 99%
+Recompiling functions... 100%
+missing following instructions:
+jmp, 
+potential wrong analyse:
+Base: 0x16feb5, Address: 0x16fec5
+Base: 0x22d170, Address: 0x22d222
+Base: 0x37e704, Address: 0x37e708
+Base: 0x37fc20, Address: 0x37fd14
+Base: 0x382398, Address: 0x382398
+Base: 0x40e3f4, Address: 0x40e417
+Potential wrong analyse 6
+-- Generating version information...
+-- Found Git: /opt/homebrew/bin/git (found version "2.56.0")
+-- Build: v1.0.0.f4b7c8b-master (Release)
+-- Creating /Users/runner/work/edgyios/edgyios/ShadowRecomp-Upstream/ShadowRecomp/version.h
+-- Creating /Users/runner/work/edgyios/edgyios/ShadowRecomp-Upstream/ShadowRecomp/version.cpp
+-- Using the multi-header code from /Users/runner/work/edgyios/edgyios/ShadowRecomp-Upstream/build-ios/_deps/nlohmann_json-src/include/
+-- Configuring ShadowRecomp for iOS arm64 (iPhone 16 Pro / MoltenVK -> Metal 3)
+-- Configuring done (300.6s)
+CMake Error: Xcode generator: duplicate object ids not allowed
+CMake Error: Xcode generator: duplicate object ids not allowed
+CMake Error: Xcode generator: duplicate object ids not allowed
+CMake Error: Xcode generator: duplicate object ids not allowed
+CMake Error: Xcode generator: duplicate object ids not allowed
+CMake Generate step failed.  Build files cannot be regenerated correctly.
+-- Generating done (0.5s)
+Error: Process completed with exit code 1.

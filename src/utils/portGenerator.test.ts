@@ -26,7 +26,7 @@ test('GitHub Actions workflow builds host XboxRecomp2, file_to_c, MoltenVK, and 
   assert.match(yml, /MoltenVK-ios\.tar/);
   assert.match(yml, /DSHADOW_RECOMP_XBOXRECOMP2_EXECUTABLE=/);
   assert.match(yml, /DPLUME_SDL3_VULKAN_ENABLED=ON/);
-  assert.match(yml, /CODE_SIGNING_ALLOWED=NO/);
+  assert.match(yml, /cmake -B build-ios -G Ninja/);
   assert.match(yml, /ldid -Sios-port\/ios\/Entitlements\.plist/);
   assert.match(yml, /ShadowRecompLib\/private\/default\.xbe/);
 });
