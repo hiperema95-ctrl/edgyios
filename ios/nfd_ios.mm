@@ -17,6 +17,7 @@ static std::string g_lastNfdError;
 @property (nonatomic, strong) dispatch_semaphore_t semaphore;
 @property (nonatomic, copy) NSString *selectedPath;
 @property (nonatomic, assign) BOOL cancelled;
+@property (nonatomic, assign) BOOL finished;
 @property (nonatomic, assign) BOOL pickFolder;
 @end
 
@@ -26,7 +27,8 @@ static std::string g_lastNfdError;
     NSURL *url = urls.firstObject;
     if (!url) {
         self.cancelled = YES;
-        dispatch_semaphore_signal(self.semaphore);
+        self.finished = YES;
+        if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
         return;
     }
 
@@ -54,12 +56,14 @@ static std::string g_lastNfdError;
         [url stopAccessingSecurityScopedResource];
     }
     self.cancelled = NO;
-    dispatch_semaphore_signal(self.semaphore);
+    self.finished = YES;
+    if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
 }
 
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
     self.cancelled = YES;
-    dispatch_semaphore_signal(self.semaphore);
+    self.finished = YES;
+    if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
 }
 
 @end
@@ -82,6 +86,8 @@ static UIViewController* GetTopViewController(void) {
     return top;
 }
 
+static ShadowDocumentPickerDelegate *g_activePickerDelegate = nil;
+
 static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode) {
     if (!outPath) {
         g_lastNfdError = "outPath is null";
@@ -90,15 +96,17 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
     *outPath = nullptr;
 
     ShadowDocumentPickerDelegate *delegate = [[ShadowDocumentPickerDelegate alloc] init];
-    delegate.semaphore = dispatch_semaphore_create(0);
     delegate.pickFolder = folderMode;
     delegate.cancelled = YES;
+    delegate.finished = NO;
+    g_activePickerDelegate = delegate;
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    void (^presentBlock)(void) = ^{
         UIViewController *presenter = GetTopViewController();
         if (!presenter) {
             g_lastNfdError = "No active UIViewController to present Files app";
-            dispatch_semaphore_signal(delegate.semaphore);
+            delegate.finished = YES;
+            if (delegate.semaphore) dispatch_semaphore_signal(delegate.semaphore);
             return;
         }
 
@@ -112,15 +120,28 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
         picker.allowsMultipleSelection = NO;
         picker.modalPresentationStyle = UIModalPresentationFormSheet;
         [presenter presentViewController:picker animated:YES completion:nil];
-    });
+    };
 
-    dispatch_semaphore_wait(delegate.semaphore, DISPATCH_TIME_FOREVER);
+    if ([NSThread isMainThread]) {
+        presentBlock();
+        while (!delegate.finished) {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        }
+    } else {
+        delegate.semaphore = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_main_queue(), presentBlock);
+        dispatch_semaphore_wait(delegate.semaphore, DISPATCH_TIME_FOREVER);
+    }
 
-    if (delegate.cancelled || delegate.selectedPath.length == 0) {
+    NSString *resultPath = delegate.selectedPath;
+    BOOL wasCancelled = delegate.cancelled;
+    g_activePickerDelegate = nil;
+
+    if (wasCancelled || resultPath.length == 0) {
         return NFD_CANCEL;
     }
 
-    const char* utf8 = delegate.selectedPath.UTF8String;
+    const char* utf8 = resultPath.UTF8String;
     *outPath = static_cast<nfdu8char_t*>(std::malloc(std::strlen(utf8) + 1));
     std::strcpy(*outPath, utf8);
     return NFD_OKAY;

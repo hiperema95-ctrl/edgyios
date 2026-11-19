@@ -406,6 +406,37 @@ cp "\${PORT_DIR}/ios/include/nfd.h" "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/in
 cp "\${PORT_DIR}/ios/ios_mod_manager.mm" "\${UPSTREAM_DIR}/ShadowRecomp/os/ios/ios_mod_manager.mm"
 cp "\${PORT_DIR}/ios/curl_ios_stub.mm" "\${UPSTREAM_DIR}/ShadowRecomp/os/ios/curl_ios_stub.mm"
 cp "\${PORT_DIR}/ios/include/curl/curl.h" "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/curl/curl.h"
+cat << 'EOF_NFD_HPP' > "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/nfd.hpp"
+#pragma once
+#include <nfd.h>
+#include <memory>
+
+namespace NFD {
+struct Guard {
+    Guard() { NFD_Init(); }
+    ~Guard() { NFD_Quit(); }
+};
+struct PathDeleter {
+    void operator()(nfdu8char_t* ptr) const { if (ptr) NFD_FreePathU8(ptr); }
+};
+using UniquePathU8 = std::unique_ptr<nfdu8char_t, PathDeleter>;
+using UniquePath = UniquePathU8;
+
+inline nfdresult_t OpenDialog(UniquePathU8& outPath, const nfdu8filteritem_t* filterList = nullptr, nfdfiltersize_t filterCount = 0, const nfdu8char_t* defaultPath = nullptr) {
+    nfdu8char_t* raw = nullptr;
+    auto res = NFD_OpenDialogU8(&raw, filterList, filterCount, defaultPath);
+    if (res == NFD_OKAY) outPath.reset(raw);
+    return res;
+}
+inline nfdresult_t PickFolder(UniquePathU8& outPath, const nfdu8char_t* defaultPath = nullptr) {
+    nfdu8char_t* raw = nullptr;
+    auto res = NFD_PickFolderU8(&raw, defaultPath);
+    if (res == NFD_OKAY) outPath.reset(raw);
+    return res;
+}
+inline const char* GetError() { return NFD_GetError(); }
+} // namespace NFD
+EOF_NFD_HPP
 mkdir -p "\${UPSTREAM_DIR}/ios" "\${UPSTREAM_DIR}/cmake"
 cp "\${PORT_DIR}/ios/Info.plist" "\${UPSTREAM_DIR}/ios/Info.plist"
 cp "\${PORT_DIR}/ios/Entitlements.plist" "\${UPSTREAM_DIR}/ios/Entitlements.plist"
@@ -487,7 +518,36 @@ if plume_p.exists():
     plume_p.write_text(plume_src, encoding="utf-8")
     print("Patched plume/CMakeLists.txt")
 
-# 5c. XShaderRecomp/CMakeLists.txt: su iOS non compilare XShaderRecompTool e non linkare libdxcompiler.dylib macOS
+# 5c. XShaderRecomp/CMakeLists.txt: su iOS non compilare XShaderRecompTool e proteggi OGNI target_*(XShaderRecompTool ...)
+import re
+
+def guard_cmake_calls(text, func_regex, condition):
+    out = []
+    pos = 0
+    for m in re.finditer(func_regex, text):
+        start = m.start()
+        if start < pos:
+            continue
+        i = text.find('(', start)
+        if i == -1:
+            continue
+        depth = 0
+        while i < len(text):
+            ch = text[i]
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+                if depth == 0:
+                    i += 1
+                    break
+            i += 1
+        out.append(text[pos:start])
+        out.append(f"if({condition})\\n{text[start:i]}\\nendif()")
+        pos = i
+    out.append(text[pos:])
+    return "".join(out)
+
 xsr_p = pathlib.Path(sys.argv[3])
 if xsr_p.exists():
     xsr_src = xsr_p.read_text(encoding="utf-8")
@@ -496,14 +556,25 @@ if xsr_p.exists():
             "Microsoft::DirectXShaderCompiler",
             "$<$<NOT:$<BOOL:\${SHADOW_IOS_PORT}>>:Microsoft::DirectXShaderCompiler>"
         )
-        xsr_src = xsr_src.replace(
-            "add_executable(XShaderRecompTool",
-            "if(NOT SHADOW_IOS_PORT)\\nadd_executable(XShaderRecompTool"
+        xsr_src = guard_cmake_calls(
+            xsr_src,
+            r'add_executable\\s*\\(\\s*XShaderRecompTool\\b',
+            "NOT SHADOW_IOS_PORT"
         )
-        xsr_src = xsr_src.replace(
-            "target_precompile_headers(XShaderRecompTool REUSE_FROM XShaderRecompLib)",
-            'target_precompile_headers(XShaderRecompTool REUSE_FROM XShaderRecompLib)\\nendif()\\nif(SHADOW_IOS_PORT)\\n    target_compile_definitions(XShaderRecompLib PRIVATE SHADOW_IOS_PORT=1)\\n    target_include_directories(XShaderRecompLib PRIVATE "\${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/dxc-bin/inc")\\nendif()'
+        xsr_src = guard_cmake_calls(
+            xsr_src,
+            r'(?:target_\\w+|set_target_properties)\\s*\\(\\s*XShaderRecompTool\\b',
+            "TARGET XShaderRecompTool"
         )
+        xsr_src += '''
+if(SHADOW_IOS_PORT)
+    target_compile_definitions(XShaderRecompLib PRIVATE SHADOW_IOS_PORT=1)
+    target_include_directories(XShaderRecompLib PRIVATE
+        "\${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/dxc-bin/inc"
+        "\${CMAKE_CURRENT_SOURCE_DIR}/../thirdparty/dxc-bin/inc/dxc"
+    )
+endif()
+'''
         xsr_p.write_text(xsr_src, encoding="utf-8")
         print("Patched XShaderRecomp/CMakeLists.txt")
 
@@ -924,6 +995,7 @@ static std::string g_lastNfdError;
 @property (nonatomic, strong) dispatch_semaphore_t semaphore;
 @property (nonatomic, copy) NSString *selectedPath;
 @property (nonatomic, assign) BOOL cancelled;
+@property (nonatomic, assign) BOOL finished;
 @property (nonatomic, assign) BOOL pickFolder;
 @end
 
@@ -933,7 +1005,8 @@ static std::string g_lastNfdError;
     NSURL *url = urls.firstObject;
     if (!url) {
         self.cancelled = YES;
-        dispatch_semaphore_signal(self.semaphore);
+        self.finished = YES;
+        if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
         return;
     }
 
@@ -961,12 +1034,14 @@ static std::string g_lastNfdError;
         [url stopAccessingSecurityScopedResource];
     }
     self.cancelled = NO;
-    dispatch_semaphore_signal(self.semaphore);
+    self.finished = YES;
+    if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
 }
 
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
     self.cancelled = YES;
-    dispatch_semaphore_signal(self.semaphore);
+    self.finished = YES;
+    if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
 }
 
 @end
@@ -989,6 +1064,8 @@ static UIViewController* GetTopViewController(void) {
     return top;
 }
 
+static ShadowDocumentPickerDelegate *g_activePickerDelegate = nil;
+
 static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode) {
     if (!outPath) {
         g_lastNfdError = "outPath is null";
@@ -997,15 +1074,17 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
     *outPath = nullptr;
 
     ShadowDocumentPickerDelegate *delegate = [[ShadowDocumentPickerDelegate alloc] init];
-    delegate.semaphore = dispatch_semaphore_create(0);
     delegate.pickFolder = folderMode;
     delegate.cancelled = YES;
+    delegate.finished = NO;
+    g_activePickerDelegate = delegate;
 
-    dispatch_async(dispatch_get_main_queue(), ^{
+    void (^presentBlock)(void) = ^{
         UIViewController *presenter = GetTopViewController();
         if (!presenter) {
             g_lastNfdError = "No active UIViewController to present Files app";
-            dispatch_semaphore_signal(delegate.semaphore);
+            delegate.finished = YES;
+            if (delegate.semaphore) dispatch_semaphore_signal(delegate.semaphore);
             return;
         }
 
@@ -1019,15 +1098,28 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
         picker.allowsMultipleSelection = NO;
         picker.modalPresentationStyle = UIModalPresentationFormSheet;
         [presenter presentViewController:picker animated:YES completion:nil];
-    });
+    };
 
-    dispatch_semaphore_wait(delegate.semaphore, DISPATCH_TIME_FOREVER);
+    if ([NSThread isMainThread]) {
+        presentBlock();
+        while (!delegate.finished) {
+            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+        }
+    } else {
+        delegate.semaphore = dispatch_semaphore_create(0);
+        dispatch_async(dispatch_get_main_queue(), presentBlock);
+        dispatch_semaphore_wait(delegate.semaphore, DISPATCH_TIME_FOREVER);
+    }
 
-    if (delegate.cancelled || delegate.selectedPath.length == 0) {
+    NSString *resultPath = delegate.selectedPath;
+    BOOL wasCancelled = delegate.cancelled;
+    g_activePickerDelegate = nil;
+
+    if (wasCancelled || resultPath.length == 0) {
         return NFD_CANCEL;
     }
 
-    const char* utf8 = delegate.selectedPath.UTF8String;
+    const char* utf8 = resultPath.UTF8String;
     *outPath = static_cast<nfdu8char_t*>(std::malloc(std::strlen(utf8) + 1));
     std::strcpy(*outPath, utf8);
     return NFD_OKAY;
