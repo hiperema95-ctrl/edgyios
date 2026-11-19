@@ -17,21 +17,26 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.1.0</string>
+    <string>1.0.0</string>
     <key>CFBundleVersion</key>
     <string>1</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>MinimumOSVersion</key>
     <string>17.0</string>
+
+    <!-- ProMotion 120Hz su iPhone 16 Pro -->
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+
+    <!-- Accesso completo dall'App File di iOS ("Su iPhone -> ShadowRecomp") -->
     <key>UIFileSharingEnabled</key>
     <true/>
     <key>LSSupportsOpeningDocumentsInPlace</key>
     <true/>
     <key>UISupportsDocumentBrowser</key>
     <false/>
+
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationLandscapeLeft</string>
@@ -43,6 +48,7 @@
     <true/>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
+
     <key>GCSupportedGameControllers</key>
     <array>
         <dict>

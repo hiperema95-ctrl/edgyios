@@ -35,7 +35,7 @@ env:
   APP_VERSION: "1.0.0"
   IOS_DEPLOYMENT_TARGET: "17.0"
   UPSTREAM_REPO: "https://github.com/FoxWorkshop/ShadowRecomp.git"
-  MOLTENVK_VERSION: "v1.2.11"
+  MOLTENVK_VERSION: "v1.4.2"
   FREETYPE_VERSION: "2.13.3"
 
 jobs:
@@ -51,7 +51,7 @@ jobs:
         with:
           path: ios-port
 
-      - name: 2. Clone FoxWorkshop/ShadowRecomp (branch master + submodules)
+      - name: 2. Clone FoxWorkshop/ShadowRecomp (branch master + submodules reali)
         run: |
           BRANCH="${{ inputs.upstream_branch || 'master' }}"
           echo "==> Cloning ${UPSTREAM_REPO} (branch: ${BRANCH})..."
@@ -63,17 +63,13 @@ jobs:
           fi
 
           cd ShadowRecomp-Upstream
-          # Inizializza tutti i submodule reali di ShadowRecomp tranne vcpkg completo (usiamo toolchain iOS dedicata)
-          git submodule sync --recursive
-          for sub in thirdparty/SDL thirdparty/SDL_mixer thirdparty/plume thirdparty/imgui thirdparty/implot \
-                     thirdparty/msdf-atlas-gen thirdparty/o1heap thirdparty/stb thirdparty/ddspp \
-                     thirdparty/unordered_dense thirdparty/concurrentqueue thirdparty/ogg thirdparty/vorbis \
-                     thirdparty/discord-rpc ShadowRecompResources tools/bc_diff tools/XboxRecomp \
-                     tools/XboxRecomp2 tools/XShaderRecomp tools/file_to_c; do
-            if git config -f .gitmodules --get "submodule.${sub}.path" >/dev/null 2>&1; then
-              echo "==> Init submodule: ${sub}"
-              git submodule update --init --recursive --depth 1 "${sub}" || git submodule update --init --recursive "${sub}"
-            fi
+          # Usa 'git submodule status' così inizializza SOLO i submodule realmente presenti nell'indice Git
+          # (evita errori pathspec su voci obsolete di .gitmodules come thirdparty/ogg e salta thirdparty/vcpkg)
+          git submodule sync
+          REAL_SUBMODULES="$(git submodule status | awk '{print $2}' | grep -v '^thirdparty/vcpkg$' || true)"
+          for sub in ${REAL_SUBMODULES}; do
+            echo "==> Init submodule: ${sub}"
+            git submodule update --init --recursive --depth 1 "${sub}" || git submodule update --init --recursive "${sub}"
           done
 
       - name: 3. Recupera default.xbe in Modo Effimero (Mai Salvato su Git)
@@ -107,7 +103,7 @@ jobs:
           fi
           ls -lh "${TARGET_XBE}"
 
-      - name: 4. Configura Xcode, Rust, MoltenVK (iOS arm64), DXC & FreeType
+      - name: 4. Configura Xcode, MoltenVK (iOS arm64), DXC Host Wrapper & FreeType
         run: |
           if [ -d "/Applications/Xcode_16.2.app/Contents/Developer" ]; then
             sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
@@ -115,25 +111,29 @@ jobs:
           xcodebuild -version
           brew install cmake ninja ldid pkg-config zstd
 
-          # 4a. Scarica MoltenVK ufficiale per iOS arm64 (traduce Vulkan/SPIR-V di Plume in Apple Metal 3)
+          # 4a. Scarica MoltenVK ufficiale iOS arm64 (traduce Vulkan/SPIR-V di Plume in Apple Metal 3)
           mkdir -p "${GITHUB_WORKSPACE}/ios-deps/moltenvk"
-          curl -fSL "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-all.tar" -o /tmp/MoltenVK-all.tar
-          tar -xf /tmp/MoltenVK-all.tar -C "${GITHUB_WORKSPACE}/ios-deps/moltenvk"
+          curl -fSL "https://github.com/KhronosGroup/MoltenVK/releases/download/${MOLTENVK_VERSION}/MoltenVK-ios.tar" -o /tmp/MoltenVK-ios.tar
+          tar -xf /tmp/MoltenVK-ios.tar -C "${GITHUB_WORKSPACE}/ios-deps/moltenvk"
           find "${GITHUB_WORKSPACE}/ios-deps/moltenvk" -name "libMoltenVK.a"
 
-          # 4b. Prepara DXC macOS host per compilare gli shader HLSL -> .spirv.h durante la build
-          mkdir -p "${GITHUB_WORKSPACE}/ios-deps/dxc"
-          DXC_FOUND="$(find "${GITHUB_WORKSPACE}/ShadowRecomp-Upstream/tools/XShaderRecomp" -type f -name "dxc*" -perm +111 2>/dev/null | grep -i mac | head -n 1 || true)"
-          if [ -z "${DXC_FOUND}" ]; then
-            brew install directx-shader-compiler || true
-            DXC_FOUND="$(which dxc || true)"
-          fi
-          if [ -z "${DXC_FOUND}" ]; then
-            echo "::error::Impossibile trovare eseguibile macOS dxc per generare gli shader SPIR-V."
+          # 4b. Prepara wrapper DXC macOS arm64 dal submodule dxc-bin (imposta DYLD_LIBRARY_PATH)
+          mkdir -p "${GITHUB_WORKSPACE}/build-host"
+          DXC_DIR="${GITHUB_WORKSPACE}/ShadowRecomp-Upstream/tools/XShaderRecomp/thirdparty/dxc-bin"
+          if [ ! -f "${DXC_DIR}/bin/arm64/dxc-macos" ]; then
+            echo "::error::dxc-macos non trovato in ${DXC_DIR}/bin/arm64/dxc-macos"
+            ls -la "${DXC_DIR}" || true
             exit 1
           fi
-          echo "DIRECTX_DXC_TOOL=${DXC_FOUND}" >> "${GITHUB_ENV}"
-          echo "==> DXC Host Tool: ${DXC_FOUND}"
+          chmod +x "${DXC_DIR}/bin/arm64/dxc-macos"
+          cat << EOF_DXC > "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
+          #!/usr/bin/env bash
+          export DYLD_LIBRARY_PATH="${DXC_DIR}/lib/arm64:${DYLD_LIBRARY_PATH:-}"
+          exec "${DXC_DIR}/bin/arm64/dxc-macos" "$@"
+          EOF_DXC
+          chmod +x "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
+          "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" --version || true
+          echo "DIRECTX_DXC_TOOL=${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" >> "${GITHUB_ENV}"
 
           # 4c. Compila FreeType statico per iOS arm64 (richiesto da msdf-atlas-gen)
           IOS_SDK="$(xcrun --sdk iphoneos --show-sdk-path)"
@@ -161,17 +161,21 @@ jobs:
         run: |
           mkdir -p "${GITHUB_WORKSPACE}/build-host"
 
-          # 5a. Compila XboxRecomp2 (Rust) per ricompilazione statica di default.xbe
+          # 5a. Compila XboxRecomp2 (Rust) esattamente come ShadowRecompLib/cmake/recompile/select/build_from_source.cmake
           echo "==> Compilazione XboxRecomp2 (Rust) su macOS arm64..."
-          cargo build --release --manifest-path tools/XboxRecomp2/Cargo.toml
-          XBOXRECOMP2_BIN="$(find tools/XboxRecomp2/target/release -maxdepth 1 -type f -perm +111 \( -name 'xbox-recomp2*' -o -name 'XboxRecomp2*' \) | head -n 1)"
-          if [ -z "${XBOXRECOMP2_BIN}" ]; then
-            echo "::error::Binario XboxRecomp2 non trovato dopo cargo build!"
+          cargo build --release --locked \
+            --manifest-path tools/XboxRecomp2/Cargo.toml \
+            --target-dir "${GITHUB_WORKSPACE}/build-host/xr2-target" \
+            -p xbox-recomp2-cli
+          XBOXRECOMP2_BIN="${GITHUB_WORKSPACE}/build-host/xr2-target/release/xboxrecomp2"
+          if [ ! -x "${XBOXRECOMP2_BIN}" ]; then
+            echo "::error::Binario xboxrecomp2 non trovato in ${XBOXRECOMP2_BIN}"
+            ls -la "${GITHUB_WORKSPACE}/build-host/xr2-target/release" || true
             exit 1
           fi
-          cp "${XBOXRECOMP2_BIN}" "${GITHUB_WORKSPACE}/build-host/xbox-recomp2"
-          chmod +x "${GITHUB_WORKSPACE}/build-host/xbox-recomp2"
-          echo "XBOXRECOMP2_HOST_BIN=${GITHUB_WORKSPACE}/build-host/xbox-recomp2" >> "${GITHUB_ENV}"
+          cp "${XBOXRECOMP2_BIN}" "${GITHUB_WORKSPACE}/build-host/xboxrecomp2"
+          chmod +x "${GITHUB_WORKSPACE}/build-host/xboxrecomp2"
+          echo "XBOXRECOMP2_HOST_BIN=${GITHUB_WORKSPACE}/build-host/xboxrecomp2" >> "${GITHUB_ENV}"
 
           # 5b. Compila file_to_c nativo macOS (usato da BIN2C durante cross-compilazione iOS)
           echo "==> Compilazione file_to_c host macOS..."

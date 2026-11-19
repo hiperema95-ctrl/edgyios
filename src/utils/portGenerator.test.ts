@@ -18,9 +18,11 @@ test('default upstream branch is master (matches FoxWorkshop/ShadowRecomp)', () 
 test('GitHub Actions workflow builds host XboxRecomp2, file_to_c, MoltenVK, and unsigned IPA', () => {
   const yml = generateGitHubWorkflowYaml(DEFAULT_BUILD_CONFIG);
   assert.match(yml, /runs-on:\s*macos-15/);
-  assert.match(yml, /cargo build --release --manifest-path tools\/XboxRecomp2\/Cargo\.toml/);
+  assert.match(yml, /git submodule status/);
+  assert.match(yml, /-p xbox-recomp2-cli/);
+  assert.match(yml, /dxc-wrapper\.sh/);
   assert.match(yml, /tools\/file_to_c\/file_to_c\.cpp/);
-  assert.match(yml, /MoltenVK-all\.tar/);
+  assert.match(yml, /MoltenVK-ios\.tar/);
   assert.match(yml, /DSHADOW_RECOMP_XBOXRECOMP2_EXECUTABLE=/);
   assert.match(yml, /DPLUME_SDL3_VULKAN_ENABLED=ON/);
   assert.match(yml, /CODE_SIGNING_ALLOWED=NO/);
