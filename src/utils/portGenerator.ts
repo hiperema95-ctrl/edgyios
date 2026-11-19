@@ -212,11 +212,12 @@ jobs:
           chmod +x "\${DXC_DIR}/bin/arm64/dxc-macos"
           cat << EOF_DXC > "\${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
           #!/usr/bin/env bash
-          export DYLD_LIBRARY_PATH="\${DXC_DIR}/lib/arm64:\${DYLD_LIBRARY_PATH:-}"
-          exec "\${DXC_DIR}/bin/arm64/dxc-macos" "\$@"
+          export DYLD_LIBRARY_PATH="\${DXC_DIR}/lib/arm64:\\\${DYLD_LIBRARY_PATH:-}"
+          exec "\${DXC_DIR}/bin/arm64/dxc-macos" "\\$@"
           EOF_DXC
           chmod +x "\${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
-          "\${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" --version || true
+          grep -Fq '"$@"' "\${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
+          "\${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" --version
           echo "DIRECTX_DXC_TOOL=\${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" >> "\${GITHUB_ENV}"
 
           # 4c. Compila FreeType statico per iOS arm64 (richiesto da msdf-atlas-gen)
@@ -485,9 +486,11 @@ cp "\${PORT_DIR}/ios/Info.plist" "\${UPSTREAM_DIR}/ios/Info.plist"
 cp "\${PORT_DIR}/ios/Entitlements.plist" "\${UPSTREAM_DIR}/ios/Entitlements.plist"
 cp "\${PORT_DIR}/cmake/ShadowRecompIOS.cmake" "\${UPSTREAM_DIR}/cmake/ShadowRecompIOS.cmake"
 
-echo "==> [3/7] Patch ShadowRecomp/user/paths.cpp (rimuove static_assert per __APPLE__ / iOS)..."
-python3 - "\${UPSTREAM_DIR}/ShadowRecomp/user/paths.cpp" << 'PY_PATHS'
+echo "==> [3/7] Patch ShadowRecomp/user/paths.cpp, paths.h, stdafx.h, guest_thread.cpp, update_checker.cpp e main.cpp per iOS arm64..."
+python3 - "\${UPSTREAM_DIR}/ShadowRecomp/user/paths.cpp" "\${UPSTREAM_DIR}/ShadowRecomp/user/paths.h" "\${UPSTREAM_DIR}/ShadowRecomp/stdafx.h" "\${UPSTREAM_DIR}/ShadowRecomp/cpu/guest_thread.cpp" "\${UPSTREAM_DIR}/ShadowRecomp/install/update_checker.cpp" "\${UPSTREAM_DIR}/ShadowRecomp/main.cpp" << 'PY_PATHS'
 import sys, pathlib
+
+# 3a. user/paths.cpp: aggiungi supporto __APPLE__ (Documents/ShadowRecomp) + static init sicura (evita SIOF con MainGameFolder)
 p = pathlib.Path(sys.argv[1])
 src = p.read_text(encoding="utf-8")
 if "#elif defined(__APPLE__)" not in src:
@@ -501,8 +504,104 @@ if "#elif defined(__APPLE__)" not in src:
     }
 #else'''
     src = src.replace("#else", apple_block, 1)
-    p.write_text(src, encoding="utf-8")
-    print("Patched paths.cpp for iOS Documents/")
+    print("Patched user/paths.cpp for iOS Documents/")
+
+if "static std::filesystem::path s_userPath = BuildUserPath();" not in src:
+    src = src.replace(
+        "return g_userPath;",
+        "static std::filesystem::path s_userPath = BuildUserPath();\\n    return s_userPath;"
+    )
+    print("Patched user/paths.cpp GetUserPath() to prevent C++ SIOF")
+p.write_text(src, encoding="utf-8")
+
+# 3b. user/paths.h: su iOS GetGamePath() punta alla sandbox scrivibile Documents/ShadowRecomp (visibile nell'App File)
+ph = pathlib.Path(sys.argv[2])
+ph_src = ph.read_text(encoding="utf-8")
+if "SHADOW_IOS_PORT" not in ph_src:
+    old_gp = '''inline std::filesystem::path GetGamePath()
+{
+    return GAME_INSTALL_DIRECTORY;
+}'''
+    new_gp = '''const std::filesystem::path& GetUserPath();
+
+inline std::filesystem::path GetGamePath()
+{
+#if defined(SHADOW_IOS_PORT)
+    return GetUserPath();
+#else
+    return GAME_INSTALL_DIRECTORY;
+#endif
+}'''
+    if old_gp in ph_src:
+        ph_src = ph_src.replace(old_gp, new_gp, 1)
+        ph.write_text(ph_src, encoding="utf-8")
+        print("Patched user/paths.h GetGamePath() for writable iOS Documents/")
+
+# 3c. stdafx.h: abilita i typedef/macro Win32 compat (LONG, HANDLE, HRESULT, Sleep, _stricmp, ecc.) anche su __APPLE__
+sa = pathlib.Path(sys.argv[3])
+sa_src = sa.read_text(encoding="utf-8")
+if "#elif defined(__linux__) || defined(__APPLE__)" not in sa_src:
+    sa_src = sa_src.replace(
+        "#elif defined(__linux__)",
+        "#elif defined(__linux__) || defined(__APPLE__)\\n#include <strings.h>",
+        1
+    )
+    sa.write_text(sa_src, encoding="utf-8")
+    print("Patched stdafx.h for __APPLE__ POSIX/Win32 compat types")
+
+# 3d. cpu/guest_thread.cpp: proteggi #include <x86intrin.h> (non esiste su iOS arm64)
+gt = pathlib.Path(sys.argv[4])
+gt_src = gt.read_text(encoding="utf-8")
+if "#include <x86intrin.h>" in gt_src and "defined(__x86_64__)" not in gt_src:
+    gt_src = gt_src.replace(
+        "#include <x86intrin.h>",
+        "#if defined(__x86_64__) || defined(__i386__)\\n#include <x86intrin.h>\\n#endif",
+        1
+    )
+    gt.write_text(gt_src, encoding="utf-8")
+    print("Patched cpu/guest_thread.cpp to guard x86intrin.h on arm64")
+
+# 3e. install/update_checker.cpp: sostituisci std::system() vietato su iOS SDK con SDL_OpenURL()
+uc = pathlib.Path(sys.argv[5])
+uc_src = uc.read_text(encoding="utf-8")
+if "SHADOW_IOS_PORT" not in uc_src:
+    old_uc = '''#elif defined(__APPLE__)
+    std::string command = "open " + std::string(VISIT_URL) + " &";
+    std::system(command.c_str());'''
+    new_uc = '''#elif defined(__APPLE__)
+#if defined(SHADOW_IOS_PORT)
+    SDL_OpenURL(VISIT_URL);
+#else
+    std::string command = "open " + std::string(VISIT_URL) + " &";
+    std::system(command.c_str());
+#endif'''
+    if old_uc in uc_src:
+        uc_src = uc_src.replace(old_uc, new_uc, 1)
+        uc.write_text(uc_src, encoding="utf-8")
+        print("Patched install/update_checker.cpp to use SDL_OpenURL on iOS")
+
+# 3f. main.cpp: includi <SDL3/SDL_main.h> per entry-point UIApplicationMain e usa GetWorkingDirectory() scrivibile su iOS
+mp = pathlib.Path(sys.argv[6])
+mp_src = mp.read_text(encoding="utf-8")
+if "SDL3/SDL_main.h" not in mp_src:
+    mp_src = mp_src.replace(
+        '#include "stdafx.h"',
+        '#include "stdafx.h"\\n#if defined(SHADOW_IOS_PORT)\\n#include <SDL3/SDL_main.h>\\n#endif',
+        1
+    )
+    print("Patched main.cpp with SDL3/SDL_main.h for iOS UIKit bootstrap")
+old_cwd = "std::filesystem::current_path(os::process::GetExecutableRoot(), ec);"
+new_cwd = '''#if defined(SHADOW_IOS_PORT)
+        auto iosWorkDir = os::process::GetWorkingDirectory();
+        std::filesystem::create_directories(iosWorkDir, ec);
+        std::filesystem::current_path(iosWorkDir, ec);
+#else
+        std::filesystem::current_path(os::process::GetExecutableRoot(), ec);
+#endif'''
+if old_cwd in mp_src and "iosWorkDir" not in mp_src:
+    mp_src = mp_src.replace(old_cwd, new_cwd, 1)
+    print("Patched main.cpp working directory to writable iOS Documents/ShadowRecomp")
+mp.write_text(mp_src, encoding="utf-8")
 PY_PATHS
 
 echo "==> [4/7] Patch ShadowRecomp/os/registry.h e ShadowRecomp/ui/game_window.cpp..."
@@ -864,8 +963,14 @@ function(shadow_configure_ios_target TARGET_NAME)
         message(WARNING "MOLTENVK_STATIC_LIB non trovato; verificare il download di MoltenVK-ios.tar")
     endif()
 
-    # Framework Apple iOS necessari per Metal 3, SDL3, App File, Controller e Audio
+    # FreeType iOS arm64 (usato da imgui_freetype.cpp e msdf-atlas-gen) + zlib di sistema
+    find_package(Freetype REQUIRED)
+    target_include_directories(\${TARGET_NAME} PRIVATE \${FREETYPE_INCLUDE_DIRS})
+
+    # Framework Apple iOS necessari per Metal 3, SDL3, App File, Controller, FreeType e Audio
     target_link_libraries(\${TARGET_NAME} PRIVATE
+        Freetype::Freetype
+        "-lz"
         "-framework Foundation"
         "-framework UIKit"
         "-framework Metal"
@@ -891,6 +996,7 @@ endfunction()`;
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -1272,6 +1378,7 @@ const char* NFD_GetError(void) {
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <user/paths.h>

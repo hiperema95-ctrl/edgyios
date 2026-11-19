@@ -51,8 +51,14 @@ function(shadow_configure_ios_target TARGET_NAME)
         message(WARNING "MOLTENVK_STATIC_LIB non trovato; verificare il download di MoltenVK-ios.tar")
     endif()
 
-    # Framework Apple iOS necessari per Metal 3, SDL3, App File, Controller e Audio
+    # FreeType iOS arm64 (usato da imgui_freetype.cpp e msdf-atlas-gen) + zlib di sistema
+    find_package(Freetype REQUIRED)
+    target_include_directories(${TARGET_NAME} PRIVATE ${FREETYPE_INCLUDE_DIRS})
+
+    # Framework Apple iOS necessari per Metal 3, SDL3, App File, Controller, FreeType e Audio
     target_link_libraries(${TARGET_NAME} PRIVATE
+        Freetype::Freetype
+        "-lz"
         "-framework Foundation"
         "-framework UIKit"
         "-framework Metal"

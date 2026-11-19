@@ -127,3 +127,56 @@ test('scripts/apply_ios_port.sh has valid bash syntax and valid Python AST in al
   }
 });
 
+test('Step 4 dxc-wrapper.sh preserves literal "$@" and DYLD_LIBRARY_PATH when executed by bash', () => {
+  const yml = generateGitHubWorkflowYaml(DEFAULT_BUILD_CONFIG);
+  assert.match(yml, /exec "\$\{DXC_DIR\}\/bin\/arm64\/dxc-macos" "\\\$@"/);
+  assert.match(yml, /grep -Fq '"\$@"' "\$\{GITHUB_WORKSPACE\}\/build-host\/dxc-wrapper\.sh"/);
+
+  const match = yml.match(/cat << EOF_DXC > ".*?"\n([\s\S]*?)\n\s*EOF_DXC/);
+  assert.ok(match, 'Expected EOF_DXC heredoc in workflow YAML');
+  const script = match[0].replace(/^ {10}/gm, '');
+  const generated = execFileSync(
+    'bash',
+    [
+      '-euo',
+      'pipefail',
+      '-c',
+      `TMP_WS="$(mktemp -d)"
+mkdir -p "\${TMP_WS}/build-host"
+GITHUB_WORKSPACE="\${TMP_WS}"
+DXC_DIR="/opt/dxc-bin"
+${script}
+cat "\${TMP_WS}/build-host/dxc-wrapper.sh"
+rm -rf "\${TMP_WS}"`,
+    ],
+    { encoding: 'utf-8' }
+  );
+  assert.match(generated, /exec "\/opt\/dxc-bin\/bin\/arm64\/dxc-macos" "\$@"/);
+  assert.match(generated, /export DYLD_LIBRARY_PATH="\/opt\/dxc-bin\/lib\/arm64:\$\{DYLD_LIBRARY_PATH:-\}"/);
+});
+
+test('all audited Step 8 iOS arm64 patches and FreeType/zlib linking are present', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+  assert.match(applyScript, /#elif defined\(__linux__\) \|\| defined\(__APPLE__\)/);
+  assert.match(applyScript, /defined\(__x86_64__\) \|\| defined\(__i386__\)/);
+  assert.match(applyScript, /SDL_OpenURL\(VISIT_URL\)/);
+  assert.match(applyScript, /#include <SDL3\/SDL_main\.h>/);
+  assert.match(applyScript, /os::process::GetWorkingDirectory\(\)/);
+  assert.match(applyScript, /static std::filesystem::path s_userPath = BuildUserPath\(\);/);
+
+  const cmakeIos = byPath.get('cmake/ShadowRecompIOS.cmake') ?? '';
+  assert.match(cmakeIos, /find_package\(Freetype REQUIRED\)/);
+  assert.match(cmakeIos, /Freetype::Freetype/);
+  assert.match(cmakeIos, /"-lz"/);
+
+  const iosPlatform = byPath.get('ios/os/ios_platform.mm') ?? '';
+  assert.match(iosPlatform, /#include <cstdint>/);
+
+  const iosModMgr = byPath.get('ios/ios_mod_manager.mm') ?? '';
+  assert.match(iosModMgr, /#include <string_view>/);
+});
+
+

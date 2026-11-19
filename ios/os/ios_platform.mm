@@ -5,6 +5,7 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <iostream>

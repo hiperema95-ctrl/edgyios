@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <nlohmann/json.hpp>
 #include <user/paths.h>

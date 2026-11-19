@@ -128,11 +128,12 @@ jobs:
           chmod +x "${DXC_DIR}/bin/arm64/dxc-macos"
           cat << EOF_DXC > "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
           #!/usr/bin/env bash
-          export DYLD_LIBRARY_PATH="${DXC_DIR}/lib/arm64:${DYLD_LIBRARY_PATH:-}"
-          exec "${DXC_DIR}/bin/arm64/dxc-macos" "$@"
+          export DYLD_LIBRARY_PATH="${DXC_DIR}/lib/arm64:\${DYLD_LIBRARY_PATH:-}"
+          exec "${DXC_DIR}/bin/arm64/dxc-macos" "\$@"
           EOF_DXC
           chmod +x "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
-          "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" --version || true
+          grep -Fq '"$@"' "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh"
+          "${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" --version
           echo "DIRECTX_DXC_TOOL=${GITHUB_WORKSPACE}/build-host/dxc-wrapper.sh" >> "${GITHUB_ENV}"
 
           # 4c. Compila FreeType statico per iOS arm64 (richiesto da msdf-atlas-gen)
