@@ -28,6 +28,7 @@ function(shadow_configure_ios_target TARGET_NAME)
     target_compile_definitions(${TARGET_NAME} PRIVATE
         SHADOW_IOS_PORT=1
         PLUME_SDL_VULKAN_ENABLED=1
+        PLUME_SDL3_VULKAN_ENABLED=1
         SHADOW_IOS_PROMOTION_120HZ=1
     )
 

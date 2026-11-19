@@ -141,12 +141,20 @@ if plume_p.exists():
 
 plume_dir = pathlib.Path(sys.argv[7])
 if plume_dir.exists():
-    for src_file in list(plume_dir.rglob("*.mm")) + list(plume_dir.rglob("plume_metal.cpp")):
+    for src_file in sorted(set(list(plume_dir.rglob("*.mm")) + list(plume_dir.rglob("plume_metal.cpp")))):
         mm_src = src_file.read_text(encoding="utf-8")
-        if "TARGET_OS_IPHONE" not in mm_src and any(k in mm_src for k in ("Cocoa/Cocoa.h", "AppKit/AppKit.h", "CocoaWindow", "NSWindow", "NSView")):
-            guarded = "#include <TargetConditionals.h>\n#if !TARGET_OS_IPHONE\n" + mm_src + "\n#endif\n"
+        if "SHADOW_IOS_PLUME_GUARDED" in mm_src:
+            continue
+        is_macos_backend = src_file.name in ("plume_metal.cpp", "plume_apple.mm")
+        has_macos_ui = any(k in mm_src for k in ("Cocoa/Cocoa.h", "AppKit/AppKit.h", "CocoaWindow", "NSWindow", "NSView"))
+        if is_macos_backend or has_macos_ui:
+            guarded = "/* SHADOW_IOS_PLUME_GUARDED */\n#include <TargetConditionals.h>\n#if !TARGET_OS_IPHONE\n" + mm_src + "\n#endif\n"
             src_file.write_text(guarded, encoding="utf-8")
             print(f"Guarded macOS-only Plume file for iOS: {src_file.name}")
+
+    plume_metal_cpp = plume_dir / "plume_metal.cpp"
+    if plume_metal_cpp.exists() and "SHADOW_IOS_PLUME_GUARDED" not in plume_metal_cpp.read_text(encoding="utf-8"):
+        raise RuntimeError("Failed to guard thirdparty/plume/plume_metal.cpp for iOS!")
 
     # Consenti a volk di risolvere vkGetInstanceProcAddr da libMoltenVK.a linkata staticamente su iOS
     volk_c = plume_dir / "contrib" / "volk" / "volk.c"
