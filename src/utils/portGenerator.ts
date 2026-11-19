@@ -855,6 +855,38 @@ if plume_p.exists():
 
 plume_dir = pathlib.Path(sys.argv[7])
 if plume_dir.exists():
+    plume_apple_ios_stub = '''#else
+#include "plume_apple.h"
+
+namespace plume {
+    RenderDeviceVendor getRenderDeviceVendor(uint64_t) {
+        return RenderDeviceVendor::APPLE;
+    }
+
+    CocoaWindow::CocoaWindow(void* window)
+        : windowHandle(window), cachedAttributes{0, 0, 0, 0}, cachedRefreshRate(60) {}
+
+    CocoaWindow::~CocoaWindow() = default;
+
+    void CocoaWindow::updateWindowAttributesInternal(bool) {}
+
+    void CocoaWindow::updateRefreshRateInternal(bool) {}
+
+    void CocoaWindow::getWindowAttributes(CocoaWindowAttributes* attributes) const {
+        if (attributes != nullptr) {
+            std::lock_guard<std::mutex> lock(attributesMutex);
+            *attributes = cachedAttributes;
+        }
+    }
+
+    int CocoaWindow::getRefreshRate() const {
+        return cachedRefreshRate.load();
+    }
+
+    void CocoaWindow::toggleFullscreen() {}
+}
+#endif
+'''
     for src_file in sorted(set(list(plume_dir.rglob("*.mm")) + list(plume_dir.rglob("plume_metal.cpp")))):
         mm_src = src_file.read_text(encoding="utf-8")
         if "SHADOW_IOS_PLUME_GUARDED" in mm_src:
@@ -862,13 +894,17 @@ if plume_dir.exists():
         is_macos_backend = src_file.name in ("plume_metal.cpp", "plume_apple.mm")
         has_macos_ui = any(k in mm_src for k in ("Cocoa/Cocoa.h", "AppKit/AppKit.h", "CocoaWindow", "NSWindow", "NSView"))
         if is_macos_backend or has_macos_ui:
-            guarded = "/* SHADOW_IOS_PLUME_GUARDED */\\n#include <TargetConditionals.h>\\n#if !TARGET_OS_IPHONE\\n" + mm_src + "\\n#endif\\n"
+            footer = "\\n" + plume_apple_ios_stub if src_file.name == "plume_apple.mm" else "\\n#endif\\n"
+            guarded = "/* SHADOW_IOS_PLUME_GUARDED */\\n#include <TargetConditionals.h>\\n#if !TARGET_OS_IPHONE\\n" + mm_src + footer
             src_file.write_text(guarded, encoding="utf-8")
             print(f"Guarded macOS-only Plume file for iOS: {src_file.name}")
 
     plume_metal_cpp = plume_dir / "plume_metal.cpp"
     if plume_metal_cpp.exists() and "SHADOW_IOS_PLUME_GUARDED" not in plume_metal_cpp.read_text(encoding="utf-8"):
         raise RuntimeError("Failed to guard thirdparty/plume/plume_metal.cpp for iOS!")
+    plume_apple_mm = plume_dir / "plume_apple.mm"
+    if plume_apple_mm.exists() and "CocoaWindow::~CocoaWindow()" not in plume_apple_mm.read_text(encoding="utf-8"):
+        raise RuntimeError("Failed to inject iOS CocoaWindow stub into thirdparty/plume/plume_apple.mm!")
 
     # Consenti a volk di risolvere vkGetInstanceProcAddr da libMoltenVK.a linkata staticamente su iOS
     volk_c = plume_dir / "contrib" / "volk" / "volk.c"

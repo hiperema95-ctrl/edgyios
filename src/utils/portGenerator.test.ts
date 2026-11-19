@@ -173,6 +173,9 @@ test('all audited Step 8 iOS arm64 patches and FreeType/zlib linking are present
   assert.match(applyScript, /void wait\(T old/);
   assert.match(applyScript, /void notify_one\(\)/);
   assert.match(applyScript, /atomic_ref\(T&\) -> atomic_ref<T>;/);
+  assert.match(applyScript, /CocoaWindow::~CocoaWindow\(\) = default;/);
+  assert.match(applyScript, /RenderDeviceVendor getRenderDeviceVendor\(uint64_t\)/);
+  assert.match(applyScript, /CocoaWindow::CocoaWindow\(void\* window\)/);
 
   const cmakeIos = byPath.get('cmake/ShadowRecompIOS.cmake') ?? '';
   assert.match(cmakeIos, /find_package\(Freetype REQUIRED\)/);
