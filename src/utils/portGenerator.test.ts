@@ -310,6 +310,14 @@ test('centered L-Analog/ABXY layout and iOS background/lock-screen GPU suspend &
   assert.match(applyScript, /ShadowIOSParkIfBackgrounded/);
   assert.match(applyScript, /wait_dequeue_bulk_timed/);
   assert.match(applyScript, /g_iosSwapChainForceRebuild/);
+
+  // Fresh-install iOS ImGui touch coordinate scaling & single-pass event delivery + overlay suppression
+  assert.match(applyScript, /SHADOW_IOS_TOUCH_COORDS_FIX/);
+  assert.match(applyScript, /SDL_GetWindowSize\(s_pWindow, &s_width, &s_height\)/);
+  assert.match(applyScript, /SHADOW_IOS_IMGUI_TOUCH_SCALE_FIX/);
+  assert.match(applyScript, /SDL_GetWindowSize\(GameWindow::s_pWindow, &liveWinW, &liveWinH\)/);
+  assert.match(vcMm, /_hiddenForInstaller = YES;/);
+  assert.match(vcMm, /self\.userInteractionEnabled = !shouldHideCompletely;/);
 });
 
 

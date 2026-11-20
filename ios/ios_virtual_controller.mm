@@ -1228,12 +1228,17 @@ struct ActiveTouchRecord {
         _haptics = [[ShadowHapticEngine alloc] init];
         _haptics.enabled = savedHaptics;
 
+        // Parte nascosto finche input::Update() non conferma che l'InstallerWizard e chiuso
+        _hiddenForInstaller = YES;
+        self.hidden = YES;
+        self.userInteractionEnabled = NO;
+
         // Container animabile (il root view resta alpha=1.0 così hitTest intercetta sempre il risveglio!)
         _controlsContainer = [[UIView alloc] initWithFrame:self.bounds];
         _controlsContainer.backgroundColor = [UIColor clearColor];
         _controlsContainer.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         _controlsContainer.userInteractionEnabled = NO;
-        _controlsContainer.alpha = _preferredOpacity;
+        _controlsContainer.alpha = 0.0;
         [self addSubview:_controlsContainer];
 
         [self buildControls];
@@ -1451,7 +1456,14 @@ struct ActiveTouchRecord {
 
 - (void)applyVisibilityAnimated:(BOOL)animated {
     BOOL shouldHideCompletely = self.hiddenForPhysicalController || self.hiddenForInstaller;
-    CGFloat targetAlpha = shouldHideCompletely ? 0.0 : (self.isIdleFaded ? 0.0 : self.preferredOpacity);
+    self.userInteractionEnabled = !shouldHideCompletely;
+    if (shouldHideCompletely) {
+        self.controlsContainer.alpha = 0.0;
+        self.hidden = YES;
+        return;
+    }
+    self.hidden = NO;
+    CGFloat targetAlpha = self.isIdleFaded ? 0.0 : self.preferredOpacity;
     NSTimeInterval dur = animated ? (targetAlpha < 0.01 ? 0.35 : 0.22) : 0.0;
 
     [UIView animateWithDuration:dur

@@ -440,9 +440,42 @@ extern "C" void ShadowIOS_VideoOnDidEnterForeground();
     if old_inc in win_src and old_focus in win_src:
         win_src = win_src.replace(old_inc, new_inc, 1).replace(old_focus, new_focus, 1)
         win_changed = True
+
+if "SHADOW_IOS_TOUCH_COORDS_FIX" not in win_src:
+    old_drain = """    for (auto& event : eventsToProcess)
+    {
+        ImGui_ImplSDL3_ProcessEvent(&event);
+    }"""
+    new_drain = """    /* SHADOW_IOS_TOUCH_COORDS_FIX */
+    for (auto& event : eventsToProcess)
+    {
+#if defined(SHADOW_IOS_PORT)
+        if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP)
+        {
+            ImGui::GetIO().AddMousePosEvent(event.button.x, event.button.y);
+        }
+#endif
+        ImGui_ImplSDL3_ProcessEvent(&event);
+    }"""
+    old_dup = """    if (ImGui::GetIO().BackendPlatformUserData != nullptr)
+        ImGui_ImplSDL3_ProcessEvent(event);"""
+    new_dup = """#if !defined(SHADOW_IOS_PORT)
+    if (ImGui::GetIO().BackendPlatformUserData != nullptr)
+        ImGui_ImplSDL3_ProcessEvent(event);
+#endif"""
+    old_show = "    SDL_ShowWindow(s_pWindow);"
+    new_show = """    SDL_ShowWindow(s_pWindow);
+#if defined(SHADOW_IOS_PORT)
+    SDL_GetWindowSize(s_pWindow, &s_width, &s_height);
+#endif"""
+    if old_drain not in win_src or old_dup not in win_src or old_show not in win_src:
+        raise RuntimeError("Failed to locate DrainImGuiEvents/Window_OnSDLEvent/SDL_ShowWindow in ui/game_window.cpp!")
+    win_src = win_src.replace(old_drain, new_drain, 1).replace(old_dup, new_dup, 1).replace(old_show, new_show, 1)
+    win_changed = True
+
 if win_changed:
     win_p.write_text(win_src, encoding="utf-8")
-    print("Patched game_window.cpp (iOS Vulkan surface + background/foreground lifecycle)")
+    print("Patched game_window.cpp (iOS Vulkan surface + background/foreground lifecycle + ImGui touch coords)")
 PY_REG_WIN
 
 echo "==> [5/7] Patch Plume, discord-rpc, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no Cocoa/system())..."
@@ -1398,8 +1431,38 @@ static void ProcEndFrame(const RenderCommand& cmd)
         raise RuntimeError("Failed to locate wait_dequeue_bulk in gpu/video.cpp!")
     vid_src = vid_src.replace(old_wait_deq, new_wait_deq, 1)
 
+    # 7c-ter. ImGui touch coordinate scaling fix on fresh iOS install (usa sempre SDL_GetWindowSize live invece di s_width/s_height stale 640x480)
+    old_imgui_scale = """	uint32_t width = g_swapChain->getWidth();
+	uint32_t height = g_swapChain->getHeight();
+	float mousePosScaleX = float(width) / float(GameWindow::s_width);
+	float mousePosScaleY = float(height) / float(GameWindow::s_height);"""
+    new_imgui_scale = """	uint32_t width = g_swapChain->getWidth();
+	uint32_t height = g_swapChain->getHeight();
+#if defined(SHADOW_IOS_PORT)
+	/* SHADOW_IOS_IMGUI_TOUCH_SCALE_FIX: usa la dimensione logica live SDL (es. 874x402), mai 640x480 stale */
+	int liveWinW = GameWindow::s_width;
+	int liveWinH = GameWindow::s_height;
+	if (GameWindow::s_pWindow != nullptr)
+	{
+		SDL_GetWindowSize(GameWindow::s_pWindow, &liveWinW, &liveWinH);
+		if (liveWinW > 0 && liveWinH > 0)
+		{
+			GameWindow::s_width = liveWinW;
+			GameWindow::s_height = liveWinH;
+		}
+	}
+	float mousePosScaleX = (liveWinW > 0) ? (float(width) / float(liveWinW)) : 1.0f;
+	float mousePosScaleY = (liveWinH > 0) ? (float(height) / float(liveWinH)) : 1.0f;
+#else
+	float mousePosScaleX = float(width) / float(GameWindow::s_width);
+	float mousePosScaleY = float(height) / float(GameWindow::s_height);
+#endif"""
+    if old_imgui_scale not in vid_src:
+        raise RuntimeError("Failed to locate DrawImGui mousePosScale block in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_imgui_scale, new_imgui_scale, 1)
+
     vid_p.write_text(vid_src, encoding="utf-8")
-    print("Patched gpu/video.cpp: idempotent precompile + 8 MB iOS render thread + autoreleasepool + background/foreground GPU pause & swapchain recovery")
+    print("Patched gpu/video.cpp: idempotent precompile + 8 MB iOS render thread + autoreleasepool + background/foreground GPU pause + ImGui touch scale fix")
 
 # 7d. audio/driver/sdl3_driver.cpp: 1024 sample frames su iOS CoreAudio + protezione bounds ring-buffer in Pull()
 aud_p = pathlib.Path(sys.argv[5])
