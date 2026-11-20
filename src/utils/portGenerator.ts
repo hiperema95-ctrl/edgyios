@@ -2085,9 +2085,12 @@ std::filesystem::path GetIOSDocumentsDir() {
 void InitializeIOSRuntimeOnce() {
     std::call_once(g_iosRuntimeInitOnce, []() {
         // Hint SDL3 specifici per iOS (orientamento landscape, schermo attivo, home indicator nascosto)
-        SDL_SetHint(SDL_HINT_IDLE_TIMER_DISABLED, "1");
+        SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "0");
         SDL_SetHint(SDL_HINT_IOS_HIDE_HOME_INDICATOR, "2");
         SDL_SetHint(SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [UIApplication sharedApplication].idleTimerDisabled = YES;
+        });
 
         // Configura AVAudioSession UNA SOLA VOLTA fuori dal thread realtime CoreAudio
         // Ambient rispetta il tasto silenzioso e non va in conflitto con LiveContainer

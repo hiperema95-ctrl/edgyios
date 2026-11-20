@@ -191,7 +191,8 @@ test('all audited Step 8 iOS arm64 patches and FreeType/zlib linking are present
   const iosPlatform = byPath.get('ios/os/ios_platform.mm') ?? '';
   assert.match(iosPlatform, /#include <cstdint>/);
   assert.match(iosPlatform, /AVAudioSessionCategoryAmbient/);
-  assert.match(iosPlatform, /SDL_HINT_IDLE_TIMER_DISABLED/);
+  assert.match(iosPlatform, /SDL_HINT_VIDEO_ALLOW_SCREENSAVER/);
+  assert.match(iosPlatform, /idleTimerDisabled = YES/);
   assert.match(iosPlatform, /bool IsSupported\(\)\s*\{\s*return false;/);
   assert.match(iosPlatform, /bool IsExternalMediaPlaying\(\)\s*\{\s*return false;/);
   assert.doesNotMatch(iosPlatform, /NSLog\(@/);
