@@ -388,6 +388,54 @@ jobs:
           fi
 
           cp ios-port/ios/Info.plist "Payload/\${APP_NAME}.app/Info.plist"
+
+          # Genera icone iOS PNG opache + Assets.car (SpringBoard + LiveContainer / Feather)
+          ICON_SRC=""
+          if [ -f "ios-port/ios/AppIcon.jpg" ]; then
+            ICON_SRC="ios-port/ios/AppIcon.jpg"
+          elif [ -f "ios-port/ios/AppIcon.png" ]; then
+            ICON_SRC="ios-port/ios/AppIcon.png"
+          fi
+          if [ -n "\${ICON_SRC}" ]; then
+            echo "==> Generazione icone iOS da \${ICON_SRC}..."
+            ICON_TMP="/tmp/ShadowAppIconAssets/Assets.xcassets/AppIcon.appiconset"
+            rm -rf /tmp/ShadowAppIconAssets
+            mkdir -p "\${ICON_TMP}"
+
+            sips -s format png -z 120 120 "\${ICON_SRC}" --out "Payload/\${APP_NAME}.app/AppIcon60x60@2x.png" >/dev/null
+            sips -s format png -z 180 180 "\${ICON_SRC}" --out "Payload/\${APP_NAME}.app/AppIcon60x60@3x.png" >/dev/null
+            sips -s format png -z 152 152 "\${ICON_SRC}" --out "Payload/\${APP_NAME}.app/AppIcon76x76@2x~ipad.png" >/dev/null
+            sips -s format png -z 167 167 "\${ICON_SRC}" --out "Payload/\${APP_NAME}.app/AppIcon83.5x83.5@2x~ipad.png" >/dev/null
+            sips -s format png -z 1024 1024 "\${ICON_SRC}" --out "Payload/\${APP_NAME}.app/AppIcon1024x1024.png" >/dev/null
+
+            cp "Payload/\${APP_NAME}.app/AppIcon60x60@2x.png" "\${ICON_TMP}/AppIcon60x60@2x.png"
+            cp "Payload/\${APP_NAME}.app/AppIcon60x60@3x.png" "\${ICON_TMP}/AppIcon60x60@3x.png"
+            cp "Payload/\${APP_NAME}.app/AppIcon76x76@2x~ipad.png" "\${ICON_TMP}/AppIcon76x76@2x~ipad.png"
+            cp "Payload/\${APP_NAME}.app/AppIcon83.5x83.5@2x~ipad.png" "\${ICON_TMP}/AppIcon83.5x83.5@2x~ipad.png"
+            cp "Payload/\${APP_NAME}.app/AppIcon1024x1024.png" "\${ICON_TMP}/AppIcon1024x1024.png"
+
+            cat << 'EOF_ICON_JSON' > "\${ICON_TMP}/Contents.json"
+          {
+            "images": [
+              { "filename": "AppIcon60x60@2x.png", "idiom": "iphone", "scale": "2x", "size": "60x60" },
+              { "filename": "AppIcon60x60@3x.png", "idiom": "iphone", "scale": "3x", "size": "60x60" },
+              { "filename": "AppIcon76x76@2x~ipad.png", "idiom": "ipad", "scale": "2x", "size": "76x76" },
+              { "filename": "AppIcon83.5x83.5@2x~ipad.png", "idiom": "ipad", "scale": "2x", "size": "83.5x83.5" },
+              { "filename": "AppIcon1024x1024.png", "idiom": "ios-marketing", "scale": "1x", "size": "1024x1024" }
+            ],
+            "info": { "author": "xcode", "version": 1 }
+          }
+          EOF_ICON_JSON
+
+            xcrun actool --compile "Payload/\${APP_NAME}.app" \\
+              --platform iphoneos \\
+              --minimum-deployment-target "\${IOS_DEPLOYMENT_TARGET}" \\
+              --app-icon AppIcon \\
+              --output-partial-info-plist /tmp/icon-info.plist \\
+              /tmp/ShadowAppIconAssets/Assets.xcassets || true
+            ls -lh "Payload/\${APP_NAME}.app"/AppIcon*.png "Payload/\${APP_NAME}.app"/Assets.car || true
+          fi
+
           file "Payload/\${APP_NAME}.app/\${APP_NAME}"
 
           # Rimuove eventuali firme residue e applica firma ad-hoc con entitlement RAM aumentata
@@ -816,8 +864,8 @@ if old_upd in mp_src and "#if !defined(SHADOW_IOS_PORT)" not in mp_src:
 mp.write_text(mp_src, encoding="utf-8")
 PY_PATHS
 
-echo "==> [4/7] Patch ShadowRecomp/os/registry.h e ShadowRecomp/ui/game_window.cpp..."
-python3 - "\${UPSTREAM_DIR}/ShadowRecomp/os/registry.h" "\${UPSTREAM_DIR}/ShadowRecomp/ui/game_window.cpp" << 'PY_REG_WIN'
+echo "==> [4/7] Patch ShadowRecomp/os/registry.h, ShadowRecomp/ui/game_window.cpp e ShadowRecomp/ui/installer_wizard.cpp..."
+python3 - "\${UPSTREAM_DIR}/ShadowRecomp/os/registry.h" "\${UPSTREAM_DIR}/ShadowRecomp/ui/game_window.cpp" "\${UPSTREAM_DIR}/ShadowRecomp/ui/installer_wizard.cpp" << 'PY_REG_WIN'
 import sys, pathlib
 
 reg_p = pathlib.Path(sys.argv[1])
@@ -906,6 +954,51 @@ if "SHADOW_IOS_TOUCH_COORDS_FIX" not in win_src:
 if win_changed:
     win_p.write_text(win_src, encoding="utf-8")
     print("Patched game_window.cpp (iOS Vulkan surface + background/foreground lifecycle + ImGui touch coords)")
+
+wiz_p = pathlib.Path(sys.argv[3])
+if wiz_p.exists():
+    wiz_src = wiz_p.read_text(encoding="utf-8")
+    if "SHADOW_IOS_HIPEREMA_CREDITS" not in wiz_src:
+        old_credits = "DrawScrollingCredits(ImVec2(panelMin.x + creditsPadding, creditsY), ImVec2(panelMax.x - creditsPadding, creditsY + fileFontSize * 1.5f), scale);"
+        new_credits = """DrawScrollingCredits(ImVec2(panelMin.x + creditsPadding, creditsY), ImVec2(panelMax.x - creditsPadding, creditsY + fileFontSize * 1.5f), scale);
+
+#if defined(SHADOW_IOS_PORT)
+		/* SHADOW_IOS_HIPEREMA_CREDITS */
+		{
+			const char* portCredit = nullptr;
+			switch (Config::Language.Value)
+			{
+				case ELanguage::Italian:
+					portCredit = reinterpret_cast<const char*>(u8"Porting iOS sviluppato da hiperema");
+					break;
+				case ELanguage::French:
+					portCredit = reinterpret_cast<const char*>(u8"Portage iOS développé par hiperema");
+					break;
+				case ELanguage::German:
+					portCredit = reinterpret_cast<const char*>(u8"iOS-Port entwickelt von hiperema");
+					break;
+				case ELanguage::Spanish:
+					portCredit = reinterpret_cast<const char*>(u8"Port de iOS desarrollado por hiperema");
+					break;
+				case ELanguage::Japanese:
+					portCredit = reinterpret_cast<const char*>(u8"iOS移植開発: hiperema");
+					break;
+				case ELanguage::English:
+				default:
+					portCredit = reinterpret_cast<const char*>(u8"iOS port developed by hiperema");
+					break;
+			}
+			ImVec2 portCreditSize = font->CalcTextSizeA(fileFontSize, FLT_MAX, 0, portCredit);
+			float portCreditX = centerX - (portCreditSize.x * 0.5f);
+			float portCreditY = creditsY + (fileFontSize * 1.5f) + (12.0f * scale);
+			DrawTextWithShadow(font, fileFontSize, ImVec2(portCreditX, portCreditY), IM_COL32(255, 224, 224, 255), portCredit, 1.5, 1, IM_COL32(0, 0, 0, 127));
+		}
+#endif"""
+        if old_credits not in wiz_src:
+            raise RuntimeError("Failed to locate DrawScrollingCredits in ui/installer_wizard.cpp!")
+        wiz_src = wiz_src.replace(old_credits, new_credits, 1)
+        wiz_p.write_text(wiz_src, encoding="utf-8")
+        print("Patched installer_wizard.cpp (localized iOS port credits: hiperema)")
 PY_REG_WIN
 
 echo "==> [5/7] Patch Plume, discord-rpc, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no Cocoa/system())..."
@@ -3181,6 +3274,33 @@ void curl_slist_free_all(struct curl_slist*) {}
     <string>${config.appVersion}</string>
     <key>CFBundleVersion</key>
     <string>1</string>
+    <key>CFBundleIconName</key>
+    <string>AppIcon</string>
+    <key>CFBundleIcons</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconName</key>
+            <string>AppIcon</string>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon60x60</string>
+            </array>
+        </dict>
+    </dict>
+    <key>CFBundleIcons~ipad</key>
+    <dict>
+        <key>CFBundlePrimaryIcon</key>
+        <dict>
+            <key>CFBundleIconName</key>
+            <string>AppIcon</string>
+            <key>CFBundleIconFiles</key>
+            <array>
+                <string>AppIcon60x60</string>
+                <string>AppIcon76x76</string>
+            </array>
+        </dict>
+    </dict>
     <key>LSRequiresIPhoneOS</key>
     <true/>
     <key>MinimumOSVersion</key>

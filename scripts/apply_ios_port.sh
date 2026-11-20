@@ -386,8 +386,8 @@ if old_upd in mp_src and "#if !defined(SHADOW_IOS_PORT)" not in mp_src:
 mp.write_text(mp_src, encoding="utf-8")
 PY_PATHS
 
-echo "==> [4/7] Patch ShadowRecomp/os/registry.h e ShadowRecomp/ui/game_window.cpp..."
-python3 - "${UPSTREAM_DIR}/ShadowRecomp/os/registry.h" "${UPSTREAM_DIR}/ShadowRecomp/ui/game_window.cpp" << 'PY_REG_WIN'
+echo "==> [4/7] Patch ShadowRecomp/os/registry.h, ShadowRecomp/ui/game_window.cpp e ShadowRecomp/ui/installer_wizard.cpp..."
+python3 - "${UPSTREAM_DIR}/ShadowRecomp/os/registry.h" "${UPSTREAM_DIR}/ShadowRecomp/ui/game_window.cpp" "${UPSTREAM_DIR}/ShadowRecomp/ui/installer_wizard.cpp" << 'PY_REG_WIN'
 import sys, pathlib
 
 reg_p = pathlib.Path(sys.argv[1])
@@ -476,6 +476,51 @@ if "SHADOW_IOS_TOUCH_COORDS_FIX" not in win_src:
 if win_changed:
     win_p.write_text(win_src, encoding="utf-8")
     print("Patched game_window.cpp (iOS Vulkan surface + background/foreground lifecycle + ImGui touch coords)")
+
+wiz_p = pathlib.Path(sys.argv[3])
+if wiz_p.exists():
+    wiz_src = wiz_p.read_text(encoding="utf-8")
+    if "SHADOW_IOS_HIPEREMA_CREDITS" not in wiz_src:
+        old_credits = "DrawScrollingCredits(ImVec2(panelMin.x + creditsPadding, creditsY), ImVec2(panelMax.x - creditsPadding, creditsY + fileFontSize * 1.5f), scale);"
+        new_credits = """DrawScrollingCredits(ImVec2(panelMin.x + creditsPadding, creditsY), ImVec2(panelMax.x - creditsPadding, creditsY + fileFontSize * 1.5f), scale);
+
+#if defined(SHADOW_IOS_PORT)
+		/* SHADOW_IOS_HIPEREMA_CREDITS */
+		{
+			const char* portCredit = nullptr;
+			switch (Config::Language.Value)
+			{
+				case ELanguage::Italian:
+					portCredit = reinterpret_cast<const char*>(u8"Porting iOS sviluppato da hiperema");
+					break;
+				case ELanguage::French:
+					portCredit = reinterpret_cast<const char*>(u8"Portage iOS développé par hiperema");
+					break;
+				case ELanguage::German:
+					portCredit = reinterpret_cast<const char*>(u8"iOS-Port entwickelt von hiperema");
+					break;
+				case ELanguage::Spanish:
+					portCredit = reinterpret_cast<const char*>(u8"Port de iOS desarrollado por hiperema");
+					break;
+				case ELanguage::Japanese:
+					portCredit = reinterpret_cast<const char*>(u8"iOS移植開発: hiperema");
+					break;
+				case ELanguage::English:
+				default:
+					portCredit = reinterpret_cast<const char*>(u8"iOS port developed by hiperema");
+					break;
+			}
+			ImVec2 portCreditSize = font->CalcTextSizeA(fileFontSize, FLT_MAX, 0, portCredit);
+			float portCreditX = centerX - (portCreditSize.x * 0.5f);
+			float portCreditY = creditsY + (fileFontSize * 1.5f) + (12.0f * scale);
+			DrawTextWithShadow(font, fileFontSize, ImVec2(portCreditX, portCreditY), IM_COL32(255, 224, 224, 255), portCredit, 1.5, 1, IM_COL32(0, 0, 0, 127));
+		}
+#endif"""
+        if old_credits not in wiz_src:
+            raise RuntimeError("Failed to locate DrawScrollingCredits in ui/installer_wizard.cpp!")
+        wiz_src = wiz_src.replace(old_credits, new_credits, 1)
+        wiz_p.write_text(wiz_src, encoding="utf-8")
+        print("Patched installer_wizard.cpp (localized iOS port credits: hiperema)")
 PY_REG_WIN
 
 echo "==> [5/7] Patch Plume, discord-rpc, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no Cocoa/system())..."

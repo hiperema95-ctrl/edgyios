@@ -320,5 +320,53 @@ test('centered L-Analog/ABXY layout and iOS background/lock-screen GPU suspend &
   assert.match(vcMm, /self\.userInteractionEnabled = !shouldHideCompletely;/);
 });
 
+test('localized hiperema installer credits and custom iOS AppIcon (PNG + Assets.car + Info.plist) are wired', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+  assert.match(applyScript, /SHADOW_IOS_HIPEREMA_CREDITS/);
+  assert.match(applyScript, /Porting iOS sviluppato da hiperema/);
+  assert.match(applyScript, /iOS port developed by hiperema/);
+  assert.match(applyScript, /Portage iOS développé par hiperema/);
+  assert.match(applyScript, /iOS-Port entwickelt von hiperema/);
+  assert.match(applyScript, /Port de iOS desarrollado por hiperema/);
+  assert.match(applyScript, /iOS移植開発: hiperema/);
+
+  const infoPlist = byPath.get('ios/Info.plist') ?? '';
+  assert.match(infoPlist, /<key>CFBundleIconName<\/key>\s*<string>AppIcon<\/string>/);
+  assert.match(infoPlist, /<key>CFBundleIcons<\/key>/);
+  assert.match(infoPlist, /<key>CFBundleIcons~ipad<\/key>/);
+  assert.match(infoPlist, /<string>AppIcon60x60<\/string>/);
+  assert.match(infoPlist, /<string>AppIcon76x76<\/string>/);
+
+  const workflowYml = byPath.get('.github/workflows/build-ios-ipa.yml') ?? '';
+  assert.match(workflowYml, /ios-port\/ios\/AppIcon\.jpg/);
+  assert.match(workflowYml, /AppIcon60x60@2x\.png/);
+  assert.match(workflowYml, /AppIcon60x60@3x\.png/);
+  assert.match(workflowYml, /AppIcon76x76@2x~ipad\.png/);
+  assert.match(workflowYml, /AppIcon83\.5x83\.5@2x~ipad\.png/);
+  assert.match(workflowYml, /AppIcon1024x1024\.png/);
+  assert.match(workflowYml, /xcrun actool --compile "Payload\/\$\{APP_NAME\}\.app"/);
+
+  // Validate Step 9 bash syntax after stripping 10-space YAML block indent
+  const step9Match = workflowYml.match(/- name: 9\.[\s\S]*?run: \|\n([\s\S]*?)\n\s*- name: 10\./);
+  assert.ok(step9Match, 'Expected Step 9 run block in workflow YAML');
+  const step9Bash = step9Match[1].replace(/^ {10}/gm, '');
+  execFileSync('bash', ['-n'], { input: step9Bash, encoding: 'utf-8' });
+
+  // Verify ios/AppIcon.jpg exists on disk, is valid JPEG, and stays lightweight (< 350 KB)
+  const iconPath = path.resolve(process.cwd(), 'ios/AppIcon.jpg');
+  assert.ok(fs.existsSync(iconPath), 'Expected ios/AppIcon.jpg to exist in repository');
+  const iconBuf = fs.readFileSync(iconPath);
+  assert.equal(iconBuf[0], 0xff);
+  assert.equal(iconBuf[1], 0xd8);
+  assert.ok(iconBuf.length < 350 * 1024, `Expected ios/AppIcon.jpg < 350 KB, got ${iconBuf.length} bytes`);
+});
+
+
 
 
