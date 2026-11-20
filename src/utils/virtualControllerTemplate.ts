@@ -1419,6 +1419,10 @@ struct ActiveTouchRecord {
     (void)note;
     [self.haptics ensureStarted];
     [self refreshPhysicalControllerState];
+    if (self.superview) {
+        [self.superview bringSubviewToFront:self];
+    }
+    [self wakeControlsAnimated:YES];
 }
 
 - (BOOL)hasApplePhysicalController {
@@ -1572,46 +1576,40 @@ struct ActiveTouchRecord {
     self.rbView.frame = CGRectMake(W - rightPad - trigW, topPad + trigH + gapY, trigW, trigH * 0.88);
     self.r3View.frame = CGRectMake(W - rightPad - trigW - 6.0 * s - wingW, topPad, wingW, wingH);
 
-    // 3. Mid-Left: L-Analog Stick (Shadow Emblem + anello uncinato)
+    // 3. Center-Left: L-Analog Stick (Shadow Emblem + anello uncinato) centrato verticalmente (50% altezza)
     CGFloat lStickSize = 114.0 * s;
-    CGFloat lStickX = leftPad + 14.0 * s;
-    CGFloat lStickY = CGRectGetMaxY(self.lbView.frame) + 14.0 * s;
+    CGFloat lStickX = leftPad + 10.0 * s;
+    CGFloat midY = H * 0.50;
+    CGFloat minLeftY = CGRectGetMaxY(self.lbView.frame) + 12.0 * s;
+    CGFloat lStickY = MAX(minLeftY, midY - lStickSize * 0.5);
     self.leftStickView.frame = CGRectMake(lStickX, lStickY, lStickSize, lStickSize);
 
-    // 4. Bottom-Left: D-Pad 8-direzioni
-    CGFloat dpadSize = 112.0 * s;
-    CGFloat dpadX = leftPad + 16.0 * s;
+    // 4. Bottom-Left (stile Xbox Original): D-Pad 8-direzioni in basso leggermente verso l'interno
+    CGFloat dpadSize = 96.0 * s;
+    CGFloat dpadX = lStickX + lStickSize * 0.72;
     CGFloat dpadY = H - bottomPad - dpadSize;
-    // Evita sovrapposizione su schermi più bassi
-    if (dpadY < CGRectGetMaxY(self.leftStickView.frame) + 6.0 * s) {
-        CGFloat overlap = (CGRectGetMaxY(self.leftStickView.frame) + 6.0 * s) - dpadY;
-        self.leftStickView.frame = CGRectOffset(self.leftStickView.frame, 0, -overlap * 0.55);
-        dpadY += overlap * 0.15;
-    }
     self.dpadView.frame = CGRectMake(dpadX, dpadY, dpadSize, dpadSize);
 
-    // 5. Mid-Right: Diamante Action Buttons (Y, X, B, A)
+    // 5. Center-Right: Diamante Action Buttons (Y, X, B, A) centrato verticalmente (allineato all'analogico sinistro)
     CGFloat btnSize = 52.0 * s;
     CGFloat diamondSpread = 45.0 * s;
     CGFloat abxyCenterX = W - rightPad - 76.0 * s;
-    CGFloat abxyCenterY = CGRectGetMaxY(self.rbView.frame) + 74.0 * s;
+    CGFloat minAbxyCenterY = CGRectGetMaxY(self.rbView.frame) + diamondSpread + btnSize * 0.5 + 12.0 * s;
+    CGFloat abxyCenterY = MAX(minAbxyCenterY, midY);
 
     self.btnYView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY - diamondSpread - btnSize * 0.5, btnSize, btnSize);
     self.btnAView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY + diamondSpread - btnSize * 0.5, btnSize, btnSize);
     self.btnXView.frame = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
     self.btnBView.frame = CGRectMake(abxyCenterX + diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
-    _abxyClusterRect = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.65,
-                                  abxyCenterY - diamondSpread - btnSize * 0.65,
-                                  (diamondSpread + btnSize * 0.65) * 2.0,
-                                  (diamondSpread + btnSize * 0.65) * 2.0);
+    _abxyClusterRect = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.56,
+                                  abxyCenterY - diamondSpread - btnSize * 0.56,
+                                  (diamondSpread + btnSize * 0.56) * 2.0,
+                                  (diamondSpread + btnSize * 0.56) * 2.0);
 
-    // 6. Bottom-Right: R-Analog Camera Stick
-    CGFloat rStickSize = 86.0 * s;
-    CGFloat rStickX = abxyCenterX - rStickSize * 0.5 - 26.0 * s;
-    CGFloat rStickY = H - bottomPad - rStickSize - 2.0 * s;
-    if (rStickY < CGRectGetMaxY(self.btnAView.frame) + 6.0 * s) {
-        rStickX = abxyCenterX - diamondSpread - rStickSize - 6.0 * s;
-    }
+    // 6. Bottom-Right (speculare al D-Pad): R-Analog Camera Stick
+    CGFloat rStickSize = 88.0 * s;
+    CGFloat rStickX = abxyCenterX - diamondSpread - rStickSize * 0.72;
+    CGFloat rStickY = H - bottomPad - rStickSize;
     self.rightStickView.frame = CGRectMake(rStickX, rStickY, rStickSize, rStickSize);
 
     // 7. Bottom-Center: Navigazione (Pausa, Chaos Emerald, Indietro)
@@ -1646,9 +1644,9 @@ struct ActiveTouchRecord {
     if (self.quickBarOpen && CGRectContainsPoint(CGRectInset(self.quickBarView.frame, -6, -6), p)) {
         return TouchTargetKind::QuickBar;
     }
-    if (CGRectContainsPoint(CGRectInset(self.leftStickView.frame, -16, -16), p))  return TouchTargetKind::LeftStick;
-    if (CGRectContainsPoint(CGRectInset(self.rightStickView.frame, -14, -14), p)) return TouchTargetKind::RightStick;
-    if (CGRectContainsPoint(CGRectInset(self.dpadView.frame, -10, -10), p))       return TouchTargetKind::DPad;
+    if (CGRectContainsPoint(CGRectInset(self.leftStickView.frame, -12, -12), p))  return TouchTargetKind::LeftStick;
+    if (CGRectContainsPoint(CGRectInset(self.rightStickView.frame, -10, -10), p)) return TouchTargetKind::RightStick;
+    if (CGRectContainsPoint(CGRectInset(self.dpadView.frame, -8, -8), p))         return TouchTargetKind::DPad;
     if (CGRectContainsPoint(_abxyClusterRect, p))                                 return TouchTargetKind::ABXYCluster;
     if (CGRectContainsPoint(CGRectInset(self.ltView.frame, -6, -6), p))           return TouchTargetKind::LT;
     if (CGRectContainsPoint(CGRectInset(self.lbView.frame, -6, -6), p))           return TouchTargetKind::LB;

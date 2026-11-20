@@ -406,13 +406,43 @@ if "registry_ios.inl" not in reg_src:
 
 win_p = pathlib.Path(sys.argv[2])
 win_src = win_p.read_text(encoding="utf-8")
+win_changed = False
 if "defined(__APPLE__)" not in win_src:
     win_src = win_src.replace(
         "#elif defined(PLUME_SDL_VULKAN_ENABLED)",
         "#elif defined(PLUME_SDL_VULKAN_ENABLED) || defined(__APPLE__)"
     )
+    win_changed = True
+if "ShadowIOS_VideoOnWillEnterBackground" not in win_src:
+    old_focus = """    case SDL_EVENT_WINDOW_FOCUS_LOST:
+        GameWindow::s_isFocused = false;
+        SDL_ShowCursor();
+        break;"""
+    new_focus = """#if defined(SHADOW_IOS_PORT)
+    case SDL_EVENT_WILL_ENTER_BACKGROUND:
+    case SDL_EVENT_DID_ENTER_BACKGROUND:
+        ShadowIOS_VideoOnWillEnterBackground();
+        break;
+    case SDL_EVENT_DID_ENTER_FOREGROUND:
+        ShadowIOS_VideoOnDidEnterForeground();
+        break;
+#endif
+    case SDL_EVENT_WINDOW_FOCUS_LOST:
+        GameWindow::s_isFocused = false;
+        SDL_ShowCursor();
+        break;"""
+    old_inc = '#include "game_window.h"'
+    new_inc = '''#include "game_window.h"
+#if defined(SHADOW_IOS_PORT)
+extern "C" void ShadowIOS_VideoOnWillEnterBackground();
+extern "C" void ShadowIOS_VideoOnDidEnterForeground();
+#endif'''
+    if old_inc in win_src and old_focus in win_src:
+        win_src = win_src.replace(old_inc, new_inc, 1).replace(old_focus, new_focus, 1)
+        win_changed = True
+if win_changed:
     win_p.write_text(win_src, encoding="utf-8")
-    print("Patched game_window.cpp")
+    print("Patched game_window.cpp (iOS Vulkan surface + background/foreground lifecycle)")
 PY_REG_WIN
 
 echo "==> [5/7] Patch Plume, discord-rpc, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no Cocoa/system())..."
@@ -582,6 +612,33 @@ extern VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL shadow_ios_moltenvk_vkGetInstanc
         raise RuntimeError("Failed to namespace thirdparty/plume/contrib/volk/volk.h for iOS!")
     if volk_c.exists() and "SHADOW_IOS_VOLK_NAMESPACE" not in volk_c.read_text(encoding="utf-8"):
         raise RuntimeError("Failed to namespace thirdparty/plume/contrib/volk/volk.c for iOS!")
+
+    # Limita i timeout di vkAcquireNextImageKHR (100ms) e vkWaitForFences (2s) su iOS
+    # cosi MoltenVK non puo MAI bloccarsi all'infinito su lock-screen / swipe Home
+    plume_vk = plume_dir / "plume_vulkan.cpp"
+    if plume_vk.exists():
+        pvk_src = plume_vk.read_text(encoding="utf-8")
+        if "SHADOW_IOS_VK_TIMEOUT_FIX" not in pvk_src:
+            if "TargetConditionals.h" not in pvk_src:
+                pvk_src = "#if defined(__APPLE__)\n#include <TargetConditionals.h>\n#endif\n" + pvk_src
+            old_acq = "        VkResult res = vkAcquireNextImageKHR(commandQueue->device->vk, vk, UINT64_MAX, interfaceSemaphore->vk, VK_NULL_HANDLE, textureIndex);"
+            new_acq = """        /* SHADOW_IOS_VK_TIMEOUT_FIX */
+#if defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+        VkResult res = vkAcquireNextImageKHR(commandQueue->device->vk, vk, 100000000ULL, interfaceSemaphore->vk, VK_NULL_HANDLE, textureIndex);
+#else
+        VkResult res = vkAcquireNextImageKHR(commandQueue->device->vk, vk, UINT64_MAX, interfaceSemaphore->vk, VK_NULL_HANDLE, textureIndex);
+#endif"""
+            old_fence = "        VkResult res = vkWaitForFences(device->vk, 1, &interfaceFence->vk, VK_TRUE, UINT64_MAX);"
+            new_fence = """#if defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+        VkResult res = vkWaitForFences(device->vk, 1, &interfaceFence->vk, VK_TRUE, 2000000000ULL);
+#else
+        VkResult res = vkWaitForFences(device->vk, 1, &interfaceFence->vk, VK_TRUE, UINT64_MAX);
+#endif"""
+            if old_acq not in pvk_src or old_fence not in pvk_src:
+                raise RuntimeError("Failed to locate vkAcquireNextImageKHR / vkWaitForFences in thirdparty/plume/plume_vulkan.cpp!")
+            pvk_src = pvk_src.replace(old_acq, new_acq, 1).replace(old_fence, new_fence, 1)
+            plume_vk.write_text(pvk_src, encoding="utf-8")
+            print("Patched thirdparty/plume/plume_vulkan.cpp: bounded iOS acquire/fence timeouts")
 
 # 5e. discord-rpc/src/discord_register_linux.cpp: rimuovi system() (vietato su iOS SDK)
 discord_reg = pathlib.Path(sys.argv[6])
@@ -1214,8 +1271,135 @@ static ShadowIOSRenderThreadStarter g_renderThread;
         raise RuntimeError("Failed to locate g_renderThread closing block in gpu/video.cpp!")
     vid_src = vid_src.replace(old_rt_end, new_rt_end, 1)
 
+    # 7c-bis. iOS background/lock-screen suspend & foreground swapchain recovery (SHADOW_IOS_LIFECYCLE_FIX)
+    old_proc_ef = """static void ProcEndFrame(const RenderCommand& cmd)
+{"""
+    new_proc_ef = """/* SHADOW_IOS_LIFECYCLE_FIX */
+#if defined(SHADOW_IOS_PORT)
+static std::mutex g_iosLifecycleMutex;
+static std::condition_variable g_iosLifecycleCv;
+static std::atomic<bool> g_iosAppBackgrounded{ false };
+static std::atomic<bool> g_iosRenderParked{ false };
+static std::atomic<bool> g_iosSwapChainForceRebuild{ false };
+static std::atomic<bool> g_iosRenderThreadStarted{ false };
+
+static void ShadowIOSDrainInFlightGpuOnly()
+{
+	if (g_queue)
+	{
+		for (size_t i = 0; i < NUM_FRAMES; i++)
+		{
+			if (g_commandListStates[i])
+			{
+				g_queue->waitForCommandFence(g_commandFences[i].get());
+				g_commandListStates[i] = false;
+			}
+		}
+	}
+	if (g_vulkan && g_swapChain)
+	{
+		auto* curSwapChain = GetVulkanSwapChain();
+		if (curSwapChain && curSwapChain->commandQueue && curSwapChain->commandQueue->queue &&
+		    curSwapChain->commandQueue->queue->vk != VK_NULL_HANDLE)
+		{
+			std::scoped_lock lock(*curSwapChain->commandQueue->queue->mutex);
+			vkQueueWaitIdle(curSwapChain->commandQueue->queue->vk);
+		}
+	}
+}
+
+static void ShadowIOSParkIfBackgrounded()
+{
+	if (!g_iosAppBackgrounded.load(std::memory_order_acquire))
+		return;
+
+	// Drena tutti i command buffer Metal gia in volo PRIMA che iOS revochi la GPU (zero nuovi commit!)
+	ShadowIOSDrainInFlightGpuOnly();
+
+	std::unique_lock<std::mutex> lock(g_iosLifecycleMutex);
+	g_iosRenderParked.store(true, std::memory_order_release);
+	g_iosLifecycleCv.notify_all();
+
+	g_iosLifecycleCv.wait(lock, [] {
+		return !g_iosAppBackgrounded.load(std::memory_order_acquire);
+	});
+	g_iosRenderParked.store(false, std::memory_order_release);
+}
+
+extern "C" void ShadowIOS_VideoOnWillEnterBackground()
+{
+	if (g_iosAppBackgrounded.exchange(true, std::memory_order_acq_rel))
+		return;
+	if (!g_iosRenderThreadStarted.load(std::memory_order_acquire))
+		return;
+
+	std::unique_lock<std::mutex> lock(g_iosLifecycleMutex);
+	// Attesa limitata (450ms max) per drenare la GPU in modo sincrono senza mai rischiare deadlock con UIKit
+	g_iosLifecycleCv.wait_for(lock, std::chrono::milliseconds(450), [] {
+		return g_iosRenderParked.load(std::memory_order_acquire) || !g_iosAppBackgrounded.load(std::memory_order_acquire);
+	});
+}
+
+extern "C" void ShadowIOS_VideoOnDidEnterForeground()
+{
+	g_iosSwapChainForceRebuild.store(true, std::memory_order_release);
+	{
+		std::lock_guard<std::mutex> lock(g_iosLifecycleMutex);
+		g_iosAppBackgrounded.store(false, std::memory_order_release);
+	}
+	g_iosLifecycleCv.notify_all();
+}
+#endif
+
+static void ProcEndFrame(const RenderCommand& cmd)
+{"""
+    if old_proc_ef not in vid_src:
+        raise RuntimeError("Failed to locate ProcEndFrame in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_proc_ef, new_proc_ef, 1)
+
+    old_chk_sc = """	CheckSwapChain(cmd.endFrame.gameThreadWaits);
+	ProcBeginCommandList(cmd);"""
+    new_chk_sc = """#if defined(SHADOW_IOS_PORT)
+	ShadowIOSParkIfBackgrounded();
+	const bool iosForceRebuild = g_iosSwapChainForceRebuild.exchange(false, std::memory_order_acq_rel);
+	const bool canRebuildSwapChain = cmd.endFrame.gameThreadWaits || iosForceRebuild;
+	if (iosForceRebuild)
+	{
+		g_swapChainValid = false;
+	}
+	CheckSwapChain(canRebuildSwapChain);
+	if (iosForceRebuild && !g_swapChainValid && !g_iosAppBackgrounded.load(std::memory_order_acquire))
+	{
+		for (int retry = 0; retry < 30 && !g_swapChainValid && !g_iosAppBackgrounded.load(std::memory_order_acquire); ++retry)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(16));
+			CheckSwapChain(true);
+		}
+	}
+#else
+	CheckSwapChain(cmd.endFrame.gameThreadWaits);
+#endif
+	ProcBeginCommandList(cmd);"""
+    if old_chk_sc not in vid_src:
+        raise RuntimeError("Failed to locate CheckSwapChain call in ProcEndFrame of gpu/video.cpp!")
+    vid_src = vid_src.replace(old_chk_sc, new_chk_sc, 1)
+
+    old_wait_deq = "				count = g_renderQueue.wait_dequeue_bulk(commands, std::size(commands));"
+    new_wait_deq = """#if defined(SHADOW_IOS_PORT)
+				g_iosRenderThreadStarted.store(true, std::memory_order_release);
+				ShadowIOSParkIfBackgrounded();
+				count = g_renderQueue.wait_dequeue_bulk_timed(commands, std::size(commands), std::chrono::milliseconds(10));
+				if (count == 0)
+					continue;
+#else
+				count = g_renderQueue.wait_dequeue_bulk(commands, std::size(commands));
+#endif"""
+    if old_wait_deq not in vid_src:
+        raise RuntimeError("Failed to locate wait_dequeue_bulk in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_wait_deq, new_wait_deq, 1)
+
     vid_p.write_text(vid_src, encoding="utf-8")
-    print("Patched gpu/video.cpp: idempotent precompile + 8 MB iOS render thread + autoreleasepool")
+    print("Patched gpu/video.cpp: idempotent precompile + 8 MB iOS render thread + autoreleasepool + background/foreground GPU pause & swapchain recovery")
 
 # 7d. audio/driver/sdl3_driver.cpp: 1024 sample frames su iOS CoreAudio + protezione bounds ring-buffer in Pull()
 aud_p = pathlib.Path(sys.argv[5])

@@ -24,9 +24,15 @@
 #include <os/user.h>
 #include <os/version.h>
 
+extern "C" void ShadowIOS_VideoOnWillEnterBackground();
+extern "C" void ShadowIOS_VideoOnDidEnterForeground();
+
 namespace {
 std::mutex g_logMutex;
 std::once_flag g_iosRuntimeInitOnce;
+id g_iosWillResignObserver = nil;
+id g_iosDidEnterBgObserver = nil;
+id g_iosDidBecomeActiveObserver = nil;
 
 std::filesystem::path GetIOSDocumentsDir() {
     @autoreleasepool {
@@ -59,6 +65,35 @@ void InitializeIOSRuntimeOnce() {
             [session setPreferredSampleRate:48000.0 error:nil];
             [session setPreferredIOBufferDuration:0.021333 error:nil];
             [session setActive:YES error:&err];
+
+            // Osservatori UIKit sincroni (queue:nil) per bloccare/riprendere Metal PRIMA che iOS
+            // revochi la GPU su blocco schermo o swipe Home — funziona anche dentro LiveContainer!
+            NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
+            g_iosWillResignObserver = [nc addObserverForName:UIApplicationWillResignActiveNotification
+                                                      object:nil
+                                                       queue:nil
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+                (void)note;
+                ShadowIOS_VideoOnWillEnterBackground();
+            }];
+            g_iosDidEnterBgObserver = [nc addObserverForName:UIApplicationDidEnterBackgroundNotification
+                                                      object:nil
+                                                       queue:nil
+                                                  usingBlock:^(NSNotification * _Nonnull note) {
+                (void)note;
+                ShadowIOS_VideoOnWillEnterBackground();
+            }];
+            g_iosDidBecomeActiveObserver = [nc addObserverForName:UIApplicationDidBecomeActiveNotification
+                                                           object:nil
+                                                            queue:nil
+                                                       usingBlock:^(NSNotification * _Nonnull note) {
+                (void)note;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [UIApplication sharedApplication].idleTimerDisabled = YES;
+                });
+                [[AVAudioSession sharedInstance] setActive:YES error:nil];
+                ShadowIOS_VideoOnDidEnterForeground();
+            }];
         }
     });
 }

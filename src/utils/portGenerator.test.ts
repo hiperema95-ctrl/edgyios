@@ -277,5 +277,40 @@ test('Shadow the Hedgehog iOS virtual Xbox Original controller is wired with Cor
   assert.match(applyScript, /IOSVirtualController_SyncState/);
 });
 
+test('centered L-Analog/ABXY layout and iOS background/lock-screen GPU suspend & swapchain resume fix are wired', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const vcMm = byPath.get('ios/ios_virtual_controller.mm') ?? '';
+  const iosPlatform = byPath.get('ios/os/ios_platform.mm') ?? '';
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+
+  // Centered L-Analog & ABXY vertical alignment + foreground overlay wake
+  assert.match(vcMm, /CGFloat midY = H \* 0\.50;/);
+  assert.match(vcMm, /CGFloat lStickY = MAX\(minLeftY, midY - lStickSize \* 0\.5\);/);
+  assert.match(vcMm, /CGFloat abxyCenterY = MAX\(minAbxyCenterY, midY\);/);
+  assert.match(vcMm, /\[self\.superview bringSubviewToFront:self\];/);
+  assert.doesNotMatch(vcMm, /initialVelocity:/);
+
+  // Synchronous UIKit lifecycle notifications (LiveContainer-safe)
+  assert.match(iosPlatform, /UIApplicationWillResignActiveNotification/);
+  assert.match(iosPlatform, /UIApplicationDidEnterBackgroundNotification/);
+  assert.match(iosPlatform, /UIApplicationDidBecomeActiveNotification/);
+  assert.match(iosPlatform, /ShadowIOS_VideoOnWillEnterBackground\(\)/);
+  assert.match(iosPlatform, /ShadowIOS_VideoOnDidEnterForeground\(\)/);
+
+  // SDL3 lifecycle hooks + bounded MoltenVK timeouts + RenderThread park & swapchain recovery
+  assert.match(applyScript, /SDL_EVENT_WILL_ENTER_BACKGROUND/);
+  assert.match(applyScript, /SDL_EVENT_DID_ENTER_FOREGROUND/);
+  assert.match(applyScript, /SHADOW_IOS_VK_TIMEOUT_FIX/);
+  assert.match(applyScript, /100000000ULL/);
+  assert.match(applyScript, /2000000000ULL/);
+  assert.match(applyScript, /SHADOW_IOS_LIFECYCLE_FIX/);
+  assert.match(applyScript, /ShadowIOSDrainInFlightGpuOnly/);
+  assert.match(applyScript, /ShadowIOSParkIfBackgrounded/);
+  assert.match(applyScript, /wait_dequeue_bulk_timed/);
+  assert.match(applyScript, /g_iosSwapChainForceRebuild/);
+});
+
 
 
