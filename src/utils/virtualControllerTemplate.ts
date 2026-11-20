@@ -664,7 +664,7 @@ static void DrawChaosEmeraldIcon(CGContextRef ctx, CGPoint c, CGFloat r, UIColor
     [UIView animateWithDuration:pressed ? 0.05 : 0.14
                           delay:0
          usingSpringWithDamping:0.65
-          initialVelocity:0.9
+          initialSpringVelocity:0.9
                         options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
                      animations:^{
         self.transform = CGAffineTransformMakeScale(scale, scale);
@@ -887,7 +887,7 @@ static void DrawChaosEmeraldIcon(CGContextRef ctx, CGPoint c, CGFloat r, UIColor
         [UIView animateWithDuration:0.24
                               delay:0
              usingSpringWithDamping:0.56
-              initialVelocity:1.2
+              initialSpringVelocity:1.2
                             options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction
                          animations:^{
             [self applyThumbTransform];
