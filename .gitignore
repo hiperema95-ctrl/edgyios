@@ -11,4 +11,9 @@ build-ios/
 build-host/
 Payload/
 *.ipa
+*.mp4
+*.mov
+public/assets/aistudio/
+node_modules/
+dist/
 .DS_Store

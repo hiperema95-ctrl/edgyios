@@ -321,7 +321,7 @@ jobs:
           path: |
             ${{ env.APP_NAME }}-iOS-v${{ env.APP_VERSION }}-Unsigned.ipa
             ${{ env.APP_NAME }}-iOS-v${{ env.APP_VERSION }}-Unsigned.ipa.sha256
-          retention-days: 90
+          retention-days: 7
 
       - name: 11. Pubblica GitHub Release Opzionale (stile MarathonRecompilediOS)
         if: ${{ inputs.publish_release == true }}

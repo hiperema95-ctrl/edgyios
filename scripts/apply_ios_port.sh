@@ -127,6 +127,7 @@ if "SHADOW_IOS_ATOMIC_REF_POLYFILL" not in sa_src:
 #if defined(__APPLE__) && defined(__cplusplus) && !defined(__cpp_lib_atomic_ref) && !defined(SHADOW_IOS_ATOMIC_REF_POLYFILL)
 #define SHADOW_IOS_ATOMIC_REF_POLYFILL 1
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <cstring>
@@ -276,7 +277,7 @@ public:
             cur = load(order);
             if (std::memcmp(&cur, &old, sizeof(T)) != 0)
                 break;
-            bucket.cv.wait(lock);
+            bucket.cv.wait_for(lock, std::chrono::milliseconds(5));
         }
     }
 
@@ -361,6 +362,25 @@ new_cwd = '''#if defined(SHADOW_IOS_PORT)
 if old_cwd in mp_src and "iosWorkDir" not in mp_src:
     mp_src = mp_src.replace(old_cwd, new_cwd, 1)
     print("Patched main.cpp working directory to writable iOS Documents/ShadowRecomp")
+old_upd = """    if (Config::CheckForUpdates && difftime(timeNow, Config::LastChecked) > TimeBetweenUpdateChecksInSeconds)
+    {
+        UpdateChecker::initialize();
+        UpdateChecker::start();
+        Config::LastChecked = timeNow;
+        Config::Save();
+    }"""
+new_upd = """#if !defined(SHADOW_IOS_PORT)
+    if (Config::CheckForUpdates && difftime(timeNow, Config::LastChecked) > TimeBetweenUpdateChecksInSeconds)
+    {
+        UpdateChecker::initialize();
+        UpdateChecker::start();
+        Config::LastChecked = timeNow;
+        Config::Save();
+    }
+#endif"""
+if old_upd in mp_src and "#if !defined(SHADOW_IOS_PORT)" not in mp_src:
+    mp_src = mp_src.replace(old_upd, new_upd, 1)
+    print("Patched main.cpp to skip background UpdateChecker on iOS")
 mp.write_text(mp_src, encoding="utf-8")
 PY_PATHS
 
@@ -761,4 +781,756 @@ tools_p.write_text(tools_src, encoding="utf-8")
 print("Patched tools/CMakeLists.txt")
 PY_SR
 
-echo "==> [7/7] Patch iOS completata con successo!"
+echo "==> [7/8] Patch runtime iOS arm64 (ARM64 CAS deadlock, stack 8MB, autoreleasepool, precompile idempotente, audio ring buffer, o1heap Jetsam)..."
+python3 - "${UPSTREAM_DIR}/ShadowRecomp/kernel/imports.cpp" "${UPSTREAM_DIR}/ShadowRecomp/cpu/guest_thread.h" "${UPSTREAM_DIR}/ShadowRecomp/cpu/guest_thread.cpp" "${UPSTREAM_DIR}/ShadowRecomp/gpu/video.cpp" "${UPSTREAM_DIR}/ShadowRecomp/audio/driver/sdl3_driver.cpp" "${UPSTREAM_DIR}/thirdparty/o1heap/o1heap.h" "${UPSTREAM_DIR}/thirdparty/o1heap/o1heap.c" "${UPSTREAM_DIR}/ShadowRecomp/kernel/heap.cpp" << 'PY_IOS_RUNTIME'
+import sys, pathlib
+
+# 7a. kernel/imports.cpp: FIX ARM64 compare_exchange_weak spurious-failure deadlock in Event::Wait e RtlEnterCriticalSection + IsCurrentThread()
+imp_p = pathlib.Path(sys.argv[1])
+imp_src = imp_p.read_text(encoding="utf-8")
+if "SHADOW_IOS_ARM64_CAS_FIX" not in imp_src:
+    old_ev = """				while (true)
+				{
+					bool expected = true;
+					if (signaled.compare_exchange_weak(expected, false))
+						break;
+
+					signaled.wait(expected);
+				}"""
+    new_ev = """				/* SHADOW_IOS_ARM64_CAS_FIX */
+				while (true)
+				{
+					bool expected = true;
+					if (signaled.compare_exchange_strong(expected, false))
+						break;
+					if (expected)
+						continue;
+
+					signaled.wait(expected);
+				}"""
+    if old_ev not in imp_src:
+        raise RuntimeError("Failed to locate Event::Wait compare_exchange_weak in kernel/imports.cpp!")
+    imp_src = imp_src.replace(old_ev, new_ev, 1)
+
+    old_cs = """	while (true)
+	{
+		uint32_t previousOwner = 0;
+
+		if (owningThread.compare_exchange_weak(previousOwner, thisThread) || previousOwner == thisThread)
+		{
+			CritSec->RecursionCount++;
+			return;
+		}
+
+		owningThread.wait(previousOwner);
+	}"""
+    new_cs = """	while (true)
+	{
+		uint32_t previousOwner = 0;
+
+		if (owningThread.compare_exchange_strong(previousOwner, thisThread) || previousOwner == thisThread)
+		{
+			CritSec->RecursionCount++;
+			return;
+		}
+
+		if (previousOwner == 0)
+			continue;
+
+		owningThread.wait(previousOwner);
+	}"""
+    if old_cs not in imp_src:
+        raise RuntimeError("Failed to locate RtlEnterCriticalSection compare_exchange_weak in kernel/imports.cpp!")
+    imp_src = imp_src.replace(old_cs, new_cs, 1)
+
+    old_susp = "ThreadHandle->thread.get_id() == std::this_thread::get_id()"
+    if old_susp in imp_src:
+        imp_src = imp_src.replace(old_susp, "ThreadHandle->IsCurrentThread()", 1)
+
+    imp_p.write_text(imp_src, encoding="utf-8")
+    print("Patched kernel/imports.cpp: fixed ARM64 CAS deadlocks + IsCurrentThread()")
+
+# 7b. cpu/guest_thread.h & guest_thread.cpp: 8 MB pthread stack su iOS (evita stack overflow 512 KB su GameLoop/CRI Sofdec FMV)
+gth_p = pathlib.Path(sys.argv[2])
+gth_src = gth_p.read_text(encoding="utf-8")
+if "SHADOW_IOS_PTHREAD_STACK" not in gth_src:
+    gth_src = gth_src.replace(
+        "#include <condition_variable>",
+        "#include <condition_variable>\n#if defined(SHADOW_IOS_PORT)\n#include <pthread.h>\n#endif",
+        1
+    )
+    old_member = "    std::thread thread;"
+    new_member = """    /* SHADOW_IOS_PTHREAD_STACK */
+#if defined(SHADOW_IOS_PORT)
+    pthread_t thread{};
+    std::atomic<bool> threadValid{false};
+    std::atomic<uint32_t> hostThreadId{0};
+    bool IsCurrentThread() const { return threadValid.load(std::memory_order_acquire) && pthread_equal(thread, pthread_self()) != 0; }
+#else
+    std::thread thread;
+    bool IsCurrentThread() const { return thread.get_id() == std::this_thread::get_id(); }
+#endif"""
+    if old_member not in gth_src:
+        raise RuntimeError("Failed to locate std::thread thread in cpu/guest_thread.h!")
+    gth_src = gth_src.replace(old_member, new_member, 1)
+    gth_p.write_text(gth_src, encoding="utf-8")
+    print("Patched cpu/guest_thread.h for 8 MB iOS pthread stack")
+
+gtc_p = pathlib.Path(sys.argv[3])
+gtc_src = gtc_p.read_text(encoding="utf-8")
+if "SHADOW_IOS_PTHREAD_STACK" not in gtc_src:
+    old_gt_block = r"""static void GuestThreadFunc(GuestThreadHandle* hThread)
+{
+	//printf("GuestThreadFunc(GuestThreadHandle* hThread): Function %08X\n", hThread->params.function);
+	hThread->suspended.wait(true);
+	GuestThread::Start(hThread->params);
+}
+
+
+GuestThreadHandle::GuestThreadHandle(const GuestThreadParams& params)
+	: params(params), suspended((params.flags & 0x1) != 0), thread(GuestThreadFunc, this)
+{
+
+}
+
+static uint32_t GetThreadId(const std::thread::id& id)
+{
+	return *reinterpret_cast<const uint32_t*>(&id);
+}
+
+GuestThreadHandle::~GuestThreadHandle()
+{
+	auto id = GetThreadId(this->thread.get_id());
+	std::string s = GetThreadName(params.function);
+	LOGFN("Destroy thread {:08X} with ID {} ({})", params.function, id, s);
+
+	if (suspended.load())
+	{
+		LOGFN_WARNING("GuestThread: Destroying suspended thread {:08X} ({}), forcing resume", params.function, s);
+		suspended.store(false, std::memory_order_release);
+		suspended.notify_all();
+	}
+
+	{
+		std::lock_guard lock(suspendMutex);
+		resumeRequested = true;
+	}
+	suspendCV.notify_all();
+
+	if (thread.joinable())
+		thread.join();
+}
+
+uint32_t GuestThreadHandle::Wait(uint32_t timeout)
+{
+	LOGFN("Wait: Thread {:08X}", params.function);
+	assert(timeout == INFINITE);
+
+	if (thread.joinable())
+		thread.join();
+
+	return STATUS_WAIT_0;
+}
+
+
+
+GuestThreadHandle* GuestThread::Start(const GuestThreadParams& params, uint32_t* threadId)
+{
+	//printf("GuestThread::Start(const GuestThreadParams& params, uint32_t* threadId), function: %08X\n", params.function);
+	auto hThread = CreateKernelObject<GuestThreadHandle>(params);
+
+	if (threadId != nullptr)
+	{
+		*threadId = GetThreadId(hThread->thread.get_id());"""
+    new_gt_block = r"""/* SHADOW_IOS_PTHREAD_STACK */
+#if defined(SHADOW_IOS_PORT)
+extern "C" void* objc_autoreleasePoolPush(void);
+extern "C" void objc_autoreleasePoolPop(void*);
+
+static uint32_t GetIOSPthreadId(pthread_t t)
+{
+	uint64_t tid = 0;
+	if (pthread_threadid_np(t, &tid) == 0 && tid != 0)
+		return static_cast<uint32_t>(tid);
+	return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(t));
+}
+#endif
+
+static void GuestThreadFunc(GuestThreadHandle* hThread)
+{
+#if defined(SHADOW_IOS_PORT)
+	void* arp = objc_autoreleasePoolPush();
+#endif
+	hThread->suspended.wait(true);
+	GuestThread::Start(hThread->params);
+#if defined(SHADOW_IOS_PORT)
+	objc_autoreleasePoolPop(arp);
+#endif
+}
+
+#if defined(SHADOW_IOS_PORT)
+static void* GuestThreadFuncPthread(void* arg)
+{
+	GuestThreadFunc(static_cast<GuestThreadHandle*>(arg));
+	return nullptr;
+}
+
+GuestThreadHandle::GuestThreadHandle(const GuestThreadParams& params)
+	: params(params), suspended((params.flags & 0x1) != 0)
+{
+	pthread_attr_t attr;
+	pthread_attr_init(&attr);
+	pthread_attr_setstacksize(&attr, 8 * 1024 * 1024); // 8 MB stack per evitare crash 512 KB su iOS
+	if (pthread_create(&thread, &attr, &GuestThreadFuncPthread, this) == 0)
+	{
+		hostThreadId.store(GetIOSPthreadId(thread), std::memory_order_release);
+		threadValid.store(true, std::memory_order_release);
+	}
+	pthread_attr_destroy(&attr);
+}
+#else
+GuestThreadHandle::GuestThreadHandle(const GuestThreadParams& params)
+	: params(params), suspended((params.flags & 0x1) != 0), thread(GuestThreadFunc, this)
+{
+
+}
+#endif
+
+static uint32_t GetThreadId(const std::thread::id& id)
+{
+	return *reinterpret_cast<const uint32_t*>(&id);
+}
+
+GuestThreadHandle::~GuestThreadHandle()
+{
+#if defined(SHADOW_IOS_PORT)
+	auto id = hostThreadId.load(std::memory_order_acquire);
+#else
+	auto id = GetThreadId(this->thread.get_id());
+#endif
+	std::string s = GetThreadName(params.function);
+	LOGFN("Destroy thread {:08X} with ID {} ({})", params.function, id, s);
+
+	if (suspended.load())
+	{
+		LOGFN_WARNING("GuestThread: Destroying suspended thread {:08X} ({}), forcing resume", params.function, s);
+		suspended.store(false, std::memory_order_release);
+		suspended.notify_all();
+	}
+
+	{
+		std::lock_guard lock(suspendMutex);
+		resumeRequested = true;
+	}
+	suspendCV.notify_all();
+
+#if defined(SHADOW_IOS_PORT)
+	if (threadValid.exchange(false, std::memory_order_acq_rel))
+		pthread_join(thread, nullptr);
+#else
+	if (thread.joinable())
+		thread.join();
+#endif
+}
+
+uint32_t GuestThreadHandle::Wait(uint32_t timeout)
+{
+	LOGFN("Wait: Thread {:08X}", params.function);
+	assert(timeout == INFINITE);
+
+#if defined(SHADOW_IOS_PORT)
+	if (threadValid.exchange(false, std::memory_order_acq_rel))
+		pthread_join(thread, nullptr);
+#else
+	if (thread.joinable())
+		thread.join();
+#endif
+
+	return STATUS_WAIT_0;
+}
+
+
+
+GuestThreadHandle* GuestThread::Start(const GuestThreadParams& params, uint32_t* threadId)
+{
+	auto hThread = CreateKernelObject<GuestThreadHandle>(params);
+
+	if (threadId != nullptr)
+	{
+#if defined(SHADOW_IOS_PORT)
+		*threadId = hThread->hostThreadId.load(std::memory_order_acquire);
+#else
+		*threadId = GetThreadId(hThread->thread.get_id());
+#endif"""
+    if old_gt_block not in gtc_src:
+        raise RuntimeError("Failed to locate GuestThreadHandle implementation block in cpu/guest_thread.cpp!")
+    gtc_src = gtc_src.replace(old_gt_block, new_gt_block, 1)
+
+    old_cur_tid = """uint32_t GuestThread::GetCurrentThreadId()
+{
+	return GetThreadId(std::this_thread::get_id());
+}"""
+    new_cur_tid = """uint32_t GuestThread::GetCurrentThreadId()
+{
+#if defined(SHADOW_IOS_PORT)
+	return GetIOSPthreadId(pthread_self());
+#else
+	return GetThreadId(std::this_thread::get_id());
+#endif
+}"""
+    if old_cur_tid not in gtc_src:
+        raise RuntimeError("Failed to locate GuestThread::GetCurrentThreadId in cpu/guest_thread.cpp!")
+    gtc_src = gtc_src.replace(old_cur_tid, new_cur_tid, 1)
+    gtc_p.write_text(gtc_src, encoding="utf-8")
+    print("Patched cpu/guest_thread.cpp for 8 MB iOS pthread stack + pthread_threadid_np")
+
+# 7c. gpu/video.cpp: precompile shader/pipeline idempotente (fix crash post-install) + render thread 8 MB stack + autoreleasepool drain
+vid_p = pathlib.Path(sys.argv[4])
+vid_src = vid_p.read_text(encoding="utf-8")
+if "SHADOW_IOS_VIDEO_FIX" not in vid_src:
+    old_ps = """static void PrecompileShaders(const std::function<void(float)>& progress = {})
+{
+	auto totalStart = std::chrono::steady_clock::now();"""
+    new_ps = """static void PrecompileShaders(const std::function<void(float)>& progress = {})
+{
+	/* SHADOW_IOS_VIDEO_FIX: evita doppia compilazione e leak GPU dopo InstallerWizard */
+	static bool s_shadersPrecompiled = false;
+	if (s_shadersPrecompiled)
+	{
+		if (progress) progress(PIPELINE_PRECOMPILE_SHADER_STAGE_END);
+		return;
+	}
+	auto totalStart = std::chrono::steady_clock::now();"""
+    if old_ps not in vid_src:
+        raise RuntimeError("Failed to locate PrecompileShaders in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_ps, new_ps, 1)
+
+    old_ps_end = '	LOGFN("PrecompileShaders: {} shaders in {:.2f} ms", g_shaderCacheEntryCount, totalElapsed);'
+    new_ps_end = '	s_shadersPrecompiled = true;\n	LOGFN("PrecompileShaders: {} shaders in {:.2f} ms", g_shaderCacheEntryCount, totalElapsed);'
+    if old_ps_end not in vid_src:
+        raise RuntimeError("Failed to locate PrecompileShaders end log in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_ps_end, new_ps_end, 1)
+
+    old_psp = """static void PrecompileStaticPipelines(const std::function<void(float)>& progress = {})
+{
+	if constexpr (g_staticPipelineCacheCount == 0)
+		return;"""
+    new_psp = """static void PrecompileStaticPipelines(const std::function<void(float)>& progress = {})
+{
+	if constexpr (g_staticPipelineCacheCount == 0)
+		return;
+	static bool s_staticPipelinesPrecompiled = false;
+	if (s_staticPipelinesPrecompiled)
+	{
+		if (progress) progress(1.0f);
+		return;
+	}"""
+    if old_psp not in vid_src:
+        raise RuntimeError("Failed to locate PrecompileStaticPipelines in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_psp, new_psp, 1)
+
+    old_psp_end = '	LOGFN("PipelineCache: Static precompiled {} pipelines ({} deferred) in {:.2f} ms", compiled, deferred, totalElapsed);'
+    new_psp_end = '	s_staticPipelinesPrecompiled = true;\n	LOGFN("PipelineCache: Static precompiled {} pipelines ({} deferred) in {:.2f} ms", compiled, deferred, totalElapsed);'
+    if old_psp_end not in vid_src:
+        raise RuntimeError("Failed to locate PrecompileStaticPipelines end log in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_psp_end, new_psp_end, 1)
+
+    old_rt_head = """static std::thread g_renderThread([]
+	{"""
+    new_rt_head = """#if defined(SHADOW_IOS_PORT)
+#include <pthread.h>
+extern "C" void* objc_autoreleasePoolPush(void);
+extern "C" void objc_autoreleasePoolPop(void*);
+static void ShadowIOSRenderThreadMain()
+#else
+static std::thread g_renderThread([]
+#endif
+	{"""
+    if old_rt_head not in vid_src:
+        raise RuntimeError("Failed to locate g_renderThread in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_rt_head, new_rt_head, 1)
+
+    old_rt_loop = """					if (g_renderDirectorProfiler.active)
+						g_rtQueueWaitInFrameAccum.Add(waitMs);
+				}
+			}
+			for (size_t i = 0; i < count; i++)"""
+    new_rt_loop = """					if (g_renderDirectorProfiler.active)
+						g_rtQueueWaitInFrameAccum.Add(waitMs);
+				}
+			}
+#if defined(SHADOW_IOS_PORT)
+			void* iosArp = objc_autoreleasePoolPush();
+#endif
+			for (size_t i = 0; i < count; i++)"""
+    if old_rt_loop not in vid_src:
+        raise RuntimeError("Failed to locate render loop batch in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_rt_loop, new_rt_loop, 1)
+
+    old_rt_end = """				default:
+					ProcessRenderCommand(cmd);
+					break;
+				}
+			}
+		}
+	});"""
+    new_rt_end = """				default:
+					ProcessRenderCommand(cmd);
+					break;
+				}
+			}
+#if defined(SHADOW_IOS_PORT)
+			objc_autoreleasePoolPop(iosArp);
+#endif
+		}
+#if defined(SHADOW_IOS_PORT)
+	}
+struct ShadowIOSRenderThreadStarter
+{
+	static void* Entry(void*)
+	{
+		ShadowIOSRenderThreadMain();
+		return nullptr;
+	}
+	ShadowIOSRenderThreadStarter()
+	{
+		pthread_t tid{};
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+		pthread_attr_setstacksize(&attr, 8 * 1024 * 1024); // 8 MB stack per MoltenVK + SPIRV-Cross
+		if (pthread_create(&tid, &attr, &Entry, nullptr) == 0)
+			pthread_detach(tid);
+		pthread_attr_destroy(&attr);
+	}
+};
+static ShadowIOSRenderThreadStarter g_renderThread;
+#else
+	});
+#endif"""
+    if old_rt_end not in vid_src:
+        raise RuntimeError("Failed to locate g_renderThread closing block in gpu/video.cpp!")
+    vid_src = vid_src.replace(old_rt_end, new_rt_end, 1)
+
+    vid_p.write_text(vid_src, encoding="utf-8")
+    print("Patched gpu/video.cpp: idempotent precompile + 8 MB iOS render thread + autoreleasepool")
+
+# 7d. audio/driver/sdl3_driver.cpp: 1024 sample frames su iOS CoreAudio + protezione bounds ring-buffer in Pull()
+aud_p = pathlib.Path(sys.argv[5])
+aud_src = aud_p.read_text(encoding="utf-8")
+if "SHADOW_IOS_AUDIO_FIX" not in aud_src:
+    old_hint = '	SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "512"); // necessary for weapon SFX timing (SDL default is 1024)'
+    new_hint = '''#if defined(SHADOW_IOS_PORT)
+	/* SHADOW_IOS_AUDIO_FIX: 1024 frame (~21ms @ 48kHz) riduce interruzioni CoreAudio realtime su iOS */
+	SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "1024");
+#else
+	SDL_SetHint(SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "512"); // necessary for weapon SFX timing (SDL default is 1024)
+#endif'''
+    if old_hint not in aud_src:
+        raise RuntimeError("Failed to locate SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES in sdl3_driver.cpp!")
+    aud_src = aud_src.replace(old_hint, new_hint, 1)
+
+    old_pull = """	int srcBytesPerSample = SDL_AUDIO_BITSIZE(mFormat) / 8 * mChannelCount;
+	int dstBytesPerSample = SDL_AUDIO_BITSIZE(mParent->mFormat) / 8 * mParent->mChannelCount;
+	float ratio = (float)mParent->mFrequency / (float)mFrequency
+		* (float)dstBytesPerSample / (float)srcBytesPerSample;
+	int read_size = (int)(size / ratio);
+	read_size -= read_size % srcBytesPerSample; // align to sample boundary
+
+	read_size = mLooping
+		? read_size
+		: std::min(read_size, mWrittenSize);
+
+	if (read_size <= 0)
+	{
+		StopSfxEarly();
+		return result;
+	}"""
+    new_pull = """	if (mBufferSize <= 0 || mFrequency <= 0 || mParent->mFrequency <= 0 || size <= 0)
+	{
+		StopSfxEarly();
+		return result;
+	}
+
+	int srcBytesPerSample = SDL_AUDIO_BITSIZE(mFormat) / 8 * mChannelCount;
+	int dstBytesPerSample = SDL_AUDIO_BITSIZE(mParent->mFormat) / 8 * mParent->mChannelCount;
+	if (srcBytesPerSample <= 0 || dstBytesPerSample <= 0)
+	{
+		return result;
+	}
+
+	float ratio = (float)mParent->mFrequency / (float)mFrequency
+		* (float)dstBytesPerSample / (float)srcBytesPerSample;
+	int read_size = (int)(size / ratio);
+	read_size -= read_size % srcBytesPerSample; // align to sample boundary
+
+	read_size = mLooping
+		? read_size
+		: std::min(read_size, mWrittenSize);
+
+	if (read_size > mBufferSize)
+	{
+		read_size = mBufferSize - (mBufferSize % srcBytesPerSample);
+	}
+
+	if (mBufferReadLoc < 0 || mBufferReadLoc >= mBufferSize)
+	{
+		mBufferReadLoc = ((mBufferReadLoc % mBufferSize) + mBufferSize) % mBufferSize;
+	}
+
+	if (read_size <= 0)
+	{
+		StopSfxEarly();
+		return result;
+	}"""
+    if old_pull not in aud_src:
+        raise RuntimeError("Failed to locate Pull() bounds block in sdl3_driver.cpp!")
+    aud_src = aud_src.replace(old_pull, new_pull, 1)
+    aud_p.write_text(aud_src, encoding="utf-8")
+    print("Patched audio/driver/sdl3_driver.cpp: 1024 frames + ring-buffer bounds protection")
+
+# 7e. thirdparty/o1heap/o1heap.{h,c} + kernel/heap.cpp: rilascia pagine liberate >= 64 KB a iOS Jetsam (madvise MADV_FREE)
+o1h_p = pathlib.Path(sys.argv[6])
+o1h_src = o1h_p.read_text(encoding="utf-8")
+if "o1heapFreeAndGetUnusedRange" not in o1h_src:
+    old_o1h = "    void o1heapFree(O1HeapInstance* const handle, void* const pointer);"
+    new_o1h = """    void o1heapFree(O1HeapInstance* const handle, void* const pointer);
+    void o1heapFreeAndGetUnusedRange(O1HeapInstance* const handle, void* const pointer, void** out_begin, size_t* out_size);"""
+    if old_o1h not in o1h_src:
+        raise RuntimeError("Failed to locate o1heapFree declaration in thirdparty/o1heap/o1heap.h!")
+    o1h_src = o1h_src.replace(old_o1h, new_o1h, 1)
+    o1h_p.write_text(o1h_src, encoding="utf-8")
+    print("Patched thirdparty/o1heap/o1heap.h with o1heapFreeAndGetUnusedRange")
+
+o1c_p = pathlib.Path(sys.argv[7])
+o1c_src = o1c_p.read_text(encoding="utf-8")
+if "o1heapFreeAndGetUnusedRange" not in o1c_src:
+    old_o1c = """void o1heapFree(O1HeapInstance* const handle, void* const pointer)
+{
+    O1HEAP_ASSERT(handle != NULL);
+    O1HEAP_ASSERT(handle->diagnostics.capacity <= FRAGMENT_SIZE_MAX);
+    if (O1HEAP_LIKELY(pointer != NULL))  // NULL pointer is a no-op.
+    {
+        Fragment* const frag = (Fragment*)(void*)(((char*)pointer) - O1HEAP_ALIGNMENT);
+
+        // Check for heap corruption in debug builds.
+        O1HEAP_ASSERT(((size_t)frag) % sizeof(Fragment*) == 0U);
+        O1HEAP_ASSERT(((size_t)frag) >= (((size_t)handle) + INSTANCE_SIZE_PADDED));
+        O1HEAP_ASSERT(((size_t)frag) <=
+            (((size_t)handle) + INSTANCE_SIZE_PADDED + handle->diagnostics.capacity - FRAGMENT_SIZE_MIN));
+        O1HEAP_ASSERT(frag->header.used);  // Catch double-free
+        O1HEAP_ASSERT(((size_t)frag->header.next) % sizeof(Fragment*) == 0U);
+        O1HEAP_ASSERT(((size_t)frag->header.prev) % sizeof(Fragment*) == 0U);
+        O1HEAP_ASSERT(frag->header.size >= FRAGMENT_SIZE_MIN);
+        O1HEAP_ASSERT(frag->header.size <= handle->diagnostics.capacity);
+        O1HEAP_ASSERT((frag->header.size % FRAGMENT_SIZE_MIN) == 0U);
+
+        // Even if we're going to drop the fragment later, mark it free anyway to prevent double-free.
+        frag->header.used = false;
+
+        // Update the diagnostics. It must be done before merging because it invalidates the fragment size information.
+        O1HEAP_ASSERT(handle->diagnostics.allocated >= frag->header.size);  // Heap corruption check.
+        handle->diagnostics.allocated -= frag->header.size;
+
+        // Merge with siblings and insert the returned fragment into the appropriate bin and update metadata.
+        Fragment* const prev = frag->header.prev;
+        Fragment* const next = frag->header.next;
+        const bool      join_left = (prev != NULL) && (!prev->header.used);
+        const bool      join_right = (next != NULL) && (!next->header.used);
+        if (join_left && join_right)  // [ prev ][ this ][ next ] => [ ------- prev ------- ]
+        {
+            unbin(handle, prev);
+            unbin(handle, next);
+            prev->header.size += frag->header.size + next->header.size;
+            frag->header.size = 0;  // Invalidate the dropped fragment headers to prevent double-free.
+            next->header.size = 0;
+            O1HEAP_ASSERT((prev->header.size % FRAGMENT_SIZE_MIN) == 0U);
+            interlink(prev, next->header.next);
+            rebin(handle, prev);
+        }
+        else if (join_left)  // [ prev ][ this ][ next ] => [ --- prev --- ][ next ]
+        {
+            unbin(handle, prev);
+            prev->header.size += frag->header.size;
+            frag->header.size = 0;
+            O1HEAP_ASSERT((prev->header.size % FRAGMENT_SIZE_MIN) == 0U);
+            interlink(prev, next);
+            rebin(handle, prev);
+        }
+        else if (join_right)  // [ prev ][ this ][ next ] => [ prev ][ --- this --- ]
+        {
+            unbin(handle, next);
+            frag->header.size += next->header.size;
+            next->header.size = 0;
+            O1HEAP_ASSERT((frag->header.size % FRAGMENT_SIZE_MIN) == 0U);
+            interlink(frag, next->header.next);
+            rebin(handle, frag);
+        }
+        else
+        {
+            rebin(handle, frag);
+        }
+    }
+}"""
+    new_o1c = """void o1heapFreeAndGetUnusedRange(O1HeapInstance* const handle, void* const pointer, void** out_begin, size_t* out_size)
+{
+    if (out_begin != NULL) *out_begin = NULL;
+    if (out_size != NULL) *out_size = 0U;
+    O1HEAP_ASSERT(handle != NULL);
+    O1HEAP_ASSERT(handle->diagnostics.capacity <= FRAGMENT_SIZE_MAX);
+    if (O1HEAP_LIKELY(pointer != NULL))  // NULL pointer is a no-op.
+    {
+        Fragment* const frag = (Fragment*)(void*)(((char*)pointer) - O1HEAP_ALIGNMENT);
+
+        O1HEAP_ASSERT(((size_t)frag) % sizeof(Fragment*) == 0U);
+        O1HEAP_ASSERT(((size_t)frag) >= (((size_t)handle) + INSTANCE_SIZE_PADDED));
+        O1HEAP_ASSERT(((size_t)frag) <=
+            (((size_t)handle) + INSTANCE_SIZE_PADDED + handle->diagnostics.capacity - FRAGMENT_SIZE_MIN));
+        O1HEAP_ASSERT(frag->header.used);  // Catch double-free
+        O1HEAP_ASSERT(((size_t)frag->header.next) % sizeof(Fragment*) == 0U);
+        O1HEAP_ASSERT(((size_t)frag->header.prev) % sizeof(Fragment*) == 0U);
+        O1HEAP_ASSERT(frag->header.size >= FRAGMENT_SIZE_MIN);
+        O1HEAP_ASSERT(frag->header.size <= handle->diagnostics.capacity);
+        O1HEAP_ASSERT((frag->header.size % FRAGMENT_SIZE_MIN) == 0U);
+
+        frag->header.used = false;
+        O1HEAP_ASSERT(handle->diagnostics.allocated >= frag->header.size);
+        handle->diagnostics.allocated -= frag->header.size;
+
+        Fragment* const prev = frag->header.prev;
+        Fragment* const next = frag->header.next;
+        const bool      join_left = (prev != NULL) && (!prev->header.used);
+        const bool      join_right = (next != NULL) && (!next->header.used);
+        Fragment*       merged = frag;
+        if (join_left && join_right)
+        {
+            unbin(handle, prev);
+            unbin(handle, next);
+            prev->header.size += frag->header.size + next->header.size;
+            frag->header.size = 0;
+            next->header.size = 0;
+            O1HEAP_ASSERT((prev->header.size % FRAGMENT_SIZE_MIN) == 0U);
+            interlink(prev, next->header.next);
+            rebin(handle, prev);
+            merged = prev;
+        }
+        else if (join_left)
+        {
+            unbin(handle, prev);
+            prev->header.size += frag->header.size;
+            frag->header.size = 0;
+            O1HEAP_ASSERT((prev->header.size % FRAGMENT_SIZE_MIN) == 0U);
+            interlink(prev, next);
+            rebin(handle, prev);
+            merged = prev;
+        }
+        else if (join_right)
+        {
+            unbin(handle, next);
+            frag->header.size += next->header.size;
+            next->header.size = 0;
+            O1HEAP_ASSERT((frag->header.size % FRAGMENT_SIZE_MIN) == 0U);
+            interlink(frag, next->header.next);
+            rebin(handle, frag);
+            merged = frag;
+        }
+        else
+        {
+            rebin(handle, frag);
+        }
+
+        if (out_begin != NULL && out_size != NULL && merged->header.size > sizeof(Fragment))
+        {
+            *out_begin = ((char*)merged) + sizeof(Fragment);
+            *out_size = merged->header.size - sizeof(Fragment);
+        }
+    }
+}
+
+void o1heapFree(O1HeapInstance* const handle, void* const pointer)
+{
+    o1heapFreeAndGetUnusedRange(handle, pointer, NULL, NULL);
+}"""
+    if old_o1c not in o1c_src:
+        raise RuntimeError("Failed to locate o1heapFree body in thirdparty/o1heap/o1heap.c!")
+    o1c_src = o1c_src.replace(old_o1c, new_o1c, 1)
+    o1c_p.write_text(o1c_src, encoding="utf-8")
+    print("Patched thirdparty/o1heap/o1heap.c with o1heapFreeAndGetUnusedRange")
+
+heap_p = pathlib.Path(sys.argv[8])
+heap_src = heap_p.read_text(encoding="utf-8")
+if "SHADOW_IOS_JETSAM_DISCARD" not in heap_src:
+    old_heap_free = r"""void Heap::Free(void* ptr)
+{
+
+	// Check if pointer is in physical heap region
+	if (ptr >= physicalHeap)
+	{
+		//printf("[FREE PHYSICAL] ptr: %p\n", ptr);
+		std::lock_guard lock(physicalMutex);
+		o1heapFree(physicalHeap, *((void**)ptr - 1));
+	}
+	else
+	{
+		//printf("[FREE REGULAR] ptr: %p\n", ptr);
+		std::lock_guard lock(mutex);
+		o1heapFree(heap, ptr);
+	}
+
+}"""
+    new_heap_free = """#if defined(SHADOW_IOS_PORT)
+#include <sys/mman.h>
+#include <unistd.h>
+static void ShadowIOSDiscardPages(void* begin, size_t size)
+{
+	/* SHADOW_IOS_JETSAM_DISCARD: restituisce pagine liberate >= 64 KB a Darwin Jetsam */
+	if (!begin || size < 65536) return;
+	static const size_t pageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
+	const uintptr_t rawStart = reinterpret_cast<uintptr_t>(begin);
+	const uintptr_t rawEnd = rawStart + size;
+	const uintptr_t alignedStart = (rawStart + pageSize - 1) & ~(pageSize - 1);
+	const uintptr_t alignedEnd = rawEnd & ~(pageSize - 1);
+	if (alignedEnd > alignedStart && (alignedEnd - alignedStart) >= 65536)
+	{
+		madvise(reinterpret_cast<void*>(alignedStart), alignedEnd - alignedStart, MADV_FREE);
+	}
+}
+#endif
+
+void Heap::Free(void* ptr)
+{
+	if (!ptr) return;
+
+	// Check if pointer is in physical heap region
+	if (ptr >= physicalHeap)
+	{
+		std::lock_guard lock(physicalMutex);
+#if defined(SHADOW_IOS_PORT)
+		void* unusedBegin = nullptr;
+		size_t unusedSize = 0;
+		o1heapFreeAndGetUnusedRange(physicalHeap, *((void**)ptr - 1), &unusedBegin, &unusedSize);
+		ShadowIOSDiscardPages(unusedBegin, unusedSize);
+#else
+		o1heapFree(physicalHeap, *((void**)ptr - 1));
+#endif
+	}
+	else
+	{
+		std::lock_guard lock(mutex);
+#if defined(SHADOW_IOS_PORT)
+		void* unusedBegin = nullptr;
+		size_t unusedSize = 0;
+		o1heapFreeAndGetUnusedRange(heap, ptr, &unusedBegin, &unusedSize);
+		ShadowIOSDiscardPages(unusedBegin, unusedSize);
+#else
+		o1heapFree(heap, ptr);
+#endif
+	}
+}"""
+    if old_heap_free not in heap_src:
+        raise RuntimeError("Failed to locate Heap::Free in kernel/heap.cpp!")
+    heap_src = heap_src.replace(old_heap_free, new_heap_free, 1)
+    heap_p.write_text(heap_src, encoding="utf-8")
+    print("Patched kernel/heap.cpp with iOS Jetsam MADV_FREE page discard")
+PY_IOS_RUNTIME
+
+echo "==> [8/8] Patch iOS completata con successo!"

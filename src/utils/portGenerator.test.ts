@@ -111,7 +111,7 @@ test('scripts/apply_ios_port.sh has valid bash syntax and valid Python AST in al
   while ((match = heredocRegex.exec(applyScript)) !== null) {
     blocks.push({ tag: match[1], code: match[2] });
   }
-  assert.equal(blocks.length, 4, `Expected 4 Python heredoc blocks, found ${blocks.length}`);
+  assert.equal(blocks.length, 5, `Expected 5 Python heredoc blocks, found ${blocks.length}`);
 
   for (const { tag, code } of blocks) {
     assert.doesNotThrow(
@@ -190,9 +190,47 @@ test('all audited Step 8 iOS arm64 patches and FreeType/zlib linking are present
 
   const iosPlatform = byPath.get('ios/os/ios_platform.mm') ?? '';
   assert.match(iosPlatform, /#include <cstdint>/);
+  assert.match(iosPlatform, /AVAudioSessionCategoryAmbient/);
+  assert.match(iosPlatform, /SDL_HINT_IDLE_TIMER_DISABLED/);
+  assert.match(iosPlatform, /bool IsSupported\(\)\s*\{\s*return false;/);
+  assert.match(iosPlatform, /bool IsExternalMediaPlaying\(\)\s*\{\s*return false;/);
+  assert.doesNotMatch(iosPlatform, /NSLog\(@/);
 
   const iosModMgr = byPath.get('ios/ios_mod_manager.mm') ?? '';
   assert.match(iosModMgr, /#include <string_view>/);
+});
+
+test('iOS ARM64 runtime stability fixes are included in scripts/apply_ios_port.sh', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const applyScript = files.find((f) => f.path === 'scripts/apply_ios_port.sh')?.content ?? '';
+
+  // 1. ARM64 compare_exchange_weak spurious-failure deadlock fix
+  assert.match(applyScript, /SHADOW_IOS_ARM64_CAS_FIX/);
+  assert.match(applyScript, /signaled\.compare_exchange_strong\(expected, false\)/);
+  assert.match(applyScript, /owningThread\.compare_exchange_strong\(previousOwner, thisThread\)/);
+  assert.match(applyScript, /wait_for\(lock, std::chrono::milliseconds\(5\)\)/);
+
+  // 2. 8 MB pthread stack for GuestThread and RenderThread + autoreleasepool drain
+  assert.match(applyScript, /SHADOW_IOS_PTHREAD_STACK/);
+  assert.match(applyScript, /pthread_attr_setstacksize\(&attr, 8 \* 1024 \* 1024\)/);
+  assert.match(applyScript, /pthread_threadid_np/);
+  assert.match(applyScript, /objc_autoreleasePoolPush\(\)/);
+  assert.match(applyScript, /objc_autoreleasePoolPop\(iosArp\)/);
+
+  // 3. Post-install double shader/pipeline precompile crash fix
+  assert.match(applyScript, /SHADOW_IOS_VIDEO_FIX/);
+  assert.match(applyScript, /static bool s_shadersPrecompiled = false;/);
+  assert.match(applyScript, /static bool s_staticPipelinesPrecompiled = false;/);
+
+  // 4. CoreAudio 1024 sample frames + ring-buffer Pull() bounds protection
+  assert.match(applyScript, /SHADOW_IOS_AUDIO_FIX/);
+  assert.match(applyScript, /SDL_HINT_AUDIO_DEVICE_SAMPLE_FRAMES, "1024"/);
+  assert.match(applyScript, /if \(read_size > mBufferSize\)/);
+
+  // 5. o1heap Jetsam page reclamation via madvise(MADV_FREE)
+  assert.match(applyScript, /o1heapFreeAndGetUnusedRange/);
+  assert.match(applyScript, /SHADOW_IOS_JETSAM_DISCARD/);
+  assert.match(applyScript, /MADV_FREE/);
 });
 
 
