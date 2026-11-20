@@ -478,31 +478,88 @@ namespace plume {
     if plume_apple_mm.exists() and "CocoaWindow::~CocoaWindow()" not in plume_apple_mm.read_text(encoding="utf-8"):
         raise RuntimeError("Failed to inject iOS CocoaWindow stub into thirdparty/plume/plume_apple.mm!")
 
-    # Consenti a volk di risolvere vkGetInstanceProcAddr da libMoltenVK.a linkata staticamente su iOS
+    # Isola tutti i puntatori globali PFN_vk* di Volk nel namespace C++ plume_volk su iOS
+    # cosi i simboli mangled non collidono MAI con i 414 simboli C _vk* esportati da libMoltenVK.a,
+    # e collega volkInitialize() direttamente a _vkGetInstanceProcAddr di libMoltenVK.a
+    volk_h = plume_dir / "contrib" / "volk" / "volk.h"
+    if volk_h.exists():
+        vh_src = volk_h.read_text(encoding="utf-8")
+        if "SHADOW_IOS_VOLK_NAMESPACE" not in vh_src:
+            if "TargetConditionals.h" not in vh_src:
+                vh_src = "#if defined(__APPLE__)\n#include <TargetConditionals.h>\n#endif\n" + vh_src
+            marker_h = "/* VOLK_GENERATE_PROTOTYPES_H */"
+            parts_h = vh_src.split(marker_h)
+            if len(parts_h) != 3:
+                raise RuntimeError(f"Expected 2 {marker_h} markers in volk.h, got {len(parts_h) - 1}")
+            open_ns_h = (
+                '/* SHADOW_IOS_VOLK_NAMESPACE */\n'
+                '#if defined(__cplusplus) && defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE\n'
+                '} /* close extern "C" */\n'
+                'namespace plume_volk {\n'
+                '#endif\n'
+                + marker_h
+            )
+            close_ns_h = (
+                marker_h + '\n'
+                '#if defined(__cplusplus) && defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE\n'
+                '} /* close namespace plume_volk */\n'
+                'using namespace plume_volk;\n'
+                'extern "C" {\n'
+                '#endif'
+            )
+            vh_src = parts_h[0] + open_ns_h + parts_h[1] + close_ns_h + parts_h[2]
+            volk_h.write_text(vh_src, encoding="utf-8")
+            print("Patched volk.h: isolated PFN_vk* prototypes into namespace plume_volk for iOS")
+
     volk_c = plume_dir / "contrib" / "volk" / "volk.c"
     if volk_c.exists():
         v_src = volk_c.read_text(encoding="utf-8")
+        if "TargetConditionals.h" not in v_src:
+            v_src = "#if defined(__APPLE__)\n#include <TargetConditionals.h>\n#include <dlfcn.h>\n#endif\n" + v_src
         if "SHADOW_IOS_STATIC_MOLTENVK" not in v_src and "volkInitialize(" in v_src:
-            if "TargetConditionals.h" not in v_src:
-                v_src = "#if defined(__APPLE__)\n#include <TargetConditionals.h>\n#include <dlfcn.h>\n#endif\n" + v_src
             v_src = re.sub(
                 r'(VkResult\s+volkInitialize\s*\(\s*void\s*\)\s*\{)',
-                r'''\1
+                r'''#if defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+extern VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL shadow_ios_moltenvk_vkGetInstanceProcAddr(VkInstance instance, const char* pName) __asm__("_vkGetInstanceProcAddr");
+#endif
+
+\1
 #if defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
-    {
-        /* SHADOW_IOS_STATIC_MOLTENVK: risolvi vkGetInstanceProcAddr da libMoltenVK.a */
-        PFN_vkGetInstanceProcAddr staticProc = (PFN_vkGetInstanceProcAddr)dlsym(RTLD_DEFAULT, "vkGetInstanceProcAddr");
-        if (staticProc != NULL) {
-            volkInitializeCustom(staticProc);
-            return VK_SUCCESS;
-        }
-    }
+    /* SHADOW_IOS_STATIC_MOLTENVK: link diretto a _vkGetInstanceProcAddr in libMoltenVK.a */
+    volkInitializeCustom(&shadow_ios_moltenvk_vkGetInstanceProcAddr);
+    return VK_SUCCESS;
 #endif''',
                 v_src,
                 count=1
             )
-            volk_c.write_text(v_src, encoding="utf-8")
-            print("Patched volk.c for static libMoltenVK.a lookup on iOS")
+        if "SHADOW_IOS_VOLK_NAMESPACE" not in v_src:
+            marker_c = "/* VOLK_GENERATE_PROTOTYPES_C */"
+            parts_c = v_src.split(marker_c)
+            if len(parts_c) != 3:
+                raise RuntimeError(f"Expected 2 {marker_c} markers in volk.c, got {len(parts_c) - 1}")
+            open_ns_c = (
+                '/* SHADOW_IOS_VOLK_NAMESPACE */\n'
+                '#if defined(__cplusplus) && defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE\n'
+                '} /* close extern "C" so Volk globals never collide with libMoltenVK.a */\n'
+                'namespace plume_volk {\n'
+                '#endif\n'
+                + marker_c
+            )
+            close_ns_c = (
+                marker_c + '\n'
+                '#if defined(__cplusplus) && defined(__APPLE__) && defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE\n'
+                '} /* close namespace plume_volk */\n'
+                'extern "C" {\n'
+                '#endif'
+            )
+            v_src = parts_c[0] + open_ns_c + parts_c[1] + close_ns_c + parts_c[2]
+        volk_c.write_text(v_src, encoding="utf-8")
+        print("Patched volk.c: static MoltenVK binding + namespace plume_volk isolation for iOS")
+
+    if volk_h.exists() and "SHADOW_IOS_VOLK_NAMESPACE" not in volk_h.read_text(encoding="utf-8"):
+        raise RuntimeError("Failed to namespace thirdparty/plume/contrib/volk/volk.h for iOS!")
+    if volk_c.exists() and "SHADOW_IOS_VOLK_NAMESPACE" not in volk_c.read_text(encoding="utf-8"):
+        raise RuntimeError("Failed to namespace thirdparty/plume/contrib/volk/volk.c for iOS!")
 
 # 5e. discord-rpc/src/discord_register_linux.cpp: rimuovi system() (vietato su iOS SDK)
 discord_reg = pathlib.Path(sys.argv[6])

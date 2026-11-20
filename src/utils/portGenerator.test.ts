@@ -176,6 +176,11 @@ test('all audited Step 8 iOS arm64 patches and FreeType/zlib linking are present
   assert.match(applyScript, /CocoaWindow::~CocoaWindow\(\) = default;/);
   assert.match(applyScript, /RenderDeviceVendor getRenderDeviceVendor\(uint64_t\)/);
   assert.match(applyScript, /CocoaWindow::CocoaWindow\(void\* window\)/);
+  assert.match(applyScript, /SHADOW_IOS_VOLK_NAMESPACE/);
+  assert.match(applyScript, /namespace plume_volk \{/);
+  assert.match(applyScript, /using namespace plume_volk;/);
+  assert.match(applyScript, /shadow_ios_moltenvk_vkGetInstanceProcAddr/);
+  assert.match(applyScript, /__asm__\("_vkGetInstanceProcAddr"\)/);
 
   const cmakeIos = byPath.get('cmake/ShadowRecompIOS.cmake') ?? '';
   assert.match(cmakeIos, /find_package\(Freetype REQUIRED\)/);
