@@ -1611,6 +1611,7 @@ GuestThreadHandle* GuestThread::Start(const GuestThreadParams& params, uint32_t*
 vid_p = pathlib.Path(sys.argv[4])
 vid_src = vid_p.read_text(encoding="utf-8")
 if "SHADOW_IOS_VIDEO_FIX" not in vid_src:
+    import re as _re_vid
     old_ps = """static void PrecompileShaders(const std::function<void(float)>& progress = {})
 {
 \tauto totalStart = std::chrono::steady_clock::now();"""
@@ -1620,7 +1621,7 @@ if "SHADOW_IOS_VIDEO_FIX" not in vid_src:
 \tstatic bool s_shadersPrecompiled = false;
 \tif (s_shadersPrecompiled)
 \t{
-\t\tif (progress) progress(PIPELINE_PRECOMPILE_SHADER_STAGE_END);
+\t\tif (progress) progress(1.0f);
 \t\treturn;
 \t}
 \tauto totalStart = std::chrono::steady_clock::now();"""
@@ -1628,11 +1629,14 @@ if "SHADOW_IOS_VIDEO_FIX" not in vid_src:
         raise RuntimeError("Failed to locate PrecompileShaders in gpu/video.cpp!")
     vid_src = vid_src.replace(old_ps, new_ps, 1)
 
-    old_ps_end = '\tLOGFN("PrecompileShaders: {} shaders in {:.2f} ms", g_shaderCacheEntryCount, totalElapsed);'
-    new_ps_end = '\ts_shadersPrecompiled = true;\\n\tLOGFN("PrecompileShaders: {} shaders in {:.2f} ms", g_shaderCacheEntryCount, totalElapsed);'
-    if old_ps_end not in vid_src:
+    vid_src, n_ps = _re_vid.subn(
+        r'(\\tLOGFN\\("PrecompileShaders: [^\\n]*\\);)',
+        r'\\ts_shadersPrecompiled = true;\\n\\1',
+        vid_src,
+        count=1
+    )
+    if n_ps == 0:
         raise RuntimeError("Failed to locate PrecompileShaders end log in gpu/video.cpp!")
-    vid_src = vid_src.replace(old_ps_end, new_ps_end, 1)
 
     old_psp = """static void PrecompileStaticPipelines(const std::function<void(float)>& progress = {})
 {
@@ -1652,11 +1656,14 @@ if "SHADOW_IOS_VIDEO_FIX" not in vid_src:
         raise RuntimeError("Failed to locate PrecompileStaticPipelines in gpu/video.cpp!")
     vid_src = vid_src.replace(old_psp, new_psp, 1)
 
-    old_psp_end = '\tLOGFN("PipelineCache: Static precompiled {} pipelines ({} deferred) in {:.2f} ms", compiled, deferred, totalElapsed);'
-    new_psp_end = '\ts_staticPipelinesPrecompiled = true;\\n\tLOGFN("PipelineCache: Static precompiled {} pipelines ({} deferred) in {:.2f} ms", compiled, deferred, totalElapsed);'
-    if old_psp_end not in vid_src:
+    vid_src, n_psp = _re_vid.subn(
+        r'(\\tLOGFN\\("PipelineCache: Static precompiled [^\\n]*\\);)',
+        r'\\ts_staticPipelinesPrecompiled = true;\\n\\1',
+        vid_src,
+        count=1
+    )
+    if n_psp == 0:
         raise RuntimeError("Failed to locate PrecompileStaticPipelines end log in gpu/video.cpp!")
-    vid_src = vid_src.replace(old_psp_end, new_psp_end, 1)
 
     old_rt_head = """static std::thread g_renderThread([]
 \t{"""
