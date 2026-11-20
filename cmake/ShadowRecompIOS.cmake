@@ -36,6 +36,7 @@ function(shadow_configure_ios_target TARGET_NAME)
         "os/ios/nfd_ios.mm"
         "os/ios/ios_mod_manager.mm"
         "os/ios/curl_ios_stub.mm"
+        "os/ios/ios_virtual_controller.mm"
         PROPERTIES
             SKIP_PRECOMPILE_HEADERS ON
             COMPILE_OPTIONS "-fobjc-arc"

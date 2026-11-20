@@ -70,9 +70,9 @@ test('generateShadowRecompModProfileJson matches ModLoader::Init() schema', () =
   assert.deepEqual(def.EnabledMods, ['Shadow_Reloaded']);
 });
 
-test('buildZipArchiveBytes generates valid PKZIP binary containing all 14 files including .gitignore', () => {
+test('buildZipArchiveBytes generates valid PKZIP binary containing all 16 files including .gitignore', () => {
   const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
-  assert.equal(files.length, 14);
+  assert.equal(files.length, 16);
   const gitignore = files.find((f) => f.path === '.gitignore')?.content ?? '';
   assert.match(gitignore, /\*\.xbe/);
   assert.match(gitignore, /\*\.xiso/);
@@ -111,7 +111,7 @@ test('scripts/apply_ios_port.sh has valid bash syntax and valid Python AST in al
   while ((match = heredocRegex.exec(applyScript)) !== null) {
     blocks.push({ tag: match[1], code: match[2] });
   }
-  assert.equal(blocks.length, 5, `Expected 5 Python heredoc blocks, found ${blocks.length}`);
+  assert.equal(blocks.length, 6, `Expected 6 Python heredoc blocks, found ${blocks.length}`);
 
   for (const { tag, code } of blocks) {
     assert.doesNotThrow(
@@ -233,5 +233,49 @@ test('iOS ARM64 runtime stability fixes are included in scripts/apply_ios_port.s
   assert.match(applyScript, /SHADOW_IOS_JETSAM_DISCARD/);
   assert.match(applyScript, /MADV_FREE/);
 });
+
+test('Shadow the Hedgehog iOS virtual Xbox Original controller is wired with CoreHaptics, pressure sticks, 4s auto-hide, and physical controller detection', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const vcH = byPath.get('ios/include/ios_virtual_controller.h') ?? '';
+  const vcMm = byPath.get('ios/ios_virtual_controller.mm') ?? '';
+  const cmakeIos = byPath.get('cmake/ShadowRecompIOS.cmake') ?? '';
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+
+  // Header C bridge
+  assert.match(vcH, /IOSVirtualPadSnapshot/);
+  assert.match(vcH, /IOSVirtualController_SyncState/);
+  assert.match(vcH, /IOSVirtualController_GetState/);
+  assert.match(vcH, /IOSVirtualController_SetRumble/);
+
+  // Visual theme + Xbox Original mapping + pressure + CoreHaptics + 4s auto-hide + physical hide
+  assert.match(vcMm, /DrawShadowSpikyRing/);
+  assert.match(vcMm, /DrawShadowEmblem/);
+  assert.match(vcMm, /DrawChaosEmeraldIcon/);
+  assert.match(vcMm, /ComputeTouchPressure01/);
+  assert.match(vcMm, /CATransform3DRotate/);
+  assert.match(vcMm, /playsHapticsOnly = YES/);
+  assert.match(vcMm, /playButtonDownIsTrigger:/);
+  assert.match(vcMm, /playButtonUp/);
+  assert.match(vcMm, /playStickRimBump:/);
+  assert.match(vcMm, /playGameRumbleLeft:/);
+  assert.match(vcMm, /kAutoHideIdleSeconds = 4\.0/);
+  assert.match(vcMm, /scheduleIdleFadeTimer/);
+  assert.match(vcMm, /wakeControlsAnimated:/);
+  assert.match(vcMm, /GCControllerDidConnectNotification/);
+  assert.match(vcMm, /hiddenForPhysicalController/);
+  assert.match(vcMm, /kBtnWhite/);
+  assert.match(vcMm, /kBtnBlack/);
+
+  // CMake + input.cpp patch wiring
+  assert.match(cmakeIos, /"os\/ios\/ios_virtual_controller\.mm"/);
+  assert.match(applyScript, /"os\/ios\/ios_virtual_controller\.mm"/);
+  assert.match(applyScript, /PY_IOS_INPUT/);
+  assert.match(applyScript, /IOSVirtualController_GetState\(&vpad\)/);
+  assert.match(applyScript, /IOSVirtualController_SetRumble/);
+  assert.match(applyScript, /IOSVirtualController_SyncState/);
+});
+
 
 

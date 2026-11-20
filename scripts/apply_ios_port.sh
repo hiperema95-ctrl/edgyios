@@ -22,6 +22,8 @@ cp "${PORT_DIR}/ios/include/nfd.h" "${UPSTREAM_DIR}/ShadowRecomp/ios_compat/incl
 cp "${PORT_DIR}/ios/ios_mod_manager.mm" "${UPSTREAM_DIR}/ShadowRecomp/os/ios/ios_mod_manager.mm"
 cp "${PORT_DIR}/ios/curl_ios_stub.mm" "${UPSTREAM_DIR}/ShadowRecomp/os/ios/curl_ios_stub.mm"
 cp "${PORT_DIR}/ios/include/curl/curl.h" "${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/curl/curl.h"
+cp "${PORT_DIR}/ios/ios_virtual_controller.mm" "${UPSTREAM_DIR}/ShadowRecomp/os/ios/ios_virtual_controller.mm"
+cp "${PORT_DIR}/ios/include/ios_virtual_controller.h" "${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/ios_virtual_controller.h"
 cat << 'EOF_NFD_HPP' > "${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/nfd.hpp"
 #pragma once
 #include <nfd.h>
@@ -720,6 +722,7 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "iOS")
         "os/ios/nfd_ios.mm"
         "os/ios/ios_mod_manager.mm"
         "os/ios/curl_ios_stub.mm"
+        "os/ios/ios_virtual_controller.mm"
     )
 endif()'''
 if "os/ios/ios_platform.mm" not in sr_src:
@@ -1533,4 +1536,158 @@ void Heap::Free(void* ptr)
     print("Patched kernel/heap.cpp with iOS Jetsam MADV_FREE page discard")
 PY_IOS_RUNTIME
 
-echo "==> [8/8] Patch iOS completata con successo!"
+echo "==> [8/8] Patch ShadowRecomp/input/input.cpp per Controller Virtuale Xbox Original iOS + Haptics..."
+python3 - "${UPSTREAM_DIR}/ShadowRecomp/input/input.cpp" << 'PY_IOS_INPUT'
+import sys, pathlib
+
+inp_p = pathlib.Path(sys.argv[1])
+inp_src = inp_p.read_text(encoding="utf-8")
+
+if "IOSVirtualController_GetState" not in inp_src:
+    # 1. Include header bridge iOS + InstallerWizard
+    old_inc = '#include <os/logger.h>'
+    new_inc = '''#include <os/logger.h>
+#if defined(SHADOW_IOS_PORT)
+#include <ui/installer_wizard.h>
+#include <ios_virtual_controller.h>
+#endif'''
+    if old_inc not in inp_src:
+        raise RuntimeError("Failed to locate #include <os/logger.h> in input/input.cpp!")
+    inp_src = inp_src.replace(old_inc, new_inc, 1)
+
+    # 2. Su iOS / LiveContainer non bloccare mai l'input se SDL_EVENT_WINDOW_FOCUS_GAINED non viene emesso subito
+    old_allowed = '''bool IsInputAllowed()
+{
+	return GameWindow::s_isFocused || Config::AllowBackgroundInput;
+}'''
+    new_allowed = '''bool IsInputAllowed()
+{
+#if defined(SHADOW_IOS_PORT)
+	return true;
+#else
+	return GameWindow::s_isFocused || Config::AllowBackgroundInput;
+#endif
+}'''
+    if old_allowed not in inp_src:
+        raise RuntimeError("Failed to locate IsInputAllowed() in input/input.cpp!")
+    inp_src = inp_src.replace(old_allowed, new_allowed, 1)
+
+    # 3. Sincronizza l'overlay virtuale da input::Update() (main thread) con stato controller fisici, installer e Chaos Aura
+    old_upd = '''void input::Update()
+{
+	MainThreadDispatcher::Get().Flush();
+	AssignControllers();
+	ApplyControllerLEDs();
+	PublishPadFrame();
+}'''
+    new_upd = '''void input::Update()
+{
+	MainThreadDispatcher::Get().Flush();
+	AssignControllers();
+	ApplyControllerLEDs();
+	PublishPadFrame();
+#if defined(SHADOW_IOS_PORT)
+	bool hasPhysicalController = (s_activeControllerId.load(std::memory_order_relaxed) != 0) || !s_unassignedControllers.empty();
+	if (!hasPhysicalController)
+	{
+		for (auto& c : g_controllers)
+		{
+			if (c.CanPoll())
+			{
+				hasPhysicalController = true;
+				break;
+			}
+		}
+	}
+	IOSVirtualController_SyncState(hasPhysicalController, InstallerWizard::s_isVisible, static_cast<int>(App::s_chaosMode.load(std::memory_order_relaxed)));
+#endif
+}'''
+    if old_upd not in inp_src:
+        raise RuntimeError("Failed to locate input::Update() in input/input.cpp!")
+    inp_src = inp_src.replace(old_upd, new_upd, 1)
+
+    # 4. Mostra icone Xbox Original nei prompt di gioco quando si usa il controller virtuale su iOS
+    old_dev = '''input::EInputDevice input::GetPadDevice(uint32_t playerIndex)
+{
+	const auto frame = GetPadFrame();
+	return playerIndex < frame.pads.size() ? frame.pads[playerIndex].device : EInputDevice::Unknown;
+}'''
+    new_dev = '''input::EInputDevice input::GetPadDevice(uint32_t playerIndex)
+{
+	const auto frame = GetPadFrame();
+	if (playerIndex < frame.pads.size() && frame.pads[playerIndex].connected)
+		return frame.pads[playerIndex].device;
+#if defined(SHADOW_IOS_PORT)
+	if (playerIndex == 0)
+		return EInputDevice::Xbox;
+#endif
+	return EInputDevice::Unknown;
+}'''
+    if old_dev not in inp_src:
+        raise RuntimeError("Failed to locate input::GetPadDevice() in input/input.cpp!")
+    inp_src = inp_src.replace(old_dev, new_dev, 1)
+
+    # 5. Inietta lo stato Xbox Original del controller virtuale in input::GetState (prima del return keyboard!)
+    old_kb_branch = '''		if (dwUserIndex == g_keyboardPort)'''
+    new_kb_branch = '''#if defined(SHADOW_IOS_PORT)
+		if (dwUserIndex == 1 && !hasController)
+		{
+			IOSVirtualPadSnapshot vpad{};
+			if (IOSVirtualController_GetState(&vpad))
+			{
+				auto& pad = pState->Gamepad;
+				pad.wButtons |= vpad.wButtons;
+				for (int i = 0; i < 8; i++)
+				{
+					if (vpad.bAnalogButtons[i] > pad.bAnalogButtons[i])
+						pad.bAnalogButtons[i] = vpad.bAnalogButtons[i];
+				}
+				if (vpad.sThumbLX != 0) pad.sThumbLX = vpad.sThumbLX;
+				if (vpad.sThumbLY != 0) pad.sThumbLY = vpad.sThumbLY;
+				if (vpad.sThumbRX != 0)
+				{
+					int16_t rx = vpad.sThumbRX;
+					if (Config::HorizontalCamera1P == ECameraRotationMode::Reverse)
+						rx = static_cast<int16_t>(std::clamp(-static_cast<int32_t>(rx), -32768, 32767));
+					pad.sThumbRX = rx;
+				}
+				if (vpad.sThumbRY != 0) pad.sThumbRY = vpad.sThumbRY;
+				if (vpad.anyActive)
+				{
+					input::g_inputDevice = input::EInputDevice::Xbox;
+					input::g_inputDeviceController = input::EInputDevice::Xbox;
+				}
+			}
+		}
+#endif
+
+		if (dwUserIndex == g_keyboardPort)'''
+    if old_kb_branch not in inp_src:
+        raise RuntimeError("Failed to locate g_keyboardPort branch in input::GetState!")
+    inp_src = inp_src.replace(old_kb_branch, new_kb_branch, 1)
+
+    # 6. Inoltra la vibrazione Xbox Original al Taptic Engine (CoreHaptics) se non c'è un controller fisico
+    old_set_state = '''	if (!frame.hasActiveController)
+	{
+		return ERROR_DEVICE_NOT_CONNECTED;
+	}'''
+    new_set_state = '''	if (!frame.hasActiveController)
+	{
+#if defined(SHADOW_IOS_PORT)
+		if (dwUserIndex == 1)
+		{
+			IOSVirtualController_SetRumble(outPacket->wLeftMotorSpeed, outPacket->wRightMotorSpeed);
+			return ERROR_SUCCESS;
+		}
+#endif
+		return ERROR_DEVICE_NOT_CONNECTED;
+	}'''
+    if old_set_state not in inp_src:
+        raise RuntimeError("Failed to locate !frame.hasActiveController in input::SetState!")
+    inp_src = inp_src.replace(old_set_state, new_set_state, 1)
+
+    inp_p.write_text(inp_src, encoding="utf-8")
+    print("Patched ShadowRecomp/input/input.cpp with iOS Xbox Original virtual controller + CoreHaptics rumble")
+PY_IOS_INPUT
+
+echo "==> [9/9] Patch iOS completata con successo!"
