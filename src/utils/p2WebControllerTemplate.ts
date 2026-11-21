@@ -782,8 +782,8 @@ namespace {
 
 static const char* const kP2ControllerHtml = R"SHADOW_P2_HTML(${P2_WEB_CONTROLLER_HTML})SHADOW_P2_HTML";
 
-std::mutex g_p2StateMutex;
-IOSVirtualPadSnapshot g_p2Snapshot{};
+IOSVirtualPadSnapshot g_p2Slots[4]{};
+std::atomic<uint32_t> g_p2ActiveSlot{0};
 
 std::mutex g_p2NetMutex;
 std::string g_p2Url = "http://172.20.10.1:8765";
@@ -806,7 +806,9 @@ static UIBackgroundTaskIdentifier g_bgTaskId = UIBackgroundTaskInvalid;
 static dispatch_queue_t GetP2Queue() {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
-        g_p2Queue = dispatch_queue_create("com.shadowrecomp.ios.p2server", DISPATCH_QUEUE_SERIAL);
+        // QOS_CLASS_UTILITY esegue rete/WebSocket sugli Efficiency-core lasciando liberi i Performance-core per 120fps!
+        dispatch_queue_attr_t attr = dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
+        g_p2Queue = dispatch_queue_create("com.shadowrecomp.ios.p2server", attr);
         g_activeConns = [[NSMutableSet alloc] init];
     });
     return g_p2Queue;
@@ -903,9 +905,15 @@ static std::string ComputeWebSocketAcceptKey(const std::string& clientKey) {
     }
 }
 
+static void PublishP2Snapshot(const IOSVirtualPadSnapshot& snap) {
+    uint32_t next = (g_p2ActiveSlot.load(std::memory_order_relaxed) + 1u) & 3u;
+    g_p2Slots[next] = snap;
+    g_p2ActiveSlot.store(next, std::memory_order_release);
+}
+
 static void ResetP2Snapshot() {
-    std::lock_guard<std::mutex> lock(g_p2StateMutex);
-    std::memset(&g_p2Snapshot, 0, sizeof(g_p2Snapshot));
+    IOSVirtualPadSnapshot empty{};
+    PublishP2Snapshot(empty);
 }
 
 static void ParseP2StateMessage(const std::string& msg) {
@@ -950,8 +958,7 @@ static void ParseP2StateMessage(const std::string& msg) {
         snap.bAnalogButtons[4] || snap.bAnalogButtons[5] || snap.bAnalogButtons[6] || snap.bAnalogButtons[7] ||
         (snap.sThumbLX != 0) || (snap.sThumbLY != 0) || (snap.sThumbRX != 0) || (snap.sThumbRY != 0);
 
-    std::lock_guard<std::mutex> lock(g_p2StateMutex);
-    g_p2Snapshot = snap;
+    PublishP2Snapshot(snap);
 }
 
 static std::string ExtractHeaderValue(const std::string& req, const char* headerName) {
@@ -1316,7 +1323,7 @@ static bool StartNWListenerInternal(uint16_t preferredPort) {
             }
         );
         nw_parameters_set_reuse_local_address(params, true);
-        nw_parameters_set_include_peer_to_peer(params, true);
+        // NON abilitare include_peer_to_peer (AWDL): Hotspot (bridge100) e Wi-Fi (en0) usano IPv4 diretto senza overhead radio!
 
         nw_listener_t listener = nw_listener_create_with_port(portStr, params);
         if (!listener) continue;
@@ -1526,16 +1533,22 @@ bool IOSRemoteP2_GetState(IOSVirtualPadSnapshot* outSnapshot) {
     if (!outSnapshot || !g_p2Connected.load(std::memory_order_acquire)) {
         return false;
     }
-    std::lock_guard<std::mutex> lock(g_p2StateMutex);
-    *outSnapshot = g_p2Snapshot;
+    uint32_t cur = g_p2ActiveSlot.load(std::memory_order_acquire);
+    *outSnapshot = g_p2Slots[cur];
     return true;
 }
 
 void IOSRemoteP2_SetRumble(uint16_t leftMotor, uint16_t rightMotor) {
     if (!g_p2Connected.load(std::memory_order_acquire)) return;
     static std::atomic<uint32_t> s_lastSentVal{0};
+    static std::atomic<int64_t> s_lastSentMs{0};
     uint32_t packed = (static_cast<uint32_t>(leftMotor) << 16) | rightMotor;
-    if (s_lastSentVal.exchange(packed, std::memory_order_relaxed) == packed) return;
+    if (s_lastSentVal.load(std::memory_order_relaxed) == packed) return;
+    int64_t nowMs = static_cast<int64_t>(CFAbsoluteTimeGetCurrent() * 1000.0);
+    int64_t prevMs = s_lastSentMs.load(std::memory_order_relaxed);
+    if (packed != 0 && (nowMs - prevMs) < 50) return;
+    s_lastSentVal.store(packed, std::memory_order_relaxed);
+    s_lastSentMs.store(nowMs, std::memory_order_relaxed);
 
     char msg[32];
     int len = std::snprintf(msg, sizeof(msg), "R,%u,%u", leftMotor, rightMotor);

@@ -76,8 +76,8 @@ constexpr int kBtnRT    = 7; // Right Trigger analogico 0..255
 
 constexpr NSTimeInterval kAutoHideIdleSeconds = 4.0;
 
-std::mutex g_padMutex;
-IOSVirtualPadSnapshot g_padSnapshot{};
+IOSVirtualPadSnapshot g_padSlots[4]{};
+std::atomic<uint32_t> g_padActiveSlot{0};
 std::atomic<bool> g_overlayAttached{false};
 std::atomic<bool> g_lastPhysicalSDL{false};
 std::atomic<bool> g_lastInstallerVisible{true};
@@ -1437,6 +1437,8 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         _controlsContainer.backgroundColor = [UIColor clearColor];
         _controlsContainer.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
         _controlsContainer.userInteractionEnabled = NO;
+        // CRITICO 120Hz: evita il render pass offscreen full-screen (2622x1206) di CoreAnimation quando alpha < 1.0!
+        _controlsContainer.layer.allowsGroupOpacity = NO;
         _controlsContainer.alpha = 0.0;
         [self addSubview:_controlsContainer];
 
@@ -1621,16 +1623,12 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     _p2ToastLabel.userInteractionEnabled = NO;
     [_controlsContainer addSubview:_p2ToastLabel];
 
-    // Card QR Code 100% opaca (montata su self, così il QR è nitidissimo anche con opacità controlli 35%)
+    // Card QR Code 100% opaca (montata su self, zero shadowRadius dinamico per zero offscreen blur GPU)
     _p2PairingCardView = [[UIView alloc] initWithFrame:CGRectZero];
     _p2PairingCardView.backgroundColor = [UIColor colorWithRed:0.055 green:0.060 blue:0.095 alpha:0.96];
     _p2PairingCardView.layer.cornerRadius = 16.0;
-    _p2PairingCardView.layer.borderWidth = 1.5;
-    _p2PairingCardView.layer.borderColor = ShadowCrimsonColor(0.88).CGColor;
-    _p2PairingCardView.layer.shadowColor = [UIColor blackColor].CGColor;
-    _p2PairingCardView.layer.shadowOpacity = 0.72;
-    _p2PairingCardView.layer.shadowRadius = 16.0;
-    _p2PairingCardView.layer.shadowOffset = CGSizeMake(0, 6);
+    _p2PairingCardView.layer.borderWidth = 1.6;
+    _p2PairingCardView.layer.borderColor = ShadowCrimsonColor(0.92).CGColor;
     _p2PairingCardView.alpha = 0.0;
     _p2PairingCardView.hidden = YES;
     _p2PairingCardView.userInteractionEnabled = NO;
@@ -2761,9 +2759,10 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     self.backView.pressed = backDown;
     self.dpadView.activeMask = dpadMask;
 
-    // Pubblica lo snapshot atomico per il thread CPU Xbox (input::GetState)
-    std::lock_guard<std::mutex> lock(g_padMutex);
-    g_padSnapshot = snap;
+    // Pubblica lo snapshot lock-free per il thread CPU Xbox (zero mutex, zero syscalls a 120Hz!)
+    uint32_t nextSlot = (g_padActiveSlot.load(std::memory_order_relaxed) + 1u) & 3u;
+    g_padSlots[nextSlot] = snap;
+    g_padActiveSlot.store(nextSlot, std::memory_order_release);
 }
 
 @end
@@ -2826,7 +2825,7 @@ void IOSVirtualController_SyncState(bool hasPhysicalController, bool installerVi
     int  prevAura = g_lastChaosAura.exchange(chaosAuraMode, std::memory_order_relaxed);
 
     bool needsAttach = !g_overlayAttached.load(std::memory_order_acquire);
-    bool periodicZOrderCheck = ((++s_frameCounter % 60u) == 0u);
+    bool periodicZOrderCheck = ((++s_frameCounter % 180u) == 0u);
     if (!needsAttach && !periodicZOrderCheck && prevPhys == hasPhysicalController && prevInst == installerVisible && prevAura == chaosAuraMode) {
         return; // Fast-path O(1): zero allocazioni ObjC nei frame normali a 120Hz!
     }
@@ -2844,13 +2843,20 @@ void IOSVirtualController_SyncState(bool hasPhysicalController, bool installerVi
 
 bool IOSVirtualController_GetState(IOSVirtualPadSnapshot* outSnapshot) {
     if (!outSnapshot) return false;
-    std::lock_guard<std::mutex> lock(g_padMutex);
-    *outSnapshot = g_padSnapshot;
+    uint32_t cur = g_padActiveSlot.load(std::memory_order_acquire);
+    *outSnapshot = g_padSlots[cur];
     return true;
 }
 
 void IOSVirtualController_SetRumble(uint16_t leftMotor, uint16_t rightMotor) {
     if (leftMotor < 2000 && rightMotor < 2000) return;
+    // Pre-throttle lock-free (45ms) PRIMA di dispatch_async per non intasare il main thread durante esplosioni/zone pesanti!
+    static std::atomic<int64_t> s_lastRumbleMs{0};
+    int64_t nowMs = static_cast<int64_t>(CACurrentMediaTime() * 1000.0);
+    int64_t prevMs = s_lastRumbleMs.load(std::memory_order_relaxed);
+    if ((nowMs - prevMs) < 45) return;
+    if (!s_lastRumbleMs.compare_exchange_strong(prevMs, nowMs, std::memory_order_relaxed)) return;
+
     dispatch_async(dispatch_get_main_queue(), ^{
         if (g_sharedOverlay && !g_sharedOverlay.hiddenForPhysicalController && !g_sharedOverlay.hiddenForInstaller) {
             [g_sharedOverlay.haptics playGameRumbleLeft:leftMotor right:rightMotor];

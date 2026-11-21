@@ -432,7 +432,9 @@ test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairin
   assert.match(p2Mm, /#import <Network\/Network\.h>/);
   assert.match(p2Mm, /nw_listener_create_with_port/);
   assert.match(p2Mm, /nw_tcp_options_set_no_delay/);
-  assert.match(p2Mm, /nw_parameters_set_include_peer_to_peer/);
+  assert.match(p2Mm, /QOS_CLASS_UTILITY/);
+  assert.match(p2Mm, /g_p2ActiveSlot/);
+  assert.doesNotMatch(p2Mm, /nw_parameters_set_include_peer_to_peer\(params,\s*true\)/);
   assert.match(p2Mm, /beginBackgroundTaskWithName/);
   assert.match(p2Mm, /bridge100/);
   assert.match(p2Mm, /172\.20\.10\.1/);
@@ -443,9 +445,11 @@ test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairin
   assert.match(p2Mm, /navigator\.vibrate/);
   assert.match(p2Mm, /requestFullscreen/);
 
-  // 2. Quick-HUD Bar "2 omini" icon + Pairing -> Connected pill + CoreImage QR Pairing Card + UIPasteboard copy
+  // 2. Quick-HUD Bar "2 omini" icon + Pairing -> Connected pill + CoreImage QR Pairing Card + 120Hz zero-overhead compositing
   assert.match(vcMm, /#import <CoreImage\/CoreImage\.h>/);
   assert.match(vcMm, /#include <ios_p2_server\.h>/);
+  assert.match(vcMm, /allowsGroupOpacity = NO/);
+  assert.match(vcMm, /g_padActiveSlot/);
   assert.match(vcMm, /CIQRCodeGenerator/);
   assert.match(vcMm, /ShadowTwoPlayersIconView/);
   assert.match(vcMm, /TouchTargetKind::P2StatusPill/);
