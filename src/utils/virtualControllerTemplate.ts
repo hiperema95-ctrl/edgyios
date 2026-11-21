@@ -1343,7 +1343,8 @@ struct ActiveTouchRecord {
 
 static __weak ShadowTouchOverlayView *g_p2CallbackOverlay = nil;
 
-static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected) {
+static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, const char *url) {
+    (void)url;
     ShadowTouchOverlayView *overlay = g_p2CallbackOverlay;
     if (!overlay) return;
     [overlay handleRemoteP2StateChangedRunning:(serverRunning ? YES : NO)

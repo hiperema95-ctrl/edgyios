@@ -447,6 +447,7 @@ test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairin
   assert.match(vcMm, /IOSRemoteP2_StartServer\(8765\)/);
   assert.match(vcMm, /IOSRemoteP2_StopServer\(\)/);
   assert.match(vcMm, /IOSRemoteP2_SetStateCallback/);
+  assert.match(vcMm, /OnIOSRemoteP2StateChanged\(bool serverRunning, bool clientConnected, const char \*url\)/);
 
   // 3. CMake + apply_ios_port.sh Player 2 (dwUserIndex == 2) wiring + Info.plist local networking
   assert.match(cmakeIos, /"os\/ios\/ios_p2_server\.mm"/);
