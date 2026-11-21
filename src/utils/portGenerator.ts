@@ -2826,22 +2826,29 @@ const char* NFD_GetError(void);
 
 static std::string g_lastNfdError;
 
-@interface ShadowDocumentPickerDelegate : NSObject <UIDocumentPickerDelegate>
+@interface ShadowDocumentPickerDelegate : NSObject <UIDocumentPickerDelegate, UIAdaptivePresentationControllerDelegate>
 @property (nonatomic, strong) dispatch_semaphore_t semaphore;
 @property (nonatomic, copy) NSString *selectedPath;
 @property (nonatomic, assign) BOOL cancelled;
 @property (nonatomic, assign) BOOL finished;
 @property (nonatomic, assign) BOOL pickFolder;
+@property (nonatomic, assign) BOOL usedCopyMode;
 @end
 
 @implementation ShadowDocumentPickerDelegate
 
+- (void)finishWithPath:(NSString *)path cancelled:(BOOL)cancelled {
+    if (self.finished) return;
+    self.selectedPath = path;
+    self.cancelled = cancelled;
+    self.finished = YES;
+    if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
+}
+
 - (void)documentPicker:(UIDocumentPickerViewController *)controller didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     NSURL *url = urls.firstObject;
     if (!url) {
-        self.cancelled = YES;
-        self.finished = YES;
-        if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
+        [self finishWithPath:nil cancelled:YES];
         return;
     }
 
@@ -2852,31 +2859,38 @@ static std::string g_lastNfdError;
     [fm createDirectoryAtURL:importDir withIntermediateDirectories:YES attributes:nil error:nil];
 
     NSURL *destURL = [importDir URLByAppendingPathComponent:url.lastPathComponent];
-    [fm removeItemAtURL:destURL error:nil];
+    NSString *resolvedPath = nil;
 
-    NSError *copyErr = nil;
-    // Copia (o linka se già nella sandbox App File) così ShadowRecomp C++ può leggerlo senza scadenza permessi
+    // 1. Se il file/cartella è già dentro Documents dell'app, usalo direttamente senza duplicarlo
     if ([url.path hasPrefix:docs.path]) {
-        self.selectedPath = url.path;
-    } else if ([fm copyItemAtURL:url toURL:destURL error:&copyErr]) {
-        self.selectedPath = destURL.path;
+        resolvedPath = url.path;
     } else {
-        // Fallback: prova accesso diretto al path security-scoped
-        self.selectedPath = url.path;
+        [fm removeItemAtURL:destURL error:nil];
+        NSError *fsErr = nil;
+        // 2. Con asCopy:YES iOS ha già creato un clone APFS temporaneo nell'inbox dell'app:
+        //    moveItemAtURL è O(1) istantaneo e non raddoppia lo spazio su disco per ISO da 1.5 GB.
+        if (self.usedCopyMode && !self.pickFolder && [fm moveItemAtURL:url toURL:destURL error:&fsErr]) {
+            resolvedPath = destURL.path;
+        } else if ([fm copyItemAtURL:url toURL:destURL error:&fsErr]) {
+            resolvedPath = destURL.path;
+        } else {
+            // Fallback: percorso diretto security-scoped
+            resolvedPath = url.path;
+        }
     }
 
     if (accessed) {
         [url stopAccessingSecurityScopedResource];
     }
-    self.cancelled = NO;
-    self.finished = YES;
-    if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
+    [self finishWithPath:resolvedPath cancelled:(resolvedPath.length == 0)];
 }
 
 - (void)documentPickerWasCancelled:(UIDocumentPickerViewController *)controller {
-    self.cancelled = YES;
-    self.finished = YES;
-    if (self.semaphore) dispatch_semaphore_signal(self.semaphore);
+    [self finishWithPath:nil cancelled:YES];
+}
+
+- (void)presentationControllerDidDismiss:(UIPresentationController *)presentationController {
+    [self finishWithPath:nil cancelled:YES];
 }
 
 @end
@@ -2899,6 +2913,34 @@ static UIViewController* GetTopViewController(void) {
     return top;
 }
 
+static NSArray<NSURL *> *ScanLocalDocumentsCandidates(void) {
+    NSMutableArray<NSURL *> *found = [NSMutableArray array];
+    NSFileManager *fm = [NSFileManager defaultManager];
+    NSURL *docs = [[fm URLsForDirectory:NSDocumentDirectory inDomains:NSUserDomainMask] firstObject];
+    if (!docs) return found;
+
+    NSArray<NSURL *> *dirs = @[
+        docs,
+        [docs URLByAppendingPathComponent:@"ShadowRecomp" isDirectory:YES]
+    ];
+    for (NSURL *dir in dirs) {
+        NSArray<NSURL *> *items = [fm contentsOfDirectoryAtURL:dir
+                                    includingPropertiesForKeys:@[NSURLIsDirectoryKey]
+                                                       options:NSDirectoryEnumerationSkipsHiddenFiles
+                                                         error:nil];
+        for (NSURL *item in items) {
+            NSNumber *isDir = nil;
+            [item getResourceValue:&isDir forKey:NSURLIsDirectoryKey error:nil];
+            if (isDir.boolValue) continue;
+            NSString *ext = item.pathExtension.lowercaseString;
+            if ([ext isEqualToString:@"iso"] || [ext isEqualToString:@"xiso"] || [ext isEqualToString:@"xbe"]) {
+                [found addObject:item];
+            }
+        }
+    }
+    return found;
+}
+
 static ShadowDocumentPickerDelegate *g_activePickerDelegate = nil;
 
 static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode) {
@@ -2912,33 +2954,76 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
     delegate.pickFolder = folderMode;
     delegate.cancelled = YES;
     delegate.finished = NO;
+    delegate.usedCopyMode = !folderMode;
     g_activePickerDelegate = delegate;
+
+    void (^presentSystemPicker)(UIViewController *) = ^(UIViewController *presenter) {
+        // Per i file usiamo asCopy:YES (modalità Import, equivalente moderno al picker legacy):
+        // funziona su Feather/SideStore con qualsiasi certificato senza richiedere permessi open-in-place
+        // e sfrutta il clone APFS istantaneo. Per le cartelle iOS richiede asCopy:NO.
+        NSArray<UTType *> *types = folderMode
+            ? @[UTTypeFolder]
+            : @[UTTypeData, UTTypeContent, UTTypeDiskImage, UTTypeArchive];
+
+        UIDocumentPickerViewController *picker =
+            [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:(!folderMode)];
+        picker.delegate = delegate;
+        picker.allowsMultipleSelection = NO;
+        picker.shouldShowFileExtensions = YES;
+        picker.modalPresentationStyle = UIModalPresentationFullScreen;
+        picker.presentationController.delegate = delegate;
+        [presenter presentViewController:picker animated:YES completion:nil];
+    };
 
     void (^presentBlock)(void) = ^{
         UIViewController *presenter = GetTopViewController();
         if (!presenter) {
             g_lastNfdError = "No active UIViewController to present Files app";
-            delegate.finished = YES;
-            if (delegate.semaphore) dispatch_semaphore_signal(delegate.semaphore);
+            [delegate finishWithPath:nil cancelled:YES];
             return;
         }
 
-        NSArray<UTType *> *types = folderMode
-            ? @[UTTypeFolder]
-            : @[UTTypeItem, UTTypeData, UTTypeDiskImage, UTTypeArchive];
+        // Se l'utente ha copiato una .iso/.xiso/.xbe in "Su iPhone -> ShadowRecomp",
+        // offri la selezione istantanea in-app (zero dipendenza dal picker XPC) oltre ad App File.
+        NSArray<NSURL *> *localCandidates = folderMode ? @[] : ScanLocalDocumentsCandidates();
+        if (localCandidates.count > 0) {
+            UIAlertController *sheet =
+                [UIAlertController alertControllerWithTitle:@"Seleziona file di gioco"
+                                                    message:@"Trovati file nella cartella Su iPhone → ShadowRecomp"
+                                             preferredStyle:UIAlertControllerStyleAlert];
+            for (NSURL *candidate in localCandidates) {
+                [sheet addAction:[UIAlertAction actionWithTitle:candidate.lastPathComponent
+                                                          style:UIAlertActionStyleDefault
+                                                        handler:^(__unused UIAlertAction *action) {
+                    [delegate finishWithPath:candidate.path cancelled:NO];
+                }]];
+            }
+            [sheet addAction:[UIAlertAction actionWithTitle:@"Sfoglia App File di iOS..."
+                                                      style:UIAlertActionStyleDefault
+                                                    handler:^(__unused UIAlertAction *action) {
+                UIViewController *p = GetTopViewController();
+                if (p) {
+                    presentSystemPicker(p);
+                } else {
+                    [delegate finishWithPath:nil cancelled:YES];
+                }
+            }]];
+            [sheet addAction:[UIAlertAction actionWithTitle:@"Annulla"
+                                                      style:UIAlertActionStyleCancel
+                                                    handler:^(__unused UIAlertAction *action) {
+                [delegate finishWithPath:nil cancelled:YES];
+            }]];
+            [presenter presentViewController:sheet animated:YES completion:nil];
+            return;
+        }
 
-        UIDocumentPickerViewController *picker =
-            [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:NO];
-        picker.delegate = delegate;
-        picker.allowsMultipleSelection = NO;
-        picker.modalPresentationStyle = UIModalPresentationFormSheet;
-        [presenter presentViewController:picker animated:YES completion:nil];
+        presentSystemPicker(presenter);
     };
 
     if ([NSThread isMainThread]) {
         presentBlock();
         while (!delegate.finished) {
-            [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+            [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.02]];
         }
     } else {
         delegate.semaphore = dispatch_semaphore_create(0);
@@ -3132,6 +3217,7 @@ static std::vector<ModEntry> ScanInstalledMods() {
     UIDocumentPickerViewController *picker =
         [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder] asCopy:NO];
     picker.delegate = self;
+    picker.modalPresentationStyle = UIModalPresentationFullScreen;
     [self presentViewController:picker animated:YES completion:nil];
 }
 
@@ -3306,6 +3392,17 @@ void curl_slist_free_all(struct curl_slist*) {}
     <key>MinimumOSVersion</key>
     <string>${config.deploymentTarget}</string>
 
+    <!-- Risoluzione nativa full-screen (es. 2622x1206 su iPhone 16 Pro) su Feather / sideload standalone -->
+    <key>UILaunchScreen</key>
+    <dict/>
+    <key>UIDeviceFamily</key>
+    <array>
+        <integer>1</integer>
+        <integer>2</integer>
+    </array>
+    <key>UIApplicationSupportsIndirectInputEvents</key>
+    <true/>
+
     <!-- ProMotion 120Hz su iPhone 16 Pro -->
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <${config.enable120HzProMotion ? 'true' : 'false'}/>
@@ -3319,6 +3416,11 @@ void curl_slist_free_all(struct curl_slist*) {}
     <false/>
 
     <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
     <array>
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>

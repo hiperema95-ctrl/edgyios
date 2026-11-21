@@ -367,6 +367,26 @@ test('localized hiperema installer credits and custom iOS AppIcon (PNG + Assets.
   assert.ok(iconBuf.length < 350 * 1024, `Expected ios/AppIcon.jpg < 350 KB, got ${iconBuf.length} bytes`);
 });
 
+test('Feather standalone native resolution (UILaunchScreen) and full-screen asCopy iOS Files picker are configured', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const infoPlist = byPath.get('ios/Info.plist') ?? '';
+  assert.match(infoPlist, /<key>UILaunchScreen<\/key>\s*<dict\/>/);
+  assert.match(infoPlist, /<key>UIDeviceFamily<\/key>/);
+  assert.match(infoPlist, /<key>UISupportedInterfaceOrientations~ipad<\/key>/);
+
+  const nfdMm = byPath.get('ios/nfd_ios.mm') ?? '';
+  assert.match(nfdMm, /UIAdaptivePresentationControllerDelegate/);
+  assert.match(nfdMm, /presentationControllerDidDismiss:/);
+  assert.match(nfdMm, /initForOpeningContentTypes:types asCopy:\(!folderMode\)/);
+  assert.match(nfdMm, /picker\.modalPresentationStyle = UIModalPresentationFullScreen;/);
+  assert.match(nfdMm, /picker\.shouldShowFileExtensions = YES;/);
+  assert.match(nfdMm, /moveItemAtURL:url toURL:destURL/);
+  assert.match(nfdMm, /ScanLocalDocumentsCandidates/);
+});
+
+
 
 
 
