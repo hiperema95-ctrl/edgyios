@@ -194,7 +194,9 @@ extern "C" void ShadowIOS_PresentModManager(void) {
         UIWindow *keyWin = nil;
         for (UIScene *s in [UIApplication sharedApplication].connectedScenes) {
             if ([s isKindOfClass:[UIWindowScene class]]) {
-                keyWin = ((UIWindowScene *)s).windows.firstObject;
+                UIWindowScene *ws = (UIWindowScene *)s;
+                if (![ws.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) continue;
+                keyWin = ws.windows.firstObject;
                 if (keyWin) break;
             }
         }

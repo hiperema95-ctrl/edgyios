@@ -523,8 +523,8 @@ if wiz_p.exists():
         print("Patched installer_wizard.cpp (localized iOS port credits: hiperema)")
 PY_REG_WIN
 
-echo "==> [5/7] Patch Plume, discord-rpc, thirdparty e XShaderRecomp per iOS arm64 (MoltenVK + no Cocoa/system())..."
-python3 - "${UPSTREAM_DIR}/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/thirdparty/plume/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/lib/dxc_compiler.cpp" "${UPSTREAM_DIR}/thirdparty/discord-rpc/src/discord_register_linux.cpp" "${UPSTREAM_DIR}/thirdparty/plume" << 'PY_TP'
+echo "==> [5/7] Patch Plume, SDL3 UIKit (AirPlay), discord-rpc, thirdparty e XShaderRecomp per iOS arm64..."
+python3 - "${UPSTREAM_DIR}/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/thirdparty/plume/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/thirdparty/CMakeLists.txt" "${UPSTREAM_DIR}/tools/XShaderRecomp/XShaderRecomp/lib/dxc_compiler.cpp" "${UPSTREAM_DIR}/thirdparty/discord-rpc/src/discord_register_linux.cpp" "${UPSTREAM_DIR}/thirdparty/plume" "${UPSTREAM_DIR}/thirdparty/SDL/src/video/uikit" << 'PY_TP'
 import sys, pathlib, re
 
 # 5a. thirdparty/CMakeLists.txt: abilita PLUME_SDL3_VULKAN_ENABLED su iOS (MoltenVK)
@@ -733,6 +733,181 @@ extern "C" void Discord_RegisterSteamGame(const char*, const char*)
 '''
     discord_reg.write_text(discord_stub, encoding="utf-8")
     print("Patched discord_register_linux.cpp (iOS no-op stub without system())")
+
+# 5f. SDL3 UIKit AirPlay / External Display crash fix (Feather standalone):
+#     Impedisce a SDLUIKitSceneDelegate di agganciare scene AirPlay esterne (evitando doppio avvio di main()
+#     e mantenendo il mirroring nativo iOS su TV come LiveContainer) e filtra UIKit_GetActiveWindowScene / UIKit_AddDisplay.
+sdl_uikit_dir = pathlib.Path(sys.argv[8])
+if sdl_uikit_dir.exists():
+    app_del = sdl_uikit_dir / "SDL_uikitappdelegate.m"
+    if app_del.exists():
+        ad_src = app_del.read_text(encoding="utf-8")
+        if "SHADOW_IOS_AIRPLAY_SCENE_FIX" not in ad_src:
+            old_cfg = """    // This doesn't appear to be called, but it needs to be implemented to signal that we support the UIScene life cycle
+    UISceneConfiguration *config = [[UISceneConfiguration alloc] initWithName:@"SDLSceneConfiguration" sessionRole:connectingSceneSession.role];"""
+            new_cfg = """    /* SHADOW_IOS_AIRPLAY_SCENE_FIX: rifiuta scene ExternalDisplay/AirPlay cosi iOS usa mirroring nativo */
+    if (![connectingSceneSession.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
+        return nil;
+    }
+    UISceneConfiguration *config = [[UISceneConfiguration alloc] initWithName:@"SDLSceneConfiguration" sessionRole:connectingSceneSession.role];"""
+
+            old_conn = """    if (![scene isKindOfClass:[UIWindowScene class]]) {
+        return;
+    }"""
+            new_conn = """    if (![scene isKindOfClass:[UIWindowScene class]] ||
+        ![session.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
+        return;
+    }"""
+
+            old_post = """- (void)postFinishLaunch
+{
+    [self performSelector:@selector(hideLaunchScreen) withObject:nil afterDelay:0.0];"""
+            new_post = """- (void)postFinishLaunch
+{
+    static BOOL s_shadowSdlMainStarted = NO;
+    if (s_shadowSdlMainStarted) {
+        return;
+    }
+    s_shadowSdlMainStarted = YES;
+    [self performSelector:@selector(hideLaunchScreen) withObject:nil afterDelay:0.0];"""
+
+            old_fg = """- (void)sceneDidBecomeActive:(UIScene *)scene
+{
+    SDL_OnApplicationDidEnterForeground();
+}
+
+- (void)sceneWillResignActive:(UIScene *)scene
+{
+    SDL_OnApplicationWillEnterBackground();
+}
+
+- (void)sceneWillEnterForeground:(UIScene *)scene
+{
+    SDL_OnApplicationWillEnterForeground();
+}
+
+- (void)sceneDidEnterBackground:(UIScene *)scene
+{
+    SDL_OnApplicationDidEnterBackground();
+}"""
+            new_fg = """- (void)sceneDidBecomeActive:(UIScene *)scene
+{
+    if (![scene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) return;
+    SDL_OnApplicationDidEnterForeground();
+}
+
+- (void)sceneWillResignActive:(UIScene *)scene
+{
+    if (![scene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) return;
+    SDL_OnApplicationWillEnterBackground();
+}
+
+- (void)sceneWillEnterForeground:(UIScene *)scene
+{
+    if (![scene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) return;
+    SDL_OnApplicationWillEnterForeground();
+}
+
+- (void)sceneDidEnterBackground:(UIScene *)scene
+{
+    if (![scene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) return;
+    SDL_OnApplicationDidEnterBackground();
+}"""
+            if old_cfg not in ad_src or old_conn not in ad_src or old_post not in ad_src or old_fg not in ad_src:
+                raise RuntimeError("Failed to locate SDLUIKitSceneDelegate anchors in SDL_uikitappdelegate.m!")
+            ad_src = (ad_src
+                      .replace(old_cfg, new_cfg, 1)
+                      .replace(old_conn, new_conn, 1)
+                      .replace(old_post, new_post, 1)
+                      .replace(old_fg, new_fg, 1))
+            app_del.write_text(ad_src, encoding="utf-8")
+            print("Patched SDL_uikitappdelegate.m (AirPlay external scene rejection + single main() guard)")
+
+    uikit_vid = sdl_uikit_dir / "SDL_uikitvideo.m"
+    if uikit_vid.exists():
+        uv_src = uikit_vid.read_text(encoding="utf-8")
+        if "SHADOW_IOS_AIRPLAY_SCENE_FIX" not in uv_src:
+            old_get_scene = """        // First, try to find an active foreground scene
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                if (windowScene.activationState == UISceneActivationStateForegroundActive) {
+                    return windowScene;
+                }
+            }
+        }
+
+        // If no active scene, return any foreground scene
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                if (windowScene.activationState == UISceneActivationStateForegroundInactive) {
+                    return windowScene;
+                }
+            }
+        }
+
+        // Last resort: return first window scene
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                return (UIWindowScene *)scene;
+            }
+        }"""
+            new_get_scene = """        /* SHADOW_IOS_AIRPLAY_SCENE_FIX: seleziona solo UIWindowSceneSessionRoleApplication */
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                if (![windowScene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) continue;
+                if (windowScene.activationState == UISceneActivationStateForegroundActive) {
+                    return windowScene;
+                }
+            }
+        }
+
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                if (![windowScene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) continue;
+                if (windowScene.activationState == UISceneActivationStateForegroundInactive) {
+                    return windowScene;
+                }
+            }
+        }
+
+        for (UIScene *scene in connectedScenes) {
+            if ([scene isKindOfClass:[UIWindowScene class]]) {
+                UIWindowScene *windowScene = (UIWindowScene *)scene;
+                if (![windowScene.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) continue;
+                return windowScene;
+            }
+        }"""
+            if old_get_scene not in uv_src:
+                raise RuntimeError("Failed to locate UIKit_GetActiveWindowScene in SDL_uikitvideo.m!")
+            uv_src = uv_src.replace(old_get_scene, new_get_scene, 1)
+            uikit_vid.write_text(uv_src, encoding="utf-8")
+            print("Patched SDL_uikitvideo.m (UIKit_GetActiveWindowScene filters out AirPlay external scenes)")
+
+    uikit_modes = sdl_uikit_dir / "SDL_uikitmodes.m"
+    if uikit_modes.exists():
+        um_src = uikit_modes.read_text(encoding="utf-8")
+        if "SHADOW_IOS_AIRPLAY_SCENE_FIX" not in um_src:
+            old_add_disp = """bool UIKit_AddDisplay(UIScreen *uiscreen, bool send_event)
+{
+    UIScreenMode *uiscreenmode = uiscreen.currentMode;"""
+            new_add_disp = """bool UIKit_AddDisplay(UIScreen *uiscreen, bool send_event)
+{
+#ifndef SDL_PLATFORM_TVOS
+    /* SHADOW_IOS_AIRPLAY_SCENE_FIX: ignora schermi esterni AirPlay (evita crash currentMode=nil/0x0 e multi-monitor) */
+    if (uiscreen != [UIScreen mainScreen]) {
+        return true;
+    }
+#endif
+    UIScreenMode *uiscreenmode = uiscreen.currentMode;"""
+            if old_add_disp not in um_src:
+                raise RuntimeError("Failed to locate UIKit_AddDisplay in SDL_uikitmodes.m!")
+            um_src = um_src.replace(old_add_disp, new_add_disp, 1)
+            uikit_modes.write_text(um_src, encoding="utf-8")
+            print("Patched SDL_uikitmodes.m (UIKit_AddDisplay skips secondary AirPlay UIScreen)")
 
 # 5c. XShaderRecomp/CMakeLists.txt: su iOS non compilare XShaderRecompTool e proteggi OGNI target_*(XShaderRecompTool ...)
 

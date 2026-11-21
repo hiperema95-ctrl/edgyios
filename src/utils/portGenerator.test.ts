@@ -386,6 +386,28 @@ test('Feather standalone native resolution (UILaunchScreen) and full-screen asCo
   assert.match(nfdMm, /ScanLocalDocumentsCandidates/);
 });
 
+test('AirPlay TV external display scene rejection and single-main guard are patched across SDL3 UIKit and iOS overlays', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+  assert.match(applyScript, /SHADOW_IOS_AIRPLAY_SCENE_FIX/);
+  assert.match(applyScript, /thirdparty\/SDL\/src\/video\/uikit/);
+  assert.match(applyScript, /SDL_uikitappdelegate\.m/);
+  assert.match(applyScript, /SDL_uikitvideo\.m/);
+  assert.match(applyScript, /SDL_uikitmodes\.m/);
+  assert.match(applyScript, /UIWindowSceneSessionRoleApplication/);
+  assert.match(applyScript, /static BOOL s_shadowSdlMainStarted = NO;/);
+
+  const vcMm = byPath.get('ios/ios_virtual_controller.mm') ?? '';
+  const nfdMm = byPath.get('ios/nfd_ios.mm') ?? '';
+  const modMm = byPath.get('ios/ios_mod_manager.mm') ?? '';
+  assert.match(vcMm, /UIWindowSceneSessionRoleApplication/);
+  assert.match(nfdMm, /UIWindowSceneSessionRoleApplication/);
+  assert.match(modMm, /UIWindowSceneSessionRoleApplication/);
+});
+
+
 
 
 

@@ -59,12 +59,16 @@ void InitializeIOSRuntimeOnce() {
         // Configura AVAudioSession UNA SOLA VOLTA fuori dal thread realtime CoreAudio
         // Ambient rispetta il tasto silenzioso e non va in conflitto con LiveContainer
         @autoreleasepool {
-            AVAudioSession *session = [AVAudioSession sharedInstance];
-            NSError *err = nil;
-            [session setCategory:AVAudioSessionCategoryAmbient error:&err];
-            [session setPreferredSampleRate:48000.0 error:nil];
-            [session setPreferredIOBufferDuration:0.021333 error:nil];
-            [session setActive:YES error:&err];
+            @try {
+                AVAudioSession *session = [AVAudioSession sharedInstance];
+                NSError *err = nil;
+                [session setCategory:AVAudioSessionCategoryAmbient error:&err];
+                [session setPreferredSampleRate:48000.0 error:nil];
+                [session setPreferredIOBufferDuration:0.021333 error:nil];
+                [session setActive:YES error:&err];
+            } @catch (NSException *ex) {
+                (void)ex;
+            }
 
             // Osservatori UIKit sincroni (queue:nil) per bloccare/riprendere Metal PRIMA che iOS
             // revochi la GPU su blocco schermo o swipe Home — funziona anche dentro LiveContainer!
@@ -91,7 +95,11 @@ void InitializeIOSRuntimeOnce() {
                 dispatch_async(dispatch_get_main_queue(), ^{
                     [UIApplication sharedApplication].idleTimerDisabled = YES;
                 });
-                [[AVAudioSession sharedInstance] setActive:YES error:nil];
+                @try {
+                    [[AVAudioSession sharedInstance] setActive:YES error:nil];
+                } @catch (NSException *ex) {
+                    (void)ex;
+                }
                 ShadowIOS_VideoOnDidEnterForeground();
             }];
         }

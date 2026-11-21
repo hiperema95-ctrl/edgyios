@@ -87,6 +87,7 @@ static UIViewController* GetTopViewController(void) {
     for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
         if (scene.activationState == UISceneActivationStateForegroundActive && [scene isKindOfClass:[UIWindowScene class]]) {
             UIWindowScene *ws = (UIWindowScene *)scene;
+            if (![ws.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) continue;
             for (UIWindow *w in ws.windows) {
                 if (w.isKeyWindow) { keyWindow = w; break; }
             }
