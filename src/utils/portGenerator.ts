@@ -2748,7 +2748,9 @@ function(shadow_configure_ios_target TARGET_NAME)
         "-framework IOSurface"
         "-framework QuartzCore"
         "-framework CoreGraphics"
+        "-framework CoreImage"
         "-framework CoreFoundation"
+        "-framework Network"
         "-framework GameController"
         "-framework CoreHaptics"
         "-framework CoreMotion"
@@ -3666,6 +3668,10 @@ void curl_slist_free_all(struct curl_slist*) {}
     <!-- Permessi Rete Locale & HTTP locale per Controller 2P via Hotspot Personale / Wi-Fi -->
     <key>NSLocalNetworkUsageDescription</key>
     <string>ShadowRecomp usa la rete locale o l'Hotspot Personale per collegare un secondo smartphone come Controller Giocatore 2.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_http._tcp</string>
+    </array>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

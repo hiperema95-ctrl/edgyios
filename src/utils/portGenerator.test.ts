@@ -418,7 +418,7 @@ test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairin
   const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
   const infoPlist = byPath.get('ios/Info.plist') ?? '';
 
-  // 1. Header & Server implementation (Hotspot bridge100 + RFC 6455 WebSocket + Big Shadow Web Controller)
+  // 1. Header & Server implementation (Apple Network.framework nw_listener_t + Hotspot bridge100 + RFC 6455 WebSocket + Background Keep-Alive)
   assert.match(p2H, /IOSRemoteP2_StartServer/);
   assert.match(p2H, /IOSRemoteP2_StopServer/);
   assert.match(p2H, /IOSRemoteP2_IsConnected/);
@@ -426,31 +426,44 @@ test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairin
   assert.match(p2H, /IOSRemoteP2_GetState/);
   assert.match(p2H, /IOSRemoteP2_SetRumble/);
   assert.match(p2H, /IOSRemoteP2_SetStateCallback/);
+  assert.match(p2H, /IOSRemoteP2_EnsureAlive/);
+  assert.match(p2H, /IOSRemoteP2_SetAppInBackground/);
 
+  assert.match(p2Mm, /#import <Network\/Network\.h>/);
+  assert.match(p2Mm, /nw_listener_create_with_port/);
+  assert.match(p2Mm, /nw_tcp_options_set_no_delay/);
+  assert.match(p2Mm, /nw_parameters_set_include_peer_to_peer/);
+  assert.match(p2Mm, /beginBackgroundTaskWithName/);
   assert.match(p2Mm, /bridge100/);
   assert.match(p2Mm, /172\.20\.10\.1/);
   assert.match(p2Mm, /258EAFA5-E914-47DA-95CA-C5AB0DC85B11/);
   assert.match(p2Mm, /Sec-WebSocket-Accept/);
   assert.match(p2Mm, /CC_SHA1/);
-  assert.match(p2Mm, /TCP_NODELAY/);
   assert.match(p2Mm, /ShadowRecomp — Controller 2P/);
   assert.match(p2Mm, /navigator\.vibrate/);
   assert.match(p2Mm, /requestFullscreen/);
 
-  // 2. Quick-HUD Bar "2 omini" icon + Pairing -> Connected floating pill + UIPasteboard copy
+  // 2. Quick-HUD Bar "2 omini" icon + Pairing -> Connected pill + CoreImage QR Pairing Card + UIPasteboard copy
+  assert.match(vcMm, /#import <CoreImage\/CoreImage\.h>/);
   assert.match(vcMm, /#include <ios_p2_server\.h>/);
+  assert.match(vcMm, /CIQRCodeGenerator/);
   assert.match(vcMm, /ShadowTwoPlayersIconView/);
   assert.match(vcMm, /TouchTargetKind::P2StatusPill/);
+  assert.match(vcMm, /TouchTargetKind::P2CardCopy/);
   assert.match(vcMm, /@"Pairing"/);
   assert.match(vcMm, /@"Connected"/);
   assert.match(vcMm, /UIPasteboard generalPasteboard/);
   assert.match(vcMm, /IOSRemoteP2_StartServer\(8765\)/);
   assert.match(vcMm, /IOSRemoteP2_StopServer\(\)/);
+  assert.match(vcMm, /IOSRemoteP2_EnsureAlive\(\)/);
+  assert.match(vcMm, /IOSRemoteP2_SetAppInBackground\(true\)/);
   assert.match(vcMm, /IOSRemoteP2_SetStateCallback/);
   assert.match(vcMm, /OnIOSRemoteP2StateChanged\(bool serverRunning, bool clientConnected, const char \*url\)/);
 
-  // 3. CMake + apply_ios_port.sh Player 2 (dwUserIndex == 2) wiring + Info.plist local networking
+  // 3. CMake + apply_ios_port.sh Player 2 (dwUserIndex == 2) wiring + Network/CoreImage frameworks + Info.plist local networking
   assert.match(cmakeIos, /"os\/ios\/ios_p2_server\.mm"/);
+  assert.match(cmakeIos, /"-framework Network"/);
+  assert.match(cmakeIos, /"-framework CoreImage"/);
   assert.match(applyScript, /"os\/ios\/ios_p2_server\.mm"/);
   assert.match(applyScript, /ios_p2_server\.h/);
   assert.match(applyScript, /dwUserIndex == 2 && !hasController/);
@@ -459,6 +472,7 @@ test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairin
   assert.match(applyScript, /IOSRemoteP2_IsConnected\(\)/);
   assert.match(applyScript, /IOSRemoteP2_SetRumble/);
   assert.match(infoPlist, /NSLocalNetworkUsageDescription/);
+  assert.match(infoPlist, /NSBonjourServices/);
   assert.match(infoPlist, /NSAllowsLocalNetworking/);
 });
 

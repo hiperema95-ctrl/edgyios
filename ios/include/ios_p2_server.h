@@ -22,4 +22,8 @@ extern "C" {
     void IOSRemoteP2_SetRumble(uint16_t leftMotor, uint16_t rightMotor);
     // Registra callback UIKit (eseguita sempre sul main thread) per aggiornare Pairing <-> Connected
     void IOSRemoteP2_SetStateCallback(IOSRemoteP2StateCallback cb);
+    // Verifica che il listener sia attivo al ritorno in foreground e lo riavvia automaticamente se iOS lo ha sospeso
+    void IOSRemoteP2_EnsureAlive(void);
+    // Mantiene vivo il server locale per ~25s mentre l'utente passa a WhatsApp/Messaggi per inviare il link
+    void IOSRemoteP2_SetAppInBackground(bool inBackground);
 }

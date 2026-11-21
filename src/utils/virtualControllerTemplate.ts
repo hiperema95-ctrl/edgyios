@@ -39,6 +39,7 @@ export const IOS_VIRTUAL_CONTROLLER_MM = `// ios/ios_virtual_controller.mm
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <CoreImage/CoreImage.h>
 #import <CoreHaptics/CoreHaptics.h>
 #import <GameController/GameController.h>
 
@@ -1272,7 +1273,10 @@ enum class TouchTargetKind : int {
     Back,
     ChaosEmerald,
     QuickBar,
-    P2StatusPill
+    P2StatusPill,
+    P2CardCopy,
+    P2CardClose,
+    P2CardBody
 };
 
 struct ActiveTouchRecord {
@@ -1317,11 +1321,21 @@ struct ActiveTouchRecord {
 @property (nonatomic, strong) ShadowTwoPlayersIconView *quickTwoPlayersView;
 @property (nonatomic, assign) BOOL quickBarOpen;
 
-// 2-Player Hotspot Local Server UI (mini-bottoncino Pairing -> Connected + toast link copiato)
+// 2-Player Hotspot Local Server UI (mini-bottoncino Pairing -> Connected + QR Pairing Card + toast)
 @property (nonatomic, strong) UIView *p2StatusPillView;
 @property (nonatomic, strong) UIView *p2StatusDotView;
 @property (nonatomic, strong) UILabel *p2StatusLabel;
 @property (nonatomic, strong) UILabel *p2ToastLabel;
+@property (nonatomic, strong) UIView *p2PairingCardView;
+@property (nonatomic, strong) UIView *p2QrFrameView;
+@property (nonatomic, strong) UIImageView *p2QrImageView;
+@property (nonatomic, strong) UILabel *p2CardTitleLabel;
+@property (nonatomic, strong) UILabel *p2CardSubLabel;
+@property (nonatomic, strong) UILabel *p2CardUrlLabel;
+@property (nonatomic, strong) UILabel *p2CardCopyBtn;
+@property (nonatomic, strong) UILabel *p2CardCloseBtn;
+@property (nonatomic, copy) NSString *p2LastUrl;
+@property (nonatomic, assign) BOOL p2CardVisible;
 @property (nonatomic, assign) BOOL twoPlayerEnabled;
 @property (nonatomic, assign) BOOL p2ServerRunning;
 @property (nonatomic, assign) BOOL p2ClientConnected;
@@ -1338,17 +1352,49 @@ struct ActiveTouchRecord {
 
 - (void)updateExternalPhysical:(BOOL)sdlPhysical installerVisible:(BOOL)installerVisible chaosAura:(int)aura;
 - (void)clearAllInputs;
-- (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected;
+- (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected url:(NSString *)url;
 @end
 
 static __weak ShadowTouchOverlayView *g_p2CallbackOverlay = nil;
 
+static UIImage *CreateCrispQRImage(NSString *text, CGFloat targetPoints) {
+    if (text.length == 0) return nil;
+    NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding];
+    if (!data) return nil;
+    CIFilter *filter = [CIFilter filterWithName:@"CIQRCodeGenerator"];
+    if (!filter) return nil;
+    [filter setValue:data forKey:@"inputMessage"];
+    [filter setValue:@"M" forKey:@"inputCorrectionLevel"];
+    CIImage *ciImg = filter.outputImage;
+    if (!ciImg) return nil;
+
+    CIContext *ciCtx = [CIContext contextWithOptions:nil];
+    CGImageRef cgImg = [ciCtx createCGImage:ciImg fromRect:ciImg.extent];
+    if (!cgImg) return nil;
+
+    CGSize sz = CGSizeMake(targetPoints, targetPoints);
+    UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat defaultFormat];
+    fmt.opaque = YES;
+    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:sz format:fmt];
+    UIImage *out = [renderer imageWithActions:^(UIGraphicsImageRendererContext * _Nonnull rCtx) {
+        CGContextRef ctx = rCtx.CGContext;
+        [[UIColor whiteColor] setFill];
+        CGContextFillRect(ctx, CGRectMake(0, 0, sz.width, sz.height));
+        CGContextSetInterpolationQuality(ctx, kCGInterpolationNone);
+        CGFloat inset = 4.0;
+        CGContextDrawImage(ctx, CGRectInset(CGRectMake(0, 0, sz.width, sz.height), inset, inset), cgImg);
+    }];
+    CGImageRelease(cgImg);
+    return out;
+}
+
 static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, const char *url) {
-    (void)url;
     ShadowTouchOverlayView *overlay = g_p2CallbackOverlay;
     if (!overlay) return;
+    NSString *urlStr = (url && url[0] != '\\0') ? [NSString stringWithUTF8String:url] : nil;
     [overlay handleRemoteP2StateChangedRunning:(serverRunning ? YES : NO)
-                                     connected:(clientConnected ? YES : NO)];
+                                     connected:(clientConnected ? YES : NO)
+                                           url:urlStr];
 }
 
 @implementation ShadowTouchOverlayView {
@@ -1358,6 +1404,8 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     CGRect _quickHapticsRect;
     CGRect _quickAutoHideRect;
     CGRect _quickTwoPlayersRect;
+    CGRect _p2CardCopyRect;
+    CGRect _p2CardCloseRect;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -1573,6 +1621,78 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     _p2ToastLabel.userInteractionEnabled = NO;
     [_controlsContainer addSubview:_p2ToastLabel];
 
+    // Card QR Code 100% opaca (montata su self, così il QR è nitidissimo anche con opacità controlli 35%)
+    _p2PairingCardView = [[UIView alloc] initWithFrame:CGRectZero];
+    _p2PairingCardView.backgroundColor = [UIColor colorWithRed:0.055 green:0.060 blue:0.095 alpha:0.96];
+    _p2PairingCardView.layer.cornerRadius = 16.0;
+    _p2PairingCardView.layer.borderWidth = 1.5;
+    _p2PairingCardView.layer.borderColor = ShadowCrimsonColor(0.88).CGColor;
+    _p2PairingCardView.layer.shadowColor = [UIColor blackColor].CGColor;
+    _p2PairingCardView.layer.shadowOpacity = 0.72;
+    _p2PairingCardView.layer.shadowRadius = 16.0;
+    _p2PairingCardView.layer.shadowOffset = CGSizeMake(0, 6);
+    _p2PairingCardView.alpha = 0.0;
+    _p2PairingCardView.hidden = YES;
+    _p2PairingCardView.userInteractionEnabled = NO;
+    [self addSubview:_p2PairingCardView];
+
+    _p2QrFrameView = [[UIView alloc] initWithFrame:CGRectZero];
+    _p2QrFrameView.backgroundColor = [UIColor whiteColor];
+    _p2QrFrameView.layer.cornerRadius = 10.0;
+    _p2QrFrameView.layer.masksToBounds = YES;
+    [_p2PairingCardView addSubview:_p2QrFrameView];
+
+    _p2QrImageView = [[UIImageView alloc] initWithFrame:CGRectZero];
+    _p2QrImageView.contentMode = UIViewContentModeScaleAspectFit;
+    [_p2QrFrameView addSubview:_p2QrImageView];
+
+    _p2CardTitleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _p2CardTitleLabel.text = @"CONTROLLER 2P • PAIRING";
+    _p2CardTitleLabel.font = [UIFont systemFontOfSize:12.0 weight:UIFontWeightHeavy];
+    _p2CardTitleLabel.textColor = [UIColor whiteColor];
+    [_p2PairingCardView addSubview:_p2CardTitleLabel];
+
+    _p2CardSubLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _p2CardSubLabel.text = @"Inquadra il QR con Smartphone 2 (su Hotspot o stesso Wi-Fi) oppure incolla il link copiato.";
+    _p2CardSubLabel.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightMedium];
+    _p2CardSubLabel.textColor = [UIColor colorWithRed:0.75 green:0.78 blue:0.86 alpha:1.0];
+    _p2CardSubLabel.numberOfLines = 3;
+    [_p2PairingCardView addSubview:_p2CardSubLabel];
+
+    _p2CardUrlLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _p2CardUrlLabel.text = @"http://172.20.10.1:8765";
+    _p2CardUrlLabel.font = [UIFont monospacedSystemFontOfSize:11.5 weight:UIFontWeightBold];
+    _p2CardUrlLabel.textColor = [UIColor colorWithRed:1.0 green:0.84 blue:0.35 alpha:1.0];
+    _p2CardUrlLabel.backgroundColor = [UIColor colorWithRed:0.02 green:0.025 blue:0.045 alpha:0.95];
+    _p2CardUrlLabel.textAlignment = NSTextAlignmentCenter;
+    _p2CardUrlLabel.layer.cornerRadius = 8.0;
+    _p2CardUrlLabel.layer.masksToBounds = YES;
+    _p2CardUrlLabel.layer.borderWidth = 1.0;
+    _p2CardUrlLabel.layer.borderColor = [UIColor colorWithWhite:1.0 alpha:0.14].CGColor;
+    _p2CardUrlLabel.adjustsFontSizeToFitWidth = YES;
+    _p2CardUrlLabel.minimumScaleFactor = 0.72;
+    [_p2PairingCardView addSubview:_p2CardUrlLabel];
+
+    _p2CardCopyBtn = [[UILabel alloc] initWithFrame:CGRectZero];
+    _p2CardCopyBtn.text = @"Copia Link";
+    _p2CardCopyBtn.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
+    _p2CardCopyBtn.textColor = [UIColor whiteColor];
+    _p2CardCopyBtn.textAlignment = NSTextAlignmentCenter;
+    _p2CardCopyBtn.backgroundColor = ShadowCrimsonColor(0.92);
+    _p2CardCopyBtn.layer.cornerRadius = 8.0;
+    _p2CardCopyBtn.layer.masksToBounds = YES;
+    [_p2PairingCardView addSubview:_p2CardCopyBtn];
+
+    _p2CardCloseBtn = [[UILabel alloc] initWithFrame:CGRectZero];
+    _p2CardCloseBtn.text = @"Chiudi";
+    _p2CardCloseBtn.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightSemibold];
+    _p2CardCloseBtn.textColor = [UIColor colorWithWhite:0.90 alpha:1.0];
+    _p2CardCloseBtn.textAlignment = NSTextAlignmentCenter;
+    _p2CardCloseBtn.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
+    _p2CardCloseBtn.layer.cornerRadius = 8.0;
+    _p2CardCloseBtn.layer.masksToBounds = YES;
+    [_p2PairingCardView addSubview:_p2CardCloseBtn];
+
     [self refreshQuickBarLabels];
 }
 
@@ -1658,24 +1778,76 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     }];
 }
 
-- (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected {
+- (void)updateP2PairingCardURL:(NSString *)urlStr {
+    if (urlStr.length == 0) {
+        char urlBuf[160] = {0};
+        IOSRemoteP2_GetURL(urlBuf, sizeof(urlBuf));
+        urlStr = [NSString stringWithUTF8String:urlBuf];
+    }
+    if (urlStr.length == 0) urlStr = @"http://172.20.10.1:8765";
+
+    BOOL changed = (self.p2LastUrl == nil || ![self.p2LastUrl isEqualToString:urlStr]);
+    self.p2LastUrl = urlStr;
+    self.p2CardUrlLabel.text = urlStr;
+
+    BOOL isHotspot = ([urlStr rangeOfString:@"172.20.10."].location != NSNotFound);
+    self.p2CardTitleLabel.text = isHotspot
+        ? @"2P PAIRING • HOTSPOT PRONTO"
+        : @"2P PAIRING • WI-FI LOCALE";
+
+    if (changed || self.p2QrImageView.image == nil) {
+        self.p2QrImageView.image = CreateCrispQRImage(urlStr, 150.0);
+    }
+}
+
+- (void)setP2PairingCardVisible:(BOOL)visible animated:(BOOL)animated {
+    self.p2CardVisible = visible;
+    if (visible) {
+        [self updateP2PairingCardURL:nil];
+        [self updateP2FloatingFrames];
+        self.p2PairingCardView.hidden = NO;
+        [self bringSubviewToFront:self.p2PairingCardView];
+        if (animated && self.p2PairingCardView.alpha < 0.1) {
+            self.p2PairingCardView.transform = CGAffineTransformMakeScale(0.92, 0.92);
+        }
+    }
+    NSTimeInterval dur = animated ? 0.20 : 0.0;
+    [UIView animateWithDuration:dur animations:^{
+        self.p2PairingCardView.alpha = visible ? 1.0 : 0.0;
+        self.p2PairingCardView.transform = visible ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.92, 0.92);
+    } completion:^(BOOL finished) {
+        (void)finished;
+        if (!self.p2CardVisible) {
+            self.p2PairingCardView.hidden = YES;
+            self.p2PairingCardView.transform = CGAffineTransformIdentity;
+        }
+    }];
+}
+
+- (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected url:(NSString *)url {
     BOOL wasConnected = self.p2ClientConnected;
     self.p2ServerRunning = running;
     self.p2ClientConnected = connected;
     if (connected) {
         self.twoPlayerEnabled = YES;
     }
+    if (url.length > 0) {
+        [self updateP2PairingCardURL:url];
+    }
     [self refreshP2StatusPillAnimated:YES];
 
     if (connected && !wasConnected) {
-        // Conferma aptica + feedback visivo nell'esatto istante in cui Smartphone 2 si collega!
+        // Chiude subito la card QR e conferma con aptica + badge Connected!
+        if (self.p2CardVisible) {
+            [self setP2PairingCardVisible:NO animated:YES];
+        }
         [self.haptics ensureStarted];
         [self.haptics playButtonDownIsTrigger:NO pressure:0.95f];
         [self showP2Toast:@"Controller 2P connesso!" duration:2.8];
         [self scheduleIdleFadeTimer];
     } else if (!connected && wasConnected && self.twoPlayerEnabled) {
         [self.haptics playDPadTick];
-        [self showP2Toast:@"Controller 2P disconnesso — in attesa su Pairing" duration:3.0];
+        [self showP2Toast:@"Controller 2P disconnesso — tocca Pairing per QR/Link" duration:3.0];
     }
 }
 
@@ -1695,14 +1867,16 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
 
     [self.haptics ensureStarted];
     [self.haptics playButtonDownIsTrigger:NO pressure:0.85f];
+    [self updateP2PairingCardURL:urlStr];
     [self refreshP2StatusPillAnimated:YES];
 
     if (self.p2ClientConnected) {
         [self showP2Toast:[NSString stringWithFormat:@"2P Connected • Link copiato: %@", urlStr] duration:3.5];
     } else if (self.p2ServerRunning) {
-        [self showP2Toast:[NSString stringWithFormat:@"Link copiato: %@", urlStr] duration:4.5];
+        [self setP2PairingCardVisible:!self.p2CardVisible animated:YES];
+        [self showP2Toast:[NSString stringWithFormat:@"Link copiato: %@", urlStr] duration:4.0];
     } else {
-        [self showP2Toast:@"Errore avvio server 2P — controlla Hotspot" duration:3.5];
+        [self showP2Toast:@"Errore avvio server 2P — consenti Rete Locale in Impostazioni" duration:4.0];
     }
 }
 
@@ -1711,6 +1885,8 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [nc addObserver:self selector:@selector(onControllerConnectionChanged:) name:GCControllerDidConnectNotification object:nil];
     [nc addObserver:self selector:@selector(onControllerConnectionChanged:) name:GCControllerDidDisconnectNotification object:nil];
     [nc addObserver:self selector:@selector(onAppWillResignActive:) name:UIApplicationWillResignActiveNotification object:nil];
+    [nc addObserver:self selector:@selector(onAppDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
+    [nc addObserver:self selector:@selector(onAppWillEnterForeground:) name:UIApplicationWillEnterForegroundNotification object:nil];
     [nc addObserver:self selector:@selector(onAppDidBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
 }
 
@@ -1726,8 +1902,28 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [self clearAllInputs];
 }
 
+- (void)onAppDidEnterBackground:(NSNotification *)note {
+    (void)note;
+    if (self.twoPlayerEnabled) {
+        // Mantiene vivo NWListener per ~25s mentre l'utente incolla il link su WhatsApp/Messaggi
+        IOSRemoteP2_SetAppInBackground(true);
+    }
+}
+
+- (void)onAppWillEnterForeground:(NSNotification *)note {
+    (void)note;
+    IOSRemoteP2_SetAppInBackground(false);
+    if (self.twoPlayerEnabled) {
+        IOSRemoteP2_EnsureAlive();
+    }
+}
+
 - (void)onAppDidBecomeActive:(NSNotification *)note {
     (void)note;
+    IOSRemoteP2_SetAppInBackground(false);
+    if (self.twoPlayerEnabled) {
+        IOSRemoteP2_EnsureAlive();
+    }
     [self.haptics ensureStarted];
     [self refreshPhysicalControllerState];
     if (self.superview) {
@@ -1999,11 +2195,52 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     CGFloat toastW = MIN(W * 0.82, MAX(148.0 * s, toastSize.width + 14.0 * s));
     CGFloat toastH = 22.0 * s;
     self.p2ToastLabel.frame = CGRectMake(midX - toastW * 0.5, anchorY - toastH - 6.0 * s, toastW, toastH);
+
+    // Card QR Code centrata nella parte medio-alta dello schermo (100% opaca e leggibile in landscape)
+    CGFloat cardW = MIN(W * 0.72, 368.0 * s);
+    CGFloat cardH = MIN(H * 0.44, 152.0 * s);
+    CGFloat cardX = midX - cardW * 0.5;
+    CGFloat cardY = MAX(18.0 * s, anchorY - cardH - 32.0 * s);
+
+    CGAffineTransform prevCardT = self.p2PairingCardView.transform;
+    self.p2PairingCardView.transform = CGAffineTransformIdentity;
+    self.p2PairingCardView.frame = CGRectMake(cardX, cardY, cardW, cardH);
+
+    CGFloat pad = 12.0 * s;
+    CGFloat qrSize = cardH - pad * 2.0;
+    self.p2QrFrameView.frame = CGRectMake(pad, pad, qrSize, qrSize);
+    self.p2QrImageView.frame = CGRectInset(self.p2QrFrameView.bounds, 4.0 * s, 4.0 * s);
+
+    CGFloat rightX = pad + qrSize + 12.0 * s;
+    CGFloat rightW = cardW - rightX - pad;
+    self.p2CardTitleLabel.frame = CGRectMake(rightX, pad, rightW, 18.0 * s);
+    self.p2CardSubLabel.frame = CGRectMake(rightX, pad + 19.0 * s, rightW, 38.0 * s);
+
+    CGFloat btnH = 28.0 * s;
+    CGFloat btnY = cardH - pad - btnH;
+    CGFloat urlH = 26.0 * s;
+    CGFloat urlY = btnY - urlH - 8.0 * s;
+    self.p2CardUrlLabel.frame = CGRectMake(rightX, urlY, rightW, urlH);
+
+    CGFloat btnGap = 8.0 * s;
+    CGFloat closeW = 68.0 * s;
+    CGFloat copyW = rightW - closeW - btnGap;
+    self.p2CardCopyBtn.frame = CGRectMake(rightX, btnY, copyW, btnH);
+    self.p2CardCloseBtn.frame = CGRectMake(rightX + copyW + btnGap, btnY, closeW, btnH);
+
+    _p2CardCopyRect  = [self convertRect:self.p2CardCopyBtn.frame fromView:self.p2PairingCardView];
+    _p2CardCloseRect = [self convertRect:self.p2CardCloseBtn.frame fromView:self.p2PairingCardView];
+    self.p2PairingCardView.transform = prevCardT;
 }
 
 #pragma mark - Hit Testing & Passthrough
 
 - (TouchTargetKind)targetKindAtPoint:(CGPoint)p {
+    if (self.p2CardVisible && !self.p2PairingCardView.hidden) {
+        if (CGRectContainsPoint(CGRectInset(_p2CardCopyRect, -6, -6), p))  return TouchTargetKind::P2CardCopy;
+        if (CGRectContainsPoint(CGRectInset(_p2CardCloseRect, -6, -6), p)) return TouchTargetKind::P2CardClose;
+        if (CGRectContainsPoint(self.p2PairingCardView.frame, p))          return TouchTargetKind::P2CardBody;
+    }
     if (self.twoPlayerEnabled && !self.p2StatusPillView.hidden && CGRectContainsPoint(CGRectInset(self.p2StatusPillView.frame, -8, -8), p)) {
         return TouchTargetKind::P2StatusPill;
     }
@@ -2187,6 +2424,7 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
             IOSRemoteP2_StopServer();
             self.p2ServerRunning = NO;
             self.p2ClientConnected = NO;
+            [self setP2PairingCardVisible:NO animated:YES];
             [self.p2ToastTimer invalidate];
             self.p2ToastTimer = nil;
             self.p2ToastLabel.alpha = 0.0;
@@ -2218,6 +2456,26 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         rec.analogVal = pressure;
 
         switch (kind) {
+            case TouchTargetKind::P2CardCopy: {
+                IOSRemoteP2_EnsureAlive();
+                char urlBuf[160] = {0};
+                IOSRemoteP2_GetURL(urlBuf, sizeof(urlBuf));
+                NSString *urlStr = [NSString stringWithUTF8String:urlBuf];
+                if (urlStr.length > 0) {
+                    [UIPasteboard generalPasteboard].string = urlStr;
+                    [self updateP2PairingCardURL:urlStr];
+                    [self showP2Toast:[NSString stringWithFormat:@"Link copiato: %@", urlStr] duration:3.5];
+                }
+                [self.haptics ensureStarted];
+                [self.haptics playButtonDownIsTrigger:NO pressure:0.85f];
+                continue;
+            }
+            case TouchTargetKind::P2CardClose:
+                [self.haptics playDPadTick];
+                [self setP2PairingCardVisible:NO animated:YES];
+                continue;
+            case TouchTargetKind::P2CardBody:
+                continue;
             case TouchTargetKind::P2StatusPill:
                 [self handlePairingPillTap];
                 continue;

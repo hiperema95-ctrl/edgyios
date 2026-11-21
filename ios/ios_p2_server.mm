@@ -1,8 +1,11 @@
 // ios/ios_p2_server.mm
 // Mini server locale HTTP/1.1 + WebSocket (RFC 6455) integrato in ShadowRecomp iOS
-// per collegare un secondo smartphone (iPhone o Android) via Hotspot Personale o Wi-Fi come Controller Giocatore 2.
+// basato su Apple Network.framework (nw_listener_t / nw_connection_t) per compatibilità piena
+// con iOS 17/18 Hotspot Personale (bridge100), Wi-Fi locale (en0), permessi Rete Locale e background/foreground.
 
 #import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
+#import <Network/Network.h>
 #import <CommonCrypto/CommonDigest.h>
 
 #include <ios_p2_server.h>
@@ -10,8 +13,6 @@
 #include <arpa/inet.h>
 #include <atomic>
 #include <cctype>
-#include <cerrno>
-#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -19,13 +20,32 @@
 #include <mutex>
 #include <net/if.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <poll.h>
 #include <string>
 #include <sys/socket.h>
-#include <thread>
 #include <unistd.h>
 #include <vector>
+
+@interface ShadowP2Conn : NSObject
+@property (nonatomic, strong) nw_connection_t conn;
+@property (nonatomic, assign) BOOL isWebSocket;
+@property (nonatomic, assign) BOOL closed;
+@property (nonatomic, strong) NSMutableData *rxBuf;
+@property (nonatomic, assign) CFAbsoluteTime lastActivity;
+@end
+
+@implementation ShadowP2Conn
+- (instancetype)initWithConnection:(nw_connection_t)connection {
+    self = [super init];
+    if (self) {
+        _conn = connection;
+        _isWebSocket = NO;
+        _closed = NO;
+        _rxBuf = [[NSMutableData alloc] initWithCapacity:4096];
+        _lastActivity = CFAbsoluteTimeGetCurrent();
+    }
+    return self;
+}
+@end
 
 namespace {
 
@@ -732,15 +752,29 @@ IOSVirtualPadSnapshot g_p2Snapshot{};
 std::mutex g_p2NetMutex;
 std::string g_p2Url = "http://172.20.10.1:8765";
 uint16_t g_p2Port = 8765;
-int g_listenFd = -1;
-int g_wsClientFd = -1;
+uint16_t g_preferredPort = 8765;
 
+std::atomic<bool> g_serverWanted{false};
 std::atomic<bool> g_serverRunning{false};
+std::atomic<bool> g_listenerReady{false};
 std::atomic<bool> g_p2Connected{false};
-std::atomic<bool> g_stopRequested{false};
 std::atomic<IOSRemoteP2StateCallback> g_stateCallback{nullptr};
 
-std::thread g_serverThread;
+static dispatch_queue_t g_p2Queue = nil;
+static nw_listener_t g_listener = nil;
+static dispatch_source_t g_watchdogTimer = nil;
+static NSMutableSet<ShadowP2Conn *> *g_activeConns = nil;
+static ShadowP2Conn *g_wsConn = nil;
+static UIBackgroundTaskIdentifier g_bgTaskId = UIBackgroundTaskInvalid;
+
+static dispatch_queue_t GetP2Queue() {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        g_p2Queue = dispatch_queue_create("com.shadowrecomp.ios.p2server", DISPATCH_QUEUE_SERIAL);
+        g_activeConns = [[NSMutableSet alloc] init];
+    });
+    return g_p2Queue;
+}
 
 static void NotifyStateChanged() {
     IOSRemoteP2StateCallback cb = g_stateCallback.load(std::memory_order_acquire);
@@ -755,6 +789,24 @@ static void NotifyStateChanged() {
     NSString *nsUrl = [NSString stringWithUTF8String:urlCopy.c_str()];
     dispatch_async(dispatch_get_main_queue(), ^{
         cb(running, connected, nsUrl ? nsUrl.UTF8String : "http://172.20.10.1:8765");
+    });
+}
+
+// Invia un datagramma UDP broadcast innocuo (porta 9 discard) per far apparire subito
+// il popup iOS "Consentire l'accesso alla rete locale?" su app sideloadate (Feather) senza bloccare il listener.
+static void TriggerLocalNetworkPromptAsync() {
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
+        int s = socket(AF_INET, SOCK_DGRAM, 0);
+        if (s < 0) return;
+        int broadcast = 1;
+        setsockopt(s, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast));
+        struct sockaddr_in dst{};
+        dst.sin_family = AF_INET;
+        dst.sin_port = htons(9);
+        dst.sin_addr.s_addr = inet_addr("255.255.255.255");
+        const char pingByte = 0;
+        sendto(s, &pingByte, 1, 0, reinterpret_cast<struct sockaddr*>(&dst), sizeof(dst));
+        close(s);
     });
 }
 
@@ -801,39 +853,6 @@ static std::string DetectBestHostIPv4() {
     if (!wifiIp.empty()) return wifiIp;
     if (!fallbackIp.empty()) return fallbackIp;
     return "172.20.10.1";
-}
-
-static bool SendAll(int fd, const void* data, size_t len) {
-    const uint8_t* ptr = static_cast<const uint8_t*>(data);
-    size_t remaining = len;
-    while (remaining > 0) {
-        ssize_t n = send(fd, ptr, remaining, 0);
-        if (n <= 0) return false;
-        ptr += n;
-        remaining -= static_cast<size_t>(n);
-    }
-    return true;
-}
-
-static void SendWsFrame(int fd, uint8_t opcode, const void* payload, size_t len) {
-    if (fd < 0) return;
-    uint8_t header[10];
-    size_t hdrLen = 0;
-    header[0] = static_cast<uint8_t>(0x80u | (opcode & 0x0Fu));
-    if (len < 126) {
-        header[1] = static_cast<uint8_t>(len);
-        hdrLen = 2;
-    } else if (len < 65536) {
-        header[1] = 126;
-        header[2] = static_cast<uint8_t>((len >> 8) & 0xFFu);
-        header[3] = static_cast<uint8_t>(len & 0xFFu);
-        hdrLen = 4;
-    } else {
-        return;
-    }
-    if (SendAll(fd, header, hdrLen) && len > 0) {
-        SendAll(fd, payload, len);
-    }
 }
 
 static std::string ComputeWebSocketAcceptKey(const std::string& clientKey) {
@@ -914,214 +933,462 @@ static std::string ExtractHeaderValue(const std::string& req, const char* header
     return req.substr(valStart, valEnd - valStart);
 }
 
-static void CloseWsClientLocked() {
-    if (g_wsClientFd >= 0) {
-        shutdown(g_wsClientFd, SHUT_RDWR);
-        close(g_wsClientFd);
-        g_wsClientFd = -1;
+static void CloseConnOnQueue(ShadowP2Conn *wrapper) {
+    if (!wrapper || wrapper.closed) return;
+    wrapper.closed = YES;
+    if (wrapper.conn) {
+        nw_connection_cancel(wrapper.conn);
+        wrapper.conn = nil;
     }
-    ResetP2Snapshot();
-    bool wasConnected = g_p2Connected.exchange(false, std::memory_order_acq_rel);
-    if (wasConnected) {
-        NotifyStateChanged();
+    [g_activeConns removeObject:wrapper];
+    if (g_wsConn == wrapper) {
+        g_wsConn = nil;
+        ResetP2Snapshot();
+        bool wasConnected = g_p2Connected.exchange(false, std::memory_order_acq_rel);
+        if (wasConnected) {
+            NotifyStateChanged();
+        }
     }
 }
 
-static void ServerThreadMain() {
-    std::vector<uint8_t> wsRxBuf;
-    wsRxBuf.reserve(4096);
-    auto lastWsActivity = std::chrono::steady_clock::now();
+static void SendWsFrameOnQueue(ShadowP2Conn *wrapper, uint8_t opcode, const void* payload, size_t len) {
+    if (!wrapper || wrapper.closed || !wrapper.conn) return;
+    uint8_t header[10];
+    size_t hdrLen = 0;
+    header[0] = static_cast<uint8_t>(0x80u | (opcode & 0x0Fu));
+    if (len < 126) {
+        header[1] = static_cast<uint8_t>(len);
+        hdrLen = 2;
+    } else if (len < 65536) {
+        header[1] = 126;
+        header[2] = static_cast<uint8_t>((len >> 8) & 0xFFu);
+        header[3] = static_cast<uint8_t>(len & 0xFFu);
+        hdrLen = 4;
+    } else {
+        return;
+    }
 
-    while (!g_stopRequested.load(std::memory_order_acquire)) {
-        int listenFd = -1;
-        int wsFd = -1;
-        {
-            std::lock_guard<std::mutex> lock(g_p2NetMutex);
-            listenFd = g_listenFd;
-            wsFd = g_wsClientFd;
+    std::vector<uint8_t> frame(hdrLen + len);
+    std::memcpy(frame.data(), header, hdrLen);
+    if (len > 0 && payload) {
+        std::memcpy(frame.data() + hdrLen, payload, len);
+    }
+
+    dispatch_data_t data = dispatch_data_create(frame.data(), frame.size(), g_p2Queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+    nw_connection_send(wrapper.conn, data, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t sendErr) {
+        if (sendErr) {
+            CloseConnOnQueue(wrapper);
         }
-        if (listenFd < 0) break;
+    });
+}
 
-        struct pollfd fds[2];
-        int nfds = 0;
-        fds[nfds].fd = listenFd;
-        fds[nfds].events = POLLIN;
-        fds[nfds].revents = 0;
-        nfds++;
+static void SendHttpResponseAndCloseOnQueue(ShadowP2Conn *wrapper, const std::string& response) {
+    if (!wrapper || wrapper.closed || !wrapper.conn) return;
+    dispatch_data_t data = dispatch_data_create(response.data(), response.size(), g_p2Queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+    nw_connection_send(wrapper.conn, data, NW_CONNECTION_FINAL_MESSAGE_CONTEXT, true, ^(nw_error_t sendErr) {
+        (void)sendErr;
+        CloseConnOnQueue(wrapper);
+    });
+}
 
-        if (wsFd >= 0) {
-            fds[nfds].fd = wsFd;
-            fds[nfds].events = POLLIN;
-            fds[nfds].revents = 0;
-            nfds++;
-        }
+static void ProcessWsFramesOnQueue(ShadowP2Conn *wrapper) {
+    const uint8_t* bytes = static_cast<const uint8_t*>(wrapper.rxBuf.bytes);
+    size_t totalLen = wrapper.rxBuf.length;
+    size_t off = 0;
+    bool dropClient = false;
 
-        int ret = poll(fds, nfds, 60);
-        if (ret < 0) {
-            if (errno == EINTR) continue;
+    while (totalLen - off >= 2) {
+        uint8_t b0 = bytes[off];
+        uint8_t b1 = bytes[off + 1];
+        uint8_t opcode = b0 & 0x0Fu;
+        bool masked = (b1 & 0x80u) != 0;
+        uint64_t payloadLen = b1 & 0x7Fu;
+        size_t hdrLen = 2;
+
+        if (payloadLen == 126) {
+            if (totalLen - off < 4) break;
+            payloadLen = (static_cast<uint64_t>(bytes[off + 2]) << 8) | bytes[off + 3];
+            hdrLen = 4;
+        } else if (payloadLen == 127) {
+            dropClient = true;
             break;
         }
 
-        // 1. Accetta nuove connessioni HTTP / WebSocket
-        if ((fds[0].revents & POLLIN) != 0) {
-            struct sockaddr_in cliAddr{};
-            socklen_t cliLen = sizeof(cliAddr);
-            int cfd = accept(listenFd, reinterpret_cast<struct sockaddr*>(&cliAddr), &cliLen);
-            if (cfd >= 0) {
-                int one = 1;
-                setsockopt(cfd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
-                setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
-                struct timeval tv{};
-                tv.tv_sec = 1;
-                tv.tv_usec = 500000;
-                setsockopt(cfd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        size_t maskLen = masked ? 4 : 0;
+        if (totalLen - off < hdrLen + maskLen + payloadLen) break;
 
-                char reqBuf[4096];
-                std::string req;
-                while (req.find("\r\n\r\n") == std::string::npos && req.size() < 8192) {
-                    ssize_t n = recv(cfd, reqBuf, sizeof(reqBuf), 0);
-                    if (n <= 0) break;
-                    req.append(reqBuf, static_cast<size_t>(n));
-                }
+        const uint8_t* maskKey = masked ? &bytes[off + hdrLen] : nullptr;
+        const uint8_t* payloadPtr = &bytes[off + hdrLen + maskLen];
 
-                std::string wsKey = ExtractHeaderValue(req, "Sec-WebSocket-Key");
-                if (!wsKey.empty() && req.find("GET /ws") == 0) {
-                    // Upgrade a RFC 6455 WebSocket
-                    std::string acceptKey = ComputeWebSocketAcceptKey(wsKey);
-                    std::string resp =
-                        "HTTP/1.1 101 Switching Protocols\r\n"
-                        "Upgrade: websocket\r\n"
-                        "Connection: Upgrade\r\n"
-                        "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n";
-                    if (SendAll(cfd, resp.data(), resp.size())) {
-                        struct timeval noTimeout{};
-                        setsockopt(cfd, SOL_SOCKET, SO_RCVTIMEO, &noTimeout, sizeof(noTimeout));
-                        {
-                            std::lock_guard<std::mutex> lock(g_p2NetMutex);
-                            if (g_wsClientFd >= 0) {
-                                shutdown(g_wsClientFd, SHUT_RDWR);
-                                close(g_wsClientFd);
-                            }
-                            g_wsClientFd = cfd;
-                        }
-                        wsRxBuf.clear();
-                        ResetP2Snapshot();
-                        lastWsActivity = std::chrono::steady_clock::now();
-                        g_p2Connected.store(true, std::memory_order_release);
-                        NotifyStateChanged();
-                    } else {
-                        close(cfd);
-                    }
-                } else if (req.find("GET /ping") == 0) {
-                    static const char kPingResp[] =
-                        "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok";
-                    SendAll(cfd, kPingResp, sizeof(kPingResp) - 1);
-                    close(cfd);
-                } else if (req.find("GET ") == 0) {
-                    const size_t htmlLen = std::strlen(kP2ControllerHtml);
-                    std::string hdr =
-                        "HTTP/1.1 200 OK\r\n"
-                        "Content-Type: text/html; charset=utf-8\r\n"
-                        "Cache-Control: no-store, no-cache, must-revalidate\r\n"
-                        "Connection: close\r\n"
-                        "Content-Length: " + std::to_string(htmlLen) + "\r\n\r\n";
-                    SendAll(cfd, hdr.data(), hdr.size());
-                    SendAll(cfd, kP2ControllerHtml, htmlLen);
-                    close(cfd);
-                } else {
-                    close(cfd);
-                }
-            }
+        std::string decoded(static_cast<size_t>(payloadLen), '\0');
+        for (size_t i = 0; i < static_cast<size_t>(payloadLen); i++) {
+            decoded[i] = static_cast<char>(masked ? (payloadPtr[i] ^ maskKey[i & 3]) : payloadPtr[i]);
         }
 
-        // 2. Leggi frame WebSocket dal client Giocatore 2 connesso
-        if (nfds == 2 && wsFd >= 0) {
-            bool dropClient = false;
-            if ((fds[1].revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) {
-                dropClient = true;
-            } else if ((fds[1].revents & POLLIN) != 0) {
-                uint8_t tmp[2048];
-                ssize_t n = recv(wsFd, tmp, sizeof(tmp), 0);
-                if (n <= 0) {
-                    dropClient = true;
-                } else {
-                    lastWsActivity = std::chrono::steady_clock::now();
-                    wsRxBuf.insert(wsRxBuf.end(), tmp, tmp + n);
+        off += hdrLen + maskLen + static_cast<size_t>(payloadLen);
 
-                    // Decodifica tutti i frame completi nel buffer
-                    size_t off = 0;
-                    while (wsRxBuf.size() - off >= 2) {
-                        uint8_t b0 = wsRxBuf[off];
-                        uint8_t b1 = wsRxBuf[off + 1];
-                        uint8_t opcode = b0 & 0x0Fu;
-                        bool masked = (b1 & 0x80u) != 0;
-                        uint64_t payloadLen = b1 & 0x7Fu;
-                        size_t hdrLen = 2;
+        if (opcode == 0x8) {
+            dropClient = true;
+            break;
+        } else if (opcode == 0x9) {
+            SendWsFrameOnQueue(wrapper, 0xA, decoded.data(), decoded.size());
+        } else if (opcode == 0x1) {
+            ParseP2StateMessage(decoded);
+        }
+    }
 
-                        if (payloadLen == 126) {
-                            if (wsRxBuf.size() - off < 4) break;
-                            payloadLen = (static_cast<uint64_t>(wsRxBuf[off + 2]) << 8) | wsRxBuf[off + 3];
-                            hdrLen = 4;
-                        } else if (payloadLen == 127) {
-                            dropClient = true;
-                            break;
-                        }
+    if (off > 0 && off <= wrapper.rxBuf.length) {
+        [wrapper.rxBuf replaceBytesInRange:NSMakeRange(0, off) withBytes:NULL length:0];
+    }
+    if (wrapper.rxBuf.length > 16384) {
+        [wrapper.rxBuf setLength:0];
+    }
+    if (dropClient) {
+        CloseConnOnQueue(wrapper);
+    }
+}
 
-                        size_t maskLen = masked ? 4 : 0;
-                        if (wsRxBuf.size() - off < hdrLen + maskLen + payloadLen) break;
+static void StartReceiveLoopOnQueue(ShadowP2Conn *wrapper);
 
-                        const uint8_t* maskKey = masked ? &wsRxBuf[off + hdrLen] : nullptr;
-                        const uint8_t* payloadPtr = &wsRxBuf[off + hdrLen + maskLen];
+static void HandleHttpRequestOnQueue(ShadowP2Conn *wrapper) {
+    const char* raw = static_cast<const char*>(wrapper.rxBuf.bytes);
+    size_t rawLen = wrapper.rxBuf.length;
+    std::string req(raw, rawLen);
+    size_t hdrEnd = req.find("\r\n\r\n");
+    if (hdrEnd == std::string::npos) {
+        if (rawLen > 8192) {
+            CloseConnOnQueue(wrapper);
+        }
+        return;
+    }
 
-                        std::string decoded(static_cast<size_t>(payloadLen), '\0');
-                        for (size_t i = 0; i < static_cast<size_t>(payloadLen); i++) {
-                            decoded[i] = static_cast<char>(masked ? (payloadPtr[i] ^ maskKey[i & 3]) : payloadPtr[i]);
-                        }
+    std::string headersPart = req.substr(0, hdrEnd + 4);
+    std::string wsKey = ExtractHeaderValue(headersPart, "Sec-WebSocket-Key");
 
-                        off += hdrLen + maskLen + static_cast<size_t>(payloadLen);
+    if (!wsKey.empty() && headersPart.find("GET /ws") == 0) {
+        std::string acceptKey = ComputeWebSocketAcceptKey(wsKey);
+        std::string resp =
+            "HTTP/1.1 101 Switching Protocols\r\n"
+            "Upgrade: websocket\r\n"
+            "Connection: Upgrade\r\n"
+            "Sec-WebSocket-Accept: " + acceptKey + "\r\n\r\n";
 
-                        if (opcode == 0x8) {
-                            dropClient = true;
-                            break;
-                        } else if (opcode == 0x9) {
-                            SendWsFrame(wsFd, 0xA, decoded.data(), decoded.size());
-                        } else if (opcode == 0x1) {
-                            ParseP2StateMessage(decoded);
-                        }
-                    }
-                    if (off > 0) {
-                        wsRxBuf.erase(wsRxBuf.begin(), wsRxBuf.begin() + static_cast<std::ptrdiff_t>(off));
-                    }
-                    if (wsRxBuf.size() > 16384) {
-                        wsRxBuf.clear();
-                    }
+        dispatch_data_t data = dispatch_data_create(resp.data(), resp.size(), g_p2Queue, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
+        nw_connection_send(wrapper.conn, data, NW_CONNECTION_DEFAULT_MESSAGE_CONTEXT, false, ^(nw_error_t sendErr) {
+            if (sendErr) {
+                CloseConnOnQueue(wrapper);
+            }
+        });
+
+        [wrapper.rxBuf replaceBytesInRange:NSMakeRange(0, hdrEnd + 4) withBytes:NULL length:0];
+        wrapper.isWebSocket = YES;
+        wrapper.lastActivity = CFAbsoluteTimeGetCurrent();
+
+        if (g_wsConn && g_wsConn != wrapper) {
+            CloseConnOnQueue(g_wsConn);
+        }
+        g_wsConn = wrapper;
+        ResetP2Snapshot();
+        g_p2Connected.store(true, std::memory_order_release);
+        NotifyStateChanged();
+
+        if (wrapper.rxBuf.length > 0) {
+            ProcessWsFramesOnQueue(wrapper);
+        }
+        return;
+    }
+
+    if (headersPart.find("GET /ping") == 0) {
+        std::string resp =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 2\r\n"
+            "Connection: close\r\n\r\nok";
+        SendHttpResponseAndCloseOnQueue(wrapper, resp);
+        return;
+    }
+
+    if (headersPart.find("HEAD ") == 0) {
+        const size_t htmlLen = std::strlen(kP2ControllerHtml);
+        std::string resp =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/html; charset=utf-8\r\n"
+            "Cache-Control: no-store, no-cache, must-revalidate\r\n"
+            "Connection: close\r\n"
+            "Content-Length: " + std::to_string(htmlLen) + "\r\n\r\n";
+        SendHttpResponseAndCloseOnQueue(wrapper, resp);
+        return;
+    }
+
+    if (headersPart.find("GET ") == 0) {
+        const size_t htmlLen = std::strlen(kP2ControllerHtml);
+        std::string resp =
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: text/html; charset=utf-8\r\n"
+            "Cache-Control: no-store, no-cache, must-revalidate\r\n"
+            "Connection: close\r\n"
+            "Content-Length: " + std::to_string(htmlLen) + "\r\n\r\n";
+        resp.append(kP2ControllerHtml, htmlLen);
+        SendHttpResponseAndCloseOnQueue(wrapper, resp);
+        return;
+    }
+
+    CloseConnOnQueue(wrapper);
+}
+
+static void StartReceiveLoopOnQueue(ShadowP2Conn *wrapper) {
+    if (!wrapper || wrapper.closed || !wrapper.conn) return;
+    nw_connection_receive(wrapper.conn, 1, 65536, ^(dispatch_data_t content, nw_content_context_t context, bool is_complete, nw_error_t error) {
+        (void)context;
+        if (wrapper.closed) return;
+
+        if (content) {
+            dispatch_data_apply(content, ^bool(dispatch_data_t region, size_t offset, const void *buffer, size_t size) {
+                (void)region;
+                (void)offset;
+                if (buffer && size > 0) {
+                    [wrapper.rxBuf appendBytes:buffer length:size];
                 }
+                return true;
+            });
+            wrapper.lastActivity = CFAbsoluteTimeGetCurrent();
+
+            if (!wrapper.isWebSocket) {
+                HandleHttpRequestOnQueue(wrapper);
             } else {
-                auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(
-                    std::chrono::steady_clock::now() - lastWsActivity).count();
-                if (elapsedMs > 5000) {
-                    dropClient = true;
+                ProcessWsFramesOnQueue(wrapper);
+            }
+        }
+
+        if (error || (is_complete && (!wrapper.isWebSocket || !content))) {
+            CloseConnOnQueue(wrapper);
+            return;
+        }
+
+        if (!wrapper.closed) {
+            StartReceiveLoopOnQueue(wrapper);
+        }
+    });
+}
+
+static void HandleNewConnectionOnQueue(nw_connection_t conn) {
+    if (!conn || !g_serverWanted.load(std::memory_order_acquire)) {
+        if (conn) nw_connection_cancel(conn);
+        return;
+    }
+
+    ShadowP2Conn *wrapper = [[ShadowP2Conn alloc] initWithConnection:conn];
+    [g_activeConns addObject:wrapper];
+
+    nw_connection_set_queue(conn, g_p2Queue);
+    nw_connection_set_state_changed_handler(conn, ^(nw_connection_state_t state, nw_error_t error) {
+        (void)error;
+        if (state == nw_connection_state_ready) {
+            StartReceiveLoopOnQueue(wrapper);
+        } else if (state == nw_connection_state_failed || state == nw_connection_state_cancelled) {
+            CloseConnOnQueue(wrapper);
+        }
+    });
+    nw_connection_start(conn);
+}
+
+static void StopWatchdogOnQueue() {
+    if (g_watchdogTimer) {
+        dispatch_source_cancel(g_watchdogTimer);
+        g_watchdogTimer = nil;
+    }
+}
+
+static void StartWatchdogOnQueue() {
+    StopWatchdogOnQueue();
+    g_watchdogTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, g_p2Queue);
+    dispatch_source_set_timer(g_watchdogTimer, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.5 * NSEC_PER_SEC)), (uint64_t)(1.5 * NSEC_PER_SEC), (uint64_t)(0.2 * NSEC_PER_SEC));
+    dispatch_source_set_event_handler(g_watchdogTimer, ^{
+        CFAbsoluteTime now = CFAbsoluteTimeGetCurrent();
+
+        // Chiude client WebSocket silenti da >6s (es. Smartphone 2 ha bloccato schermo o perso Wi-Fi)
+        if (g_wsConn && (now - g_wsConn.lastActivity) > 6.0) {
+            CloseConnOnQueue(g_wsConn);
+        }
+
+        // Chiude eventuali connessioni HTTP pendenti da >8s
+        NSArray<ShadowP2Conn *> *snapshot = [g_activeConns allObjects];
+        for (ShadowP2Conn *c in snapshot) {
+            if (!c.isWebSocket && (now - c.lastActivity) > 8.0) {
+                CloseConnOnQueue(c);
+            }
+        }
+
+        // Aggiorna automaticamente l'URL se l'Hotspot Personale (bridge100) si attiva mentre siamo in Pairing
+        if (g_serverRunning.load(std::memory_order_acquire) && !g_p2Connected.load(std::memory_order_acquire)) {
+            std::string ip = DetectBestHostIPv4();
+            bool urlChanged = false;
+            {
+                std::lock_guard<std::mutex> lock(g_p2NetMutex);
+                std::string nextUrl = "http://" + ip + ":" + std::to_string(g_p2Port);
+                if (nextUrl != g_p2Url) {
+                    g_p2Url = nextUrl;
+                    urlChanged = true;
                 }
             }
-
-            if (dropClient) {
-                std::lock_guard<std::mutex> lock(g_p2NetMutex);
-                CloseWsClientLocked();
-                wsRxBuf.clear();
+            if (urlChanged) {
+                NotifyStateChanged();
             }
         }
+    });
+    dispatch_resume(g_watchdogTimer);
+}
+
+static void CancelListenerAndConnsOnQueue() {
+    StopWatchdogOnQueue();
+    if (g_listener) {
+        nw_listener_set_state_changed_handler(g_listener, NULL);
+        nw_listener_set_new_connection_handler(g_listener, NULL);
+        nw_listener_cancel(g_listener);
+        g_listener = nil;
+    }
+    NSArray<ShadowP2Conn *> *all = [g_activeConns allObjects];
+    for (ShadowP2Conn *c in all) {
+        CloseConnOnQueue(c);
+    }
+    [g_activeConns removeAllObjects];
+    g_wsConn = nil;
+    g_listenerReady.store(false, std::memory_order_release);
+}
+
+static bool StartNWListenerInternal(uint16_t preferredPort) {
+    dispatch_queue_t q = GetP2Queue();
+    if (preferredPort == 0) preferredPort = 8765;
+    g_preferredPort = preferredPort;
+    g_serverWanted.store(true, std::memory_order_release);
+
+    TriggerLocalNetworkPromptAsync();
+
+    for (uint16_t attempt = 0; attempt < 8; attempt++) {
+        uint16_t tryPort = static_cast<uint16_t>(preferredPort + attempt);
+        char portStr[16];
+        std::snprintf(portStr, sizeof(portStr), "%u", static_cast<unsigned>(tryPort));
+
+        nw_parameters_t params = nw_parameters_create_secure_tcp(
+            NW_PARAMETERS_DISABLE_PROTOCOL,
+            ^(nw_protocol_options_t tcp_options) {
+                nw_tcp_options_set_no_delay(tcp_options, true);
+                nw_tcp_options_set_enable_keepalive(tcp_options, true);
+                nw_tcp_options_set_keepalive_idle_time(tcp_options, 5);
+                nw_tcp_options_set_keepalive_interval(tcp_options, 2);
+                nw_tcp_options_set_keepalive_count(tcp_options, 3);
+            }
+        );
+        nw_parameters_set_reuse_local_address(params, true);
+        nw_parameters_set_include_peer_to_peer(params, true);
+
+        nw_listener_t listener = nw_listener_create_with_port(portStr, params);
+        if (!listener) continue;
+
+        dispatch_semaphore_t readySem = dispatch_semaphore_create(0);
+        __block BOOL signaled = NO;
+        __block BOOL startedOk = NO;
+        __block uint16_t boundPort = tryPort;
+
+        nw_listener_set_queue(listener, q);
+        nw_listener_set_new_connection_handler(listener, ^(nw_connection_t connection) {
+            HandleNewConnectionOnQueue(connection);
+        });
+        nw_listener_set_state_changed_handler(listener, ^(nw_listener_state_t state, nw_error_t error) {
+            (void)error;
+            if (state == nw_listener_state_ready) {
+                uint16_t actualPort = nw_listener_get_port(listener);
+                if (actualPort > 0) boundPort = actualPort;
+                std::string ip = DetectBestHostIPv4();
+                {
+                    std::lock_guard<std::mutex> lock(g_p2NetMutex);
+                    g_p2Port = boundPort;
+                    g_p2Url = "http://" + ip + ":" + std::to_string(boundPort);
+                }
+                g_listenerReady.store(true, std::memory_order_release);
+                g_serverRunning.store(true, std::memory_order_release);
+                startedOk = YES;
+                if (!signaled) {
+                    signaled = YES;
+                    dispatch_semaphore_signal(readySem);
+                }
+                NotifyStateChanged();
+            } else if (state == nw_listener_state_waiting) {
+                // iOS mette il listener in waiting finché l'utente accetta Rete Locale o rientra in foreground
+                g_listenerReady.store(false, std::memory_order_release);
+                startedOk = YES;
+                if (!signaled) {
+                    signaled = YES;
+                    dispatch_semaphore_signal(readySem);
+                }
+            } else if (state == nw_listener_state_failed) {
+                g_listenerReady.store(false, std::memory_order_release);
+                if (g_listener == listener) {
+                    g_listener = nil;
+                    g_serverRunning.store(false, std::memory_order_release);
+                    NotifyStateChanged();
+                }
+                if (!signaled) {
+                    signaled = YES;
+                    dispatch_semaphore_signal(readySem);
+                }
+            } else if (state == nw_listener_state_cancelled) {
+                g_listenerReady.store(false, std::memory_order_release);
+                if (!signaled) {
+                    signaled = YES;
+                    dispatch_semaphore_signal(readySem);
+                }
+            }
+        });
+
+        dispatch_sync(q, ^{
+            CancelListenerAndConnsOnQueue();
+            g_listener = listener;
+            nw_listener_start(listener);
+        });
+
+        dispatch_semaphore_wait(readySem, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(450 * NSEC_PER_MSEC)));
+
+        if (startedOk) {
+            std::string ip = DetectBestHostIPv4();
+            {
+                std::lock_guard<std::mutex> lock(g_p2NetMutex);
+                g_p2Port = boundPort;
+                g_p2Url = "http://" + ip + ":" + std::to_string(boundPort);
+            }
+            ResetP2Snapshot();
+            g_p2Connected.store(false, std::memory_order_release);
+            g_serverRunning.store(true, std::memory_order_release);
+            dispatch_async(q, ^{
+                StartWatchdogOnQueue();
+            });
+            NotifyStateChanged();
+            return true;
+        }
+
+        dispatch_sync(q, ^{
+            if (g_listener == listener) {
+                CancelListenerAndConnsOnQueue();
+            } else {
+                nw_listener_cancel(listener);
+            }
+        });
     }
 
-    {
-        std::lock_guard<std::mutex> lock(g_p2NetMutex);
-        CloseWsClientLocked();
-        if (g_listenFd >= 0) {
-            close(g_listenFd);
-            g_listenFd = -1;
-        }
-    }
     g_serverRunning.store(false, std::memory_order_release);
+    g_listenerReady.store(false, std::memory_order_release);
     NotifyStateChanged();
+    return false;
+}
+
+static void EndBackgroundTaskOnMain() {
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (g_bgTaskId != UIBackgroundTaskInvalid) {
+            UIBackgroundTaskIdentifier tid = g_bgTaskId;
+            g_bgTaskId = UIBackgroundTaskInvalid;
+            [[UIApplication sharedApplication] endBackgroundTask:tid];
+        }
+    });
 }
 
 } // namespace
@@ -1131,8 +1398,8 @@ extern "C" {
 bool IOSRemoteP2_StartServer(uint16_t preferredPort) {
     if (preferredPort == 0) preferredPort = 8765;
 
-    if (g_serverRunning.load(std::memory_order_acquire)) {
-        // Aggiorna comunque l'URL con l'IP Hotspot/Wi-Fi più recente
+    // Se il listener è realmente vivo e in stato ready, aggiorna solo l'IP e riusalo
+    if (g_serverRunning.load(std::memory_order_acquire) && g_listenerReady.load(std::memory_order_acquire)) {
         std::string ip = DetectBestHostIPv4();
         {
             std::lock_guard<std::mutex> lock(g_p2NetMutex);
@@ -1142,74 +1409,61 @@ bool IOSRemoteP2_StartServer(uint16_t preferredPort) {
         return true;
     }
 
-    if (g_serverThread.joinable()) {
-        g_stopRequested.store(true, std::memory_order_release);
-        g_serverThread.join();
-    }
-
-    int fd = -1;
-    uint16_t boundPort = preferredPort;
-    for (uint16_t attempt = 0; attempt < 10; attempt++) {
-        uint16_t port = static_cast<uint16_t>(preferredPort + attempt);
-        int s = socket(AF_INET, SOCK_STREAM, 0);
-        if (s < 0) continue;
-
-        int one = 1;
-        setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(one));
-        setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
-
-        struct sockaddr_in addr{};
-        addr.sin_family = AF_INET;
-        addr.sin_addr.s_addr = htonl(INADDR_ANY);
-        addr.sin_port = htons(port);
-
-        if (bind(s, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0 && listen(s, 8) == 0) {
-            fd = s;
-            boundPort = port;
-            break;
-        }
-        close(s);
-    }
-
-    if (fd < 0) {
-        return false;
-    }
-
-    std::string ip = DetectBestHostIPv4();
-    {
-        std::lock_guard<std::mutex> lock(g_p2NetMutex);
-        g_listenFd = fd;
-        g_p2Port = boundPort;
-        g_p2Url = "http://" + ip + ":" + std::to_string(boundPort);
-    }
-
-    ResetP2Snapshot();
-    g_p2Connected.store(false, std::memory_order_release);
-    g_stopRequested.store(false, std::memory_order_release);
-    g_serverRunning.store(true, std::memory_order_release);
-    g_serverThread = std::thread(ServerThreadMain);
-    NotifyStateChanged();
-    return true;
+    // Altrimenti ricrea sempre un nw_listener fresco (recupera anche dopo sospensione iOS!)
+    return StartNWListenerInternal(preferredPort);
 }
 
 void IOSRemoteP2_StopServer(void) {
-    g_stopRequested.store(true, std::memory_order_release);
-    {
-        std::lock_guard<std::mutex> lock(g_p2NetMutex);
-        if (g_listenFd >= 0) {
-            shutdown(g_listenFd, SHUT_RDWR);
-        }
-        if (g_wsClientFd >= 0) {
-            shutdown(g_wsClientFd, SHUT_RDWR);
-        }
-    }
-    if (g_serverThread.joinable()) {
-        g_serverThread.join();
-    }
+    g_serverWanted.store(false, std::memory_order_release);
+    EndBackgroundTaskOnMain();
+
+    dispatch_queue_t q = GetP2Queue();
+    dispatch_sync(q, ^{
+        CancelListenerAndConnsOnQueue();
+    });
+
     ResetP2Snapshot();
     g_p2Connected.store(false, std::memory_order_release);
     g_serverRunning.store(false, std::memory_order_release);
     NotifyStateChanged();
+}
+
+void IOSRemoteP2_EnsureAlive(void) {
+    if (!g_serverWanted.load(std::memory_order_acquire)) return;
+    if (g_serverRunning.load(std::memory_order_acquire) && g_listenerReady.load(std::memory_order_acquire)) {
+        // Aggiorna comunque l'IP se l'Hotspot è cambiato mentre l'app era in background
+        std::string ip = DetectBestHostIPv4();
+        {
+            std::lock_guard<std::mutex> lock(g_p2NetMutex);
+            g_p2Url = "http://" + ip + ":" + std::to_string(g_p2Port);
+        }
+        NotifyStateChanged();
+        return;
+    }
+    // Listener sospeso o chiuso da iOS in background -> riavvio automatico su Network.framework!
+    uint16_t port = g_preferredPort ? g_preferredPort : 8765;
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+        StartNWListenerInternal(port);
+    });
+}
+
+void IOSRemoteP2_SetAppInBackground(bool inBackground) {
+    if (inBackground) {
+        if (!g_serverWanted.load(std::memory_order_acquire)) return;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (g_bgTaskId != UIBackgroundTaskInvalid) return;
+            UIApplication *app = [UIApplication sharedApplication];
+            g_bgTaskId = [app beginBackgroundTaskWithName:@"ShadowRecomp2PServer" expirationHandler:^{
+                if (g_bgTaskId != UIBackgroundTaskInvalid) {
+                    UIBackgroundTaskIdentifier expiredId = g_bgTaskId;
+                    g_bgTaskId = UIBackgroundTaskInvalid;
+                    [app endBackgroundTask:expiredId];
+                }
+            }];
+        });
+    } else {
+        EndBackgroundTaskOnMain();
+    }
 }
 
 bool IOSRemoteP2_IsServerRunning(void) {
@@ -1250,11 +1504,14 @@ void IOSRemoteP2_SetRumble(uint16_t leftMotor, uint16_t rightMotor) {
     char msg[32];
     int len = std::snprintf(msg, sizeof(msg), "R,%u,%u", leftMotor, rightMotor);
     if (len <= 0) return;
+    std::string payload(msg, static_cast<size_t>(len));
 
-    std::lock_guard<std::mutex> lock(g_p2NetMutex);
-    if (g_wsClientFd >= 0) {
-        SendWsFrame(g_wsClientFd, 0x1, msg, static_cast<size_t>(len));
-    }
+    dispatch_queue_t q = GetP2Queue();
+    dispatch_async(q, ^{
+        if (g_wsConn && !g_wsConn.closed) {
+            SendWsFrameOnQueue(g_wsConn, 0x1, payload.data(), payload.size());
+        }
+    });
 }
 
 void IOSRemoteP2_SetStateCallback(IOSRemoteP2StateCallback cb) {
