@@ -412,8 +412,8 @@ export const P2_WEB_CONTROLLER_HTML = `<!DOCTYPE html>
 </div>
 
 <div id="rotate-hint">
-  <h2>Ruota lo smartphone in orizzontale</h2>
-  <p>Il Controller Giocatore 2 di ShadowRecomp usa tutto lo schermo in orizzontale con tasti grandi per giocare guardando la TV o lo Smartphone 1.</p>
+  <h2 id="rotateTitle">Ruota lo smartphone in orizzontale</h2>
+  <p id="rotateDesc">Il Controller Giocatore 2 di ShadowRecomp usa tutto lo schermo in orizzontale con tasti grandi per giocare guardando la TV o lo Smartphone 1.</p>
 </div>
 
 <script>
@@ -431,10 +431,79 @@ export const P2_WEB_CONTROLLER_HTML = `<!DOCTYPE html>
   let dirty = true;
   let lastSentAt = 0;
 
+  const I18N = {
+    en: {
+      title: 'ShadowRecomp — 2P Controller',
+      connecting: '2P Connecting...',
+      connected: '2P Connected',
+      reconnecting: 'Reconnecting...',
+      fullscreen: 'Fullscreen',
+      rotateTitle: 'Rotate your phone to landscape',
+      rotateDesc: 'ShadowRecomp Player 2 Controller uses full landscape screen with oversized controls so you can play while watching the TV or Phone 1.'
+    },
+    it: {
+      title: 'ShadowRecomp — Controller 2P',
+      connecting: '2P Connessione...',
+      connected: '2P Connesso',
+      reconnecting: 'Riconnessione...',
+      fullscreen: 'Schermo Intero',
+      rotateTitle: 'Ruota lo smartphone in orizzontale',
+      rotateDesc: 'Il Controller Giocatore 2 di ShadowRecomp usa tutto lo schermo in orizzontale con tasti grandi per giocare guardando la TV o lo Smartphone 1.'
+    },
+    es: {
+      title: 'ShadowRecomp — Mando 2P',
+      connecting: '2P Conectando...',
+      connected: '2P Conectado',
+      reconnecting: 'Reconectando...',
+      fullscreen: 'Pantalla completa',
+      rotateTitle: 'Gira el móvil en horizontal',
+      rotateDesc: 'El Mando Jugador 2 de ShadowRecomp usa toda la pantalla en horizontal con botones grandes para jugar mirando la TV o el Smartphone 1.'
+    },
+    fr: {
+      title: 'ShadowRecomp — Manette 2J',
+      connecting: '2J Connexion...',
+      connected: '2J Connecté',
+      reconnecting: 'Reconnexion...',
+      fullscreen: 'Plein écran',
+      rotateTitle: 'Tournez votre téléphone en paysage',
+      rotateDesc: 'La Manette Joueur 2 de ShadowRecomp utilise tout l’écran en paysage avec de grands boutons pour jouer en regardant la TV ou le Smartphone 1.'
+    },
+    de: {
+      title: 'ShadowRecomp — 2P-Controller',
+      connecting: '2P Verbinden...',
+      connected: '2P Verbunden',
+      reconnecting: 'Neu verbinden...',
+      fullscreen: 'Vollbild',
+      rotateTitle: 'Drehe das Smartphone ins Querformat',
+      rotateDesc: 'Der Spieler-2-Controller von ShadowRecomp nutzt das volle Querformat mit großen Tasten zum Spielen mit Blick auf TV oder Smartphone 1.'
+    },
+    ja: {
+      title: 'ShadowRecomp — 2Pコントローラー',
+      connecting: '2P 接続中...',
+      connected: '2P 接続済み',
+      reconnecting: '再接続中...',
+      fullscreen: '全画面',
+      rotateTitle: 'スマホを横向きに回転してください',
+      rotateDesc: 'ShadowRecomp 2Pコントローラーは横画面全体と大きなボタンで、TVやスマホ1を見ながら操作できます。'
+    }
+  };
+  const rawLang = ((navigator.language || navigator.userLanguage || 'en') + '').toLowerCase();
+  const langKey = rawLang.startsWith('it') ? 'it'
+    : rawLang.startsWith('es') ? 'es'
+    : rawLang.startsWith('fr') ? 'fr'
+    : rawLang.startsWith('de') ? 'de'
+    : rawLang.startsWith('ja') ? 'ja' : 'en';
+  const T = I18N[langKey];
+  document.documentElement.lang = langKey;
+  document.title = T.title;
+
   const padEl = document.getElementById('pad');
   const statusPill = document.getElementById('statusPill');
   const statusText = document.getElementById('statusText');
   const fsBtn = document.getElementById('fsBtn');
+  fsBtn.textContent = T.fullscreen;
+  document.getElementById('rotateTitle').textContent = T.rotateTitle;
+  document.getElementById('rotateDesc').textContent = T.rotateDesc;
 
   function vib(ms) {
     if (navigator.vibrate) {
@@ -469,7 +538,7 @@ export const P2_WEB_CONTROLLER_HTML = `<!DOCTYPE html>
   function connectWS() {
     const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
     const url = proto + location.host + '/ws';
-    setStatus(false, 'P2 Connessione...');
+    setStatus(false, T.connecting);
     try {
       ws = new WebSocket(url);
     } catch (_) {
@@ -477,7 +546,7 @@ export const P2_WEB_CONTROLLER_HTML = `<!DOCTYPE html>
       return;
     }
     ws.onopen = () => {
-      setStatus(true, 'P2 Connected');
+      setStatus(true, T.connected);
       dirty = true;
       sendNow(true);
     };
@@ -496,7 +565,7 @@ export const P2_WEB_CONTROLLER_HTML = `<!DOCTYPE html>
       }
     };
     ws.onclose = () => {
-      setStatus(false, 'Riconnessione...');
+      setStatus(false, T.reconnecting);
       setTimeout(connectWS, 550);
     };
     ws.onerror = () => {

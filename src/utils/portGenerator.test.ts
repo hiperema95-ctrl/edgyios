@@ -528,6 +528,44 @@ test('Connected pill auto-hide with disconnect alert and AirPlay/HDMI TV Mode (d
   assert.match(vcMm, /redrawAllVectorControls/);
 });
 
+test('automatic phone system language detection localizes virtual controller HUD, 2P web controller, and NFD picker across 6 languages', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const vcMm = byPath.get('ios/ios_virtual_controller.mm') ?? '';
+  const p2Mm = byPath.get('ios/ios_p2_server.mm') ?? '';
+  const nfdMm = byPath.get('ios/nfd_ios.mm') ?? '';
+
+  // Native iOS virtual controller: [NSLocale preferredLanguages] + ARC-safe __unsafe_unretained table + pure 6-language strings
+  assert.match(vcMm, /DetectSystemUILanguage/);
+  assert.match(vcMm, /\[NSLocale preferredLanguages\]\.firstObject/);
+  assert.match(vcMm, /__unsafe_unretained NSString \*opacityFmt;/);
+  assert.match(vcMm, /@"Sfuma 4s"/);
+  assert.match(vcMm, /@"Abbina"/);
+  assert.match(vcMm, /@"Connesso"/);
+  assert.match(vcMm, /@"MODALITÀ TV • Torna su iPhone"/);
+  assert.match(vcMm, /@"Auto-Hide 4s"/);
+  assert.match(vcMm, /@"TV MODE • Back to iPhone"/);
+  assert.match(vcMm, /@"Vincular"/);
+  assert.match(vcMm, /@"Jumeler"/);
+  assert.match(vcMm, /@"Koppeln"/);
+  assert.match(vcMm, /@"ペアリング"/);
+
+  // 2P Web Controller: browser navigator.language auto-detection
+  assert.match(p2Mm, /navigator\.language \|\| navigator\.userLanguage/);
+  assert.match(p2Mm, /2P Connesso/);
+  assert.match(p2Mm, /2P Connected/);
+  assert.match(p2Mm, /2P Conectado/);
+  assert.match(p2Mm, /2J Connecté/);
+  assert.match(p2Mm, /2P Verbunden/);
+  assert.match(p2Mm, /2P 接続済み/);
+
+  // NFD file picker alert sheet localization
+  assert.match(nfdMm, /\[NSLocale preferredLanguages\]\.firstObject/);
+  assert.match(nfdMm, /@"Select game file"/);
+  assert.match(nfdMm, /@"Seleziona file di gioco"/);
+});
+
 
 
 

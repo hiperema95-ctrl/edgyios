@@ -82,6 +82,241 @@ constexpr int kBtnRT    = 7; // Right Trigger analogico 0..255
 constexpr NSTimeInterval kAutoHideIdleSeconds = 4.0;
 constexpr NSTimeInterval kP2ConnectedPillAutoHideSeconds = 3.5;
 
+enum class ShadowUILang : int {
+    English = 0,
+    Italian = 1,
+    Spanish = 2,
+    French  = 3,
+    German  = 4,
+    Japanese = 5
+};
+
+struct ShadowLocalizedStrings {
+    __unsafe_unretained NSString *opacityFmt;
+    __unsafe_unretained NSString *tvFullOpacity;
+    __unsafe_unretained NSString *hapticsOn;
+    __unsafe_unretained NSString *hapticsOff;
+    __unsafe_unretained NSString *autoHideOn;
+    __unsafe_unretained NSString *autoHideOff;
+    __unsafe_unretained NSString *pairing;
+    __unsafe_unretained NSString *connected;
+    __unsafe_unretained NSString *cardTitleDefault;
+    __unsafe_unretained NSString *cardTitleHotspot;
+    __unsafe_unretained NSString *cardTitleWifi;
+    __unsafe_unretained NSString *cardSub;
+    __unsafe_unretained NSString *cardCopy;
+    __unsafe_unretained NSString *cardClose;
+    __unsafe_unretained NSString *toastP2Connected;
+    __unsafe_unretained NSString *toastP2Disconnected;
+    __unsafe_unretained NSString *toastP2ConnectedLinkFmt;
+    __unsafe_unretained NSString *toastLinkCopiedFmt;
+    __unsafe_unretained NSString *toastServerError;
+    __unsafe_unretained NSString *tvExitBanner;
+    __unsafe_unretained NSString *toastTVNeedExt;
+    __unsafe_unretained NSString *toastTVReady;
+    __unsafe_unretained NSString *toastTVDisconnected;
+    __unsafe_unretained NSString *toastTVVideoNotReady;
+    __unsafe_unretained NSString *toastTVEnabled;
+    __unsafe_unretained NSString *toastTVDisabled;
+};
+
+static ShadowUILang DetectSystemUILanguage(void) {
+    static ShadowUILang s_lang = []() -> ShadowUILang {
+        NSString *preferred = [NSLocale preferredLanguages].firstObject;
+        if (preferred.length == 0) {
+            preferred = [NSLocale currentLocale].localeIdentifier;
+        }
+        NSString *lc = [preferred lowercaseString];
+        if ([lc hasPrefix:@"it"]) return ShadowUILang::Italian;
+        if ([lc hasPrefix:@"es"]) return ShadowUILang::Spanish;
+        if ([lc hasPrefix:@"fr"]) return ShadowUILang::French;
+        if ([lc hasPrefix:@"de"]) return ShadowUILang::German;
+        if ([lc hasPrefix:@"ja"]) return ShadowUILang::Japanese;
+        return ShadowUILang::English;
+    }();
+    return s_lang;
+}
+
+static const ShadowLocalizedStrings &L(void) {
+    static const ShadowLocalizedStrings kTables[6] = {
+        // 0: English (universal fallback)
+        {
+            @"Opacity %d%%",
+            @"TV 100%",
+            @"Haptics ON",
+            @"Haptics OFF",
+            @"Auto-Hide 4s",
+            @"Always On",
+            @"Pairing",
+            @"Connected",
+            @"2P CONTROLLER • PAIRING",
+            @"2P • HOTSPOT READY",
+            @"2P • LOCAL WI-FI",
+            @"Scan this QR on Smartphone 2 (Hotspot or same Wi-Fi) or paste the copied link.",
+            @"Copy Link",
+            @"Close",
+            @"2P Controller connected!",
+            @"2P Controller disconnected — tap Pairing to reconnect",
+            @"2P Connected • Link copied: %@",
+            @"Link copied: %@",
+            @"2P server error — allow Local Network in Settings",
+            @"TV MODE • Back to iPhone",
+            @"Connect AirPlay or HDMI to enable TV Mode",
+            @"AirPlay/HDMI detected — TV Mode ready",
+            @"AirPlay/HDMI disconnected — game returned to iPhone",
+            @"Video screen not ready — try again in a moment",
+            @"TV Mode active • Game on TV, Gamepad on iPhone",
+            @"TV Mode disabled — game returned to iPhone"
+        },
+        // 1: Italian
+        {
+            @"Opacità %d%%",
+            @"TV 100%",
+            @"Aptica SÌ",
+            @"Aptica NO",
+            @"Sfuma 4s",
+            @"Fisso",
+            @"Abbina",
+            @"Connesso",
+            @"CONTROLLER 2P • ABBINA",
+            @"2P • HOTSPOT PRONTO",
+            @"2P • WI-FI LOCALE",
+            @"Inquadra il QR con Smartphone 2 (su Hotspot o stesso Wi-Fi) oppure incolla il link copiato.",
+            @"Copia Link",
+            @"Chiudi",
+            @"Controller 2P connesso!",
+            @"Controller 2P disconnesso — tocca Abbina per riconnettere",
+            @"2P Connesso • Link copiato: %@",
+            @"Link copiato: %@",
+            @"Errore avvio server 2P — consenti Rete Locale in Impostazioni",
+            @"MODALITÀ TV • Torna su iPhone",
+            @"Collega AirPlay o HDMI per attivare la Modalità TV",
+            @"AirPlay/HDMI rilevato — Modalità TV disponibile",
+            @"AirPlay/HDMI disconnesso — gioco tornato su iPhone",
+            @"Schermo video non pronto — riprova tra un istante",
+            @"Modalità TV attiva • Gioco su TV, Controller su iPhone",
+            @"Modalità TV disattivata — gioco tornato su iPhone"
+        },
+        // 2: Spanish
+        {
+            @"Opacidad %d%%",
+            @"TV 100%",
+            @"Háptica SÍ",
+            @"Háptica NO",
+            @"Ocultar 4s",
+            @"Fijo",
+            @"Vincular",
+            @"Conectado",
+            @"MANDO 2P • VINCULAR",
+            @"2P • HOTSPOT LISTO",
+            @"2P • WI-FI LOCAL",
+            @"Escanea el QR con el Smartphone 2 (en Hotspot o mismo Wi-Fi) o pega el enlace copiado.",
+            @"Copiar enlace",
+            @"Cerrar",
+            @"¡Mando 2P conectado!",
+            @"Mando 2P desconectado — toca Vincular para reconectar",
+            @"2P Conectado • Enlace copiado: %@",
+            @"Enlace copiado: %@",
+            @"Error del servidor 2P — permite Red Local en Ajustes",
+            @"MODO TV • Volver al iPhone",
+            @"Conecta AirPlay o HDMI para activar el Modo TV",
+            @"AirPlay/HDMI detectado — Modo TV disponible",
+            @"AirPlay/HDMI desconectado — juego devuelto al iPhone",
+            @"Pantalla de vídeo no lista — inténtalo en un momento",
+            @"Modo TV activo • Juego en TV, Mando en iPhone",
+            @"Modo TV desactivado — juego devuelto al iPhone"
+        },
+        // 3: French
+        {
+            @"Opacité %d%%",
+            @"TV 100%",
+            @"Haptique OUI",
+            @"Haptique NON",
+            @"Masquer 4s",
+            @"Fixe",
+            @"Jumeler",
+            @"Connecté",
+            @"MANETTE 2J • JUMELAGE",
+            @"2J • PARTAGE PRÊT",
+            @"2J • WI-FI LOCAL",
+            @"Scannez le QR avec le Smartphone 2 (Partage ou même Wi-Fi) ou collez le lien copié.",
+            @"Copier le lien",
+            @"Fermer",
+            @"Manette 2J connectée !",
+            @"Manette 2J déconnectée — touchez Jumeler pour reconnecter",
+            @"2J Connecté • Lien copié : %@",
+            @"Lien copié : %@",
+            @"Erreur serveur 2J — autorisez Réseau local dans Réglages",
+            @"MODE TV • Retour sur iPhone",
+            @"Connectez AirPlay ou HDMI pour activer le Mode TV",
+            @"AirPlay/HDMI détecté — Mode TV disponible",
+            @"AirPlay/HDMI déconnecté — jeu revenu sur iPhone",
+            @"Écran vidéo non prêt — réessayez dans un instant",
+            @"Mode TV actif • Jeu sur TV, Manette sur iPhone",
+            @"Mode TV désactivé — jeu revenu sur iPhone"
+        },
+        // 4: German
+        {
+            @"Deckkraft %d%%",
+            @"TV 100%",
+            @"Haptik EIN",
+            @"Haptik AUS",
+            @"Ausbl. 4s",
+            @"Immer an",
+            @"Koppeln",
+            @"Verbunden",
+            @"2P-CONTROLLER • KOPPELN",
+            @"2P • HOTSPOT BEREIT",
+            @"2P • LOKALES WLAN",
+            @"Scanne den QR auf Smartphone 2 (Hotspot oder gleiches WLAN) oder füge den Link ein.",
+            @"Link kopieren",
+            @"Schließen",
+            @"2P-Controller verbunden!",
+            @"2P-Controller getrennt — tippe auf Koppeln",
+            @"2P Verbunden • Link kopiert: %@",
+            @"Link kopiert: %@",
+            @"2P-Serverfehler — erlaube Lokales Netzwerk in Einstellungen",
+            @"TV-MODUS • Zurück zum iPhone",
+            @"Verbinde AirPlay oder HDMI für den TV-Modus",
+            @"AirPlay/HDMI erkannt — TV-Modus bereit",
+            @"AirPlay/HDMI getrennt — Spiel zurück auf iPhone",
+            @"Videobild nicht bereit — kurz warten und erneut versuchen",
+            @"TV-Modus aktiv • Spiel auf TV, Controller auf iPhone",
+            @"TV-Modus beendet — Spiel zurück auf iPhone"
+        },
+        // 5: Japanese
+        {
+            @"透明度 %d%%",
+            @"TV 100%",
+            @"触覚 ON",
+            @"触覚 OFF",
+            @"自動非表示 4s",
+            @"常時表示",
+            @"ペアリング",
+            @"接続済み",
+            @"2Pコントローラー • ペアリング",
+            @"2P • テザリング準備完了",
+            @"2P • ローカルWi-Fi",
+            @"スマホ2（同じWi-Fiまたはテザリング）でQRを読み取るか、コピーしたリンクを開いてください。",
+            @"リンクをコピー",
+            @"閉じる",
+            @"2Pコントローラー接続完了！",
+            @"2P切断 — ペアリングをタップして再接続",
+            @"2P接続済み • コピー完了: %@",
+            @"リンクをコピー: %@",
+            @"2Pサーバー起動エラー — 設定でローカルネットワークを許可",
+            @"TVモード • iPhoneに戻る",
+            @"TVモードを使うにはAirPlayまたはHDMIを接続してください",
+            @"AirPlay/HDMIを検出 — TVモード利用可能",
+            @"AirPlay/HDMI切断 — ゲームがiPhoneに戻りました",
+            @"映像画面の準備中 — 少し待ってから再試行してください",
+            @"TVモード有効 • TVにゲーム、iPhoneにコントローラー",
+            @"TVモード解除 — ゲームがiPhoneに戻りました"
+        }
+    };
+    return kTables[static_cast<int>(DetectSystemUILanguage())];
+}
+
 IOSVirtualPadSnapshot g_padSlots[4]{};
 std::atomic<uint32_t> g_padActiveSlot{0};
 std::atomic<bool> g_overlayAttached{false};
@@ -1835,6 +2070,8 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         l.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
         l.textColor = [UIColor whiteColor];
         l.textAlignment = NSTextAlignmentCenter;
+        l.adjustsFontSizeToFitWidth = YES;
+        l.minimumScaleFactor = 0.72;
         l.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.08];
         l.layer.cornerRadius = 10.0;
         l.layer.masksToBounds = YES;
@@ -1873,7 +2110,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     _tvExitLabel.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightHeavy];
     _tvExitLabel.textColor = [UIColor colorWithRed:0.88 green:0.97 blue:1.0 alpha:1.0];
     _tvExitLabel.textAlignment = NSTextAlignmentLeft;
-    _tvExitLabel.text = @"TV MODE • Torna su iPhone";
+    _tvExitLabel.text = L().tvExitBanner;
     [_tvExitBannerView addSubview:_tvExitLabel];
     [_controlsContainer addSubview:_tvExitBannerView];
 
@@ -1896,7 +2133,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     _p2StatusLabel.font = [UIFont systemFontOfSize:11.5 weight:UIFontWeightHeavy];
     _p2StatusLabel.textColor = [UIColor whiteColor];
     _p2StatusLabel.textAlignment = NSTextAlignmentLeft;
-    _p2StatusLabel.text = @"Pairing";
+    _p2StatusLabel.text = L().pairing;
     [_p2StatusPillView addSubview:_p2StatusLabel];
 
     [_controlsContainer addSubview:_p2StatusPillView];
@@ -1906,6 +2143,8 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     _p2ToastLabel.font = [UIFont monospacedSystemFontOfSize:10.5 weight:UIFontWeightSemibold];
     _p2ToastLabel.textColor = [UIColor colorWithRed:0.95 green:0.96 blue:0.99 alpha:1.0];
     _p2ToastLabel.textAlignment = NSTextAlignmentCenter;
+    _p2ToastLabel.adjustsFontSizeToFitWidth = YES;
+    _p2ToastLabel.minimumScaleFactor = 0.72;
     _p2ToastLabel.backgroundColor = [UIColor colorWithRed:0.05 green:0.06 blue:0.10 alpha:0.92];
     _p2ToastLabel.layer.cornerRadius = 10.0;
     _p2ToastLabel.layer.masksToBounds = YES;
@@ -1938,13 +2177,15 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     [_p2QrFrameView addSubview:_p2QrImageView];
 
     _p2CardTitleLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    _p2CardTitleLabel.text = @"CONTROLLER 2P • PAIRING";
+    _p2CardTitleLabel.text = L().cardTitleDefault;
     _p2CardTitleLabel.font = [UIFont systemFontOfSize:12.0 weight:UIFontWeightHeavy];
     _p2CardTitleLabel.textColor = [UIColor whiteColor];
+    _p2CardTitleLabel.adjustsFontSizeToFitWidth = YES;
+    _p2CardTitleLabel.minimumScaleFactor = 0.78;
     [_p2PairingCardView addSubview:_p2CardTitleLabel];
 
     _p2CardSubLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    _p2CardSubLabel.text = @"Inquadra il QR con Smartphone 2 (su Hotspot o stesso Wi-Fi) oppure incolla il link copiato.";
+    _p2CardSubLabel.text = L().cardSub;
     _p2CardSubLabel.font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightMedium];
     _p2CardSubLabel.textColor = [UIColor colorWithRed:0.75 green:0.78 blue:0.86 alpha:1.0];
     _p2CardSubLabel.numberOfLines = 3;
@@ -1965,20 +2206,24 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     [_p2PairingCardView addSubview:_p2CardUrlLabel];
 
     _p2CardCopyBtn = [[UILabel alloc] initWithFrame:CGRectZero];
-    _p2CardCopyBtn.text = @"Copia Link";
+    _p2CardCopyBtn.text = L().cardCopy;
     _p2CardCopyBtn.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightBold];
     _p2CardCopyBtn.textColor = [UIColor whiteColor];
     _p2CardCopyBtn.textAlignment = NSTextAlignmentCenter;
+    _p2CardCopyBtn.adjustsFontSizeToFitWidth = YES;
+    _p2CardCopyBtn.minimumScaleFactor = 0.75;
     _p2CardCopyBtn.backgroundColor = ShadowCrimsonColor(0.92);
     _p2CardCopyBtn.layer.cornerRadius = 8.0;
     _p2CardCopyBtn.layer.masksToBounds = YES;
     [_p2PairingCardView addSubview:_p2CardCopyBtn];
 
     _p2CardCloseBtn = [[UILabel alloc] initWithFrame:CGRectZero];
-    _p2CardCloseBtn.text = @"Chiudi";
+    _p2CardCloseBtn.text = L().cardClose;
     _p2CardCloseBtn.font = [UIFont systemFontOfSize:11.0 weight:UIFontWeightSemibold];
     _p2CardCloseBtn.textColor = [UIColor colorWithWhite:0.90 alpha:1.0];
     _p2CardCloseBtn.textAlignment = NSTextAlignmentCenter;
+    _p2CardCloseBtn.adjustsFontSizeToFitWidth = YES;
+    _p2CardCloseBtn.minimumScaleFactor = 0.75;
     _p2CardCloseBtn.backgroundColor = [UIColor colorWithWhite:1.0 alpha:0.12];
     _p2CardCloseBtn.layer.cornerRadius = 8.0;
     _p2CardCloseBtn.layer.masksToBounds = YES;
@@ -1988,10 +2233,11 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
 }
 
 - (void)refreshQuickBarLabels {
+    const ShadowLocalizedStrings &loc = L();
     int pct = static_cast<int>(std::lround(self.preferredOpacity * 100.0));
-    self.quickOpacityLabel.text = self.tvGamepadMode ? @"TV 100%" : [NSString stringWithFormat:@"Opacità %d%%", pct];
-    self.quickHapticsLabel.text = self.haptics.enabled ? @"Aptica ON" : @"Aptica OFF";
-    self.quickAutoHideLabel.text = self.autoHideEnabled ? @"Fade 4s" : @"Fisso";
+    self.quickOpacityLabel.text = self.tvGamepadMode ? loc.tvFullOpacity : [NSString stringWithFormat:loc.opacityFmt, pct];
+    self.quickHapticsLabel.text = self.haptics.enabled ? loc.hapticsOn : loc.hapticsOff;
+    self.quickAutoHideLabel.text = self.autoHideEnabled ? loc.autoHideOn : loc.autoHideOff;
     self.quickTVModeView.available = self.externalDisplayAvailable;
     self.quickTVModeView.active = self.tvGamepadMode;
     self.quickTwoPlayersView.active = self.twoPlayerEnabled;
@@ -2026,13 +2272,13 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     // riappare subito se si disconnette oppure temporaneamente quando si apre il Chaos Emerald menu.
     BOOL shouldShow = self.twoPlayerEnabled && (!self.p2ClientConnected || !self.p2ConnectedPillDismissed || self.quickBarOpen);
     if (self.p2ClientConnected) {
-        self.p2StatusLabel.text = @"Connected";
+        self.p2StatusLabel.text = L().connected;
         self.p2StatusLabel.textColor = [UIColor colorWithRed:0.84 green:1.0 blue:0.90 alpha:1.0];
         self.p2StatusDotView.backgroundColor = [UIColor colorWithRed:0.133 green:0.820 blue:0.420 alpha:1.0];
         self.p2StatusPillView.backgroundColor = [UIColor colorWithRed:0.04 green:0.18 blue:0.10 alpha:0.94];
         self.p2StatusPillView.layer.borderColor = [UIColor colorWithRed:0.16 green:0.86 blue:0.46 alpha:0.95].CGColor;
     } else {
-        self.p2StatusLabel.text = @"Pairing";
+        self.p2StatusLabel.text = L().pairing;
         self.p2StatusLabel.textColor = [UIColor whiteColor];
         self.p2StatusDotView.backgroundColor = self.p2ServerRunning
             ? [UIColor colorWithRed:0.98 green:0.72 blue:0.12 alpha:1.0]
@@ -2110,9 +2356,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     self.p2CardUrlLabel.text = urlStr;
 
     BOOL isHotspot = ([urlStr rangeOfString:@"172.20.10."].location != NSNotFound);
-    self.p2CardTitleLabel.text = isHotspot
-        ? @"2P PAIRING • HOTSPOT PRONTO"
-        : @"2P PAIRING • WI-FI LOCALE";
+    self.p2CardTitleLabel.text = isHotspot ? L().cardTitleHotspot : L().cardTitleWifi;
 
     if (changed || self.p2QrImageView.image == nil) {
         self.p2QrImageView.image = CreateCrispQRImage(urlStr, 150.0);
@@ -2169,7 +2413,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         }
         [self.haptics ensureStarted];
         [self.haptics playButtonDownIsTrigger:NO pressure:0.95f];
-        [self showP2Toast:@"Controller 2P connesso!" duration:2.8];
+        [self showP2Toast:L().toastP2Connected duration:2.8];
         [self scheduleP2ConnectedPillAutoHideAfter:kP2ConnectedPillAutoHideSeconds];
         [self scheduleIdleFadeTimer];
     } else if (!connected && wasConnected && self.twoPlayerEnabled) {
@@ -2177,7 +2421,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         [self wakeControlsAnimated:YES];
         [self.haptics ensureStarted];
         [self.haptics playButtonDownIsTrigger:NO pressure:0.80f];
-        [self showP2Toast:@"Controller 2P disconnesso — tocca Pairing per riconnettere" duration:4.0];
+        [self showP2Toast:L().toastP2Disconnected duration:4.0];
     }
 }
 
@@ -2201,13 +2445,13 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     [self refreshP2StatusPillAnimated:YES];
 
     if (self.p2ClientConnected) {
-        [self showP2Toast:[NSString stringWithFormat:@"2P Connected • Link copiato: %@", urlStr] duration:3.0];
+        [self showP2Toast:[NSString stringWithFormat:L().toastP2ConnectedLinkFmt, urlStr] duration:3.0];
         [self scheduleP2ConnectedPillAutoHideAfter:kP2ConnectedPillAutoHideSeconds];
     } else if (self.p2ServerRunning) {
         [self setP2PairingCardVisible:!self.p2CardVisible animated:YES];
-        [self showP2Toast:[NSString stringWithFormat:@"Link copiato: %@", urlStr] duration:4.0];
+        [self showP2Toast:[NSString stringWithFormat:L().toastLinkCopiedFmt, urlStr] duration:4.0];
     } else {
-        [self showP2Toast:@"Errore avvio server 2P — consenti Rete Locale in Impostazioni" duration:4.0];
+        [self showP2Toast:L().toastServerError duration:4.0];
     }
 }
 
@@ -2226,10 +2470,10 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         if (!silent) {
             [self.haptics ensureStarted];
             [self.haptics playDPadTick];
-            [self showP2Toast:@"AirPlay/HDMI disconnesso — gioco tornato su iPhone" duration:3.5];
+            [self showP2Toast:L().toastTVDisconnected duration:3.5];
         }
     } else if (changed && hasExt && !silent && !self.hiddenForInstaller && !self.hiddenForPhysicalController) {
-        [self showP2Toast:@"AirPlay/HDMI rilevato — Modalità TV disponibile" duration:2.6];
+        [self showP2Toast:L().toastTVReady duration:2.6];
     }
 }
 
@@ -2242,7 +2486,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         self.externalDisplayAvailable = NO;
         self.quickTVModeView.available = NO;
         [self.haptics playDPadTick];
-        [self showP2Toast:@"Collega AirPlay o HDMI per attivare la Modalità TV" duration:2.8];
+        [self showP2Toast:L().toastTVNeedExt duration:2.8];
         return;
     }
 
@@ -2252,7 +2496,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         metalView = FindMetalLayerViewInView(self.window, self);
     }
     if (!metalView || metalView == hostView || metalView == self) {
-        [self showP2Toast:@"Schermo video non pronto — riprova tra un istante" duration:2.5];
+        [self showP2Toast:L().toastTVVideoNotReady duration:2.5];
         return;
     }
 
@@ -2336,7 +2580,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
 
     [self.haptics ensureStarted];
     [self.haptics playButtonDownIsTrigger:NO pressure:0.95f];
-    [self showP2Toast:@"Modalità TV attiva • Gioco su TV, Controller ingrandito su iPhone" duration:3.2];
+    [self showP2Toast:L().toastTVEnabled duration:3.2];
 }
 
 - (void)redrawAllVectorControls {
@@ -2420,7 +2664,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     if (notify) {
         [self.haptics ensureStarted];
         [self.haptics playDPadTick];
-        [self showP2Toast:@"Modalità TV disattivata — gioco tornato su iPhone" duration:2.6];
+        [self showP2Toast:L().toastTVDisabled duration:2.6];
     }
 }
 
@@ -2431,7 +2675,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         [self refreshExternalDisplayAvailabilitySilent:YES];
         if (!self.externalDisplayAvailable) {
             [self.haptics playDPadTick];
-            [self showP2Toast:@"Collega AirPlay o HDMI per attivare la Modalità TV" duration:2.8];
+            [self showP2Toast:L().toastTVNeedExt duration:2.8];
             return;
         }
         [self enableTVMode];
@@ -2775,8 +3019,9 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         self.backView.frame    = CGRectMake(midX + navSize * 0.5 + navGap, navY, navSize, navSize);
     }
 
-    // 7b. Banner compatto Modalita TV in alto al centro (ben distante da L3 e R3)
-    CGFloat tvBannerW = 198.0 * s;
+    // 7b. Banner compatto Modalita TV in alto al centro (larghezza adattata alla lingua del telefono)
+    CGSize tvLblSz = [self.tvExitLabel sizeThatFits:CGSizeMake(W * 0.48, 24.0 * s)];
+    CGFloat tvBannerW = MIN(W * 0.44, MAX(186.0 * s, tvLblSz.width + 38.0 * s));
     CGFloat tvBannerH = 26.0 * s;
     self.tvExitBannerView.frame = CGRectMake(midX - tvBannerW * 0.5, topPad + 2.0 * s, tvBannerW, tvBannerH);
     self.tvExitBannerView.layer.cornerRadius = tvBannerH * 0.5;
@@ -2785,7 +3030,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     self.tvExitDotView.layer.cornerRadius = tvDotSz * 0.5;
     self.tvExitLabel.frame = CGRectMake(24.0 * s, 0, tvBannerW - 32.0 * s, tvBannerH);
 
-    // 8. Quick-HUD Bar sopra al Chaos Emerald (5 pulsanti: Opacità | Aptica | Fade 4s | TV | 2 Omini)
+    // 8. Quick-HUD Bar sopra al Chaos Emerald (5 pulsanti: Opacità | Aptica | Sfuma 4s | TV | 2 Omini)
     CGFloat navY = CGRectGetMinY(self.emeraldView.frame);
     CGFloat qbW = 396.0 * s;
     CGFloat qbH = 38.0 * s;
@@ -2808,7 +3053,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     _quickTVModeRect     = [self convertRect:self.quickTVModeView.frame fromView:self.quickBarView];
     _quickTwoPlayersRect = [self convertRect:self.quickTwoPlayersView.frame fromView:self.quickBarView];
 
-    // 9. Mini-bottoncino Pairing -> Connected + Toast 2P sopra la Quick-HUD Bar (o sopra Chaos Emerald se chiusa)
+    // 9. Mini-bottoncino Abbina/Pairing -> Connesso/Connected + Toast 2P sopra la Quick-HUD Bar
     [self updateP2FloatingFrames];
 }
 
@@ -2821,8 +3066,9 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     CGFloat s = ClampF(static_cast<float>(H / 402.0), 0.76f, 1.32f);
     CGFloat midX = W * 0.5;
 
-    CGFloat pillW = (self.p2ClientConnected ? 116.0 : 96.0) * s;
     CGFloat pillH = 26.0 * s;
+    CGSize pillLblSz = [self.p2StatusLabel sizeThatFits:CGSizeMake(180.0 * s, pillH)];
+    CGFloat pillW = MAX(92.0 * s, pillLblSz.width + 36.0 * s);
     CGFloat navY = CGRectGetMinY(self.emeraldView.frame);
     CGFloat qbH = 38.0 * s;
     CGFloat anchorY = self.quickBarOpen
@@ -3139,7 +3385,7 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
                 if (urlStr.length > 0) {
                     [UIPasteboard generalPasteboard].string = urlStr;
                     [self updateP2PairingCardURL:urlStr];
-                    [self showP2Toast:[NSString stringWithFormat:@"Link copiato: %@", urlStr] duration:3.5];
+                    [self showP2Toast:[NSString stringWithFormat:L().toastLinkCopiedFmt, urlStr] duration:3.5];
                 }
                 [self.haptics ensureStarted];
                 [self.haptics playButtonDownIsTrigger:NO pressure:0.85f];

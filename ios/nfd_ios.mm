@@ -175,9 +175,40 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
         // offri la selezione istantanea in-app (zero dipendenza dal picker XPC) oltre ad App File.
         NSArray<NSURL *> *localCandidates = folderMode ? @[] : ScanLocalDocumentsCandidates();
         if (localCandidates.count > 0) {
+            NSString *pref = ([NSLocale preferredLanguages].firstObject ?: @"en").lowercaseString;
+            NSString *title = @"Select game file";
+            NSString *msg = @"Files found in On My iPhone → ShadowRecomp";
+            NSString *browseLbl = @"Browse iOS Files App...";
+            NSString *cancelLbl = @"Cancel";
+            if ([pref hasPrefix:@"it"]) {
+                title = @"Seleziona file di gioco";
+                msg = @"Trovati file nella cartella Su iPhone → ShadowRecomp";
+                browseLbl = @"Sfoglia App File di iOS...";
+                cancelLbl = @"Annulla";
+            } else if ([pref hasPrefix:@"es"]) {
+                title = @"Seleccionar archivo del juego";
+                msg = @"Archivos encontrados en En mi iPhone → ShadowRecomp";
+                browseLbl = @"Explorar app Archivos de iOS...";
+                cancelLbl = @"Cancelar";
+            } else if ([pref hasPrefix:@"fr"]) {
+                title = @"Sélectionner le fichier du jeu";
+                msg = @"Fichiers trouvés dans Sur mon iPhone → ShadowRecomp";
+                browseLbl = @"Parcourir l’app Fichiers d’iOS...";
+                cancelLbl = @"Annuler";
+            } else if ([pref hasPrefix:@"de"]) {
+                title = @"Spieldatei auswählen";
+                msg = @"Dateien gefunden unter Auf meinem iPhone → ShadowRecomp";
+                browseLbl = @"iOS-Dateien-App durchsuchen...";
+                cancelLbl = @"Abbrechen";
+            } else if ([pref hasPrefix:@"ja"]) {
+                title = @"ゲームファイルを選択";
+                msg = @"「このiPhone内 → ShadowRecomp」にファイルが見つかりました";
+                browseLbl = @"iOSの「ファイル」アプリを参照...";
+                cancelLbl = @"キャンセル";
+            }
             UIAlertController *sheet =
-                [UIAlertController alertControllerWithTitle:@"Seleziona file di gioco"
-                                                    message:@"Trovati file nella cartella Su iPhone → ShadowRecomp"
+                [UIAlertController alertControllerWithTitle:title
+                                                    message:msg
                                              preferredStyle:UIAlertControllerStyleAlert];
             for (NSURL *candidate in localCandidates) {
                 [sheet addAction:[UIAlertAction actionWithTitle:candidate.lastPathComponent
@@ -186,7 +217,7 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
                     [delegate finishWithPath:candidate.path cancelled:NO];
                 }]];
             }
-            [sheet addAction:[UIAlertAction actionWithTitle:@"Sfoglia App File di iOS..."
+            [sheet addAction:[UIAlertAction actionWithTitle:browseLbl
                                                       style:UIAlertActionStyleDefault
                                                     handler:^(__unused UIAlertAction *action) {
                 UIViewController *p = GetTopViewController();
@@ -196,7 +227,7 @@ static nfdresult_t PresentIOSFilesPicker(nfdu8char_t** outPath, BOOL folderMode)
                     [delegate finishWithPath:nil cancelled:YES];
                 }
             }]];
-            [sheet addAction:[UIAlertAction actionWithTitle:@"Annulla"
+            [sheet addAction:[UIAlertAction actionWithTitle:cancelLbl
                                                       style:UIAlertActionStyleCancel
                                                     handler:^(__unused UIAlertAction *action) {
                 [delegate finishWithPath:nil cancelled:YES];
