@@ -11,6 +11,8 @@
 #import <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 #import <QuartzCore/QuartzCore.h>
+#import <QuartzCore/CAMetalLayer.h>
+#import <Metal/Metal.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreImage/CoreImage.h>
 #import <CoreHaptics/CoreHaptics.h>
@@ -24,6 +26,9 @@
 #include <cstring>
 #include <mutex>
 #include <unordered_map>
+
+extern "C" void ShadowIOS_VideoOnWillEnterBackground(void);
+extern "C" void ShadowIOS_VideoOnDidEnterForeground(void);
 
 namespace {
 
@@ -48,6 +53,7 @@ constexpr int kBtnLT    = 6; // Left Trigger analogico 0..255
 constexpr int kBtnRT    = 7; // Right Trigger analogico 0..255
 
 constexpr NSTimeInterval kAutoHideIdleSeconds = 4.0;
+constexpr NSTimeInterval kP2ConnectedPillAutoHideSeconds = 3.5;
 
 IOSVirtualPadSnapshot g_padSlots[4]{};
 std::atomic<uint32_t> g_padActiveSlot{0};
@@ -1228,6 +1234,191 @@ enum class NavIconType : int {
 }
 @end
 
+#pragma mark - TV Mode Vector Icon Button (AirPlay / HDMI External Display)
+
+@interface ShadowTVModeIconView : UIView
+@property (nonatomic, assign) BOOL available; // YES solo se AirPlay o HDMI e connesso
+@property (nonatomic, assign) BOOL active;    // YES quando Modalita TV e attiva
+@end
+
+@implementation ShadowTVModeIconView
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor clearColor];
+        self.opaque = NO;
+        self.userInteractionEnabled = NO;
+        self.layer.cornerRadius = 10.0;
+        self.layer.masksToBounds = YES;
+    }
+    return self;
+}
+
+- (void)setAvailable:(BOOL)available {
+    if (_available != available) {
+        _available = available;
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)setActive:(BOOL)active {
+    if (_active != active) {
+        _active = active;
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)drawRect:(CGRect)rect {
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (!ctx) return;
+
+    CGRect box = CGRectInset(rect, 0.75, 0.75);
+    UIBezierPath *bg = [UIBezierPath bezierPathWithRoundedRect:box cornerRadius:9.5];
+    UIColor *cyanAccent = [UIColor colorWithRed:0.220 green:0.741 blue:0.973 alpha:1.0]; // #38BDF8
+
+    if (self.active) {
+        [[cyanAccent colorWithAlphaComponent:0.34] setFill];
+        [bg fill];
+        [[cyanAccent colorWithAlphaComponent:0.98] setStroke];
+        bg.lineWidth = 1.4;
+        [bg stroke];
+    } else if (self.available) {
+        [[cyanAccent colorWithAlphaComponent:0.15] setFill];
+        [bg fill];
+        [[cyanAccent colorWithAlphaComponent:0.75] setStroke];
+        bg.lineWidth = 1.1;
+        [bg stroke];
+    } else {
+        [[UIColor colorWithWhite:1.0 alpha:0.04] setFill];
+        [bg fill];
+    }
+
+    // Disegna il simbolo vettoriale della TV (cornice 16:10 + schermo + piedistallo)
+    CGFloat w = rect.size.width;
+    CGFloat h = rect.size.height;
+    CGFloat tvW = MIN(w * 0.56, h * 0.88);
+    CGFloat tvH = tvW * 0.64;
+    CGFloat tvX = (w - tvW) * 0.5;
+    CGFloat tvY = (h - tvH) * 0.5 - h * 0.08;
+
+    UIColor *strokeCol = self.active
+        ? [UIColor colorWithRed:0.86 green:0.98 blue:1.0 alpha:1.0]
+        : (self.available
+            ? [UIColor colorWithWhite:0.97 alpha:0.96]
+            : [UIColor colorWithWhite:0.65 alpha:0.34]);
+
+    CGRect screenRect = CGRectMake(tvX, tvY, tvW, tvH);
+    UIBezierPath *tvFrame = [UIBezierPath bezierPathWithRoundedRect:screenRect cornerRadius:2.6];
+
+    if (self.active) {
+        [[cyanAccent colorWithAlphaComponent:0.42] setFill];
+        [tvFrame fill];
+    } else if (self.available) {
+        [[cyanAccent colorWithAlphaComponent:0.14] setFill];
+        [tvFrame fill];
+    }
+
+    [strokeCol setStroke];
+    tvFrame.lineWidth = self.active ? 1.75 : 1.5;
+    [tvFrame stroke];
+
+    // Riflesso diagonale sottile nello schermo TV quando disponibile o attivo
+    if (self.available || self.active) {
+        UIBezierPath *glint = [UIBezierPath bezierPath];
+        [glint moveToPoint:CGPointMake(tvX + tvW * 0.22, tvY + tvH * 0.25)];
+        [glint addLineToPoint:CGPointMake(tvX + tvW * 0.44, tvY + tvH * 0.25)];
+        [[UIColor colorWithWhite:1.0 alpha:self.active ? 0.85 : 0.45] setStroke];
+        glint.lineWidth = 1.1;
+        glint.lineCapStyle = kCGLineCapRound;
+        [glint stroke];
+    }
+
+    // Collo e base del piedistallo TV
+    CGFloat standTopY = tvY + tvH + 1.0;
+    CGFloat standBotY = standTopY + MAX(2.5, h * 0.11);
+    UIBezierPath *stand = [UIBezierPath bezierPath];
+    [stand moveToPoint:CGPointMake(w * 0.5, standTopY)];
+    [stand addLineToPoint:CGPointMake(w * 0.5, standBotY)];
+    [stand moveToPoint:CGPointMake(w * 0.5 - tvW * 0.28, standBotY)];
+    [stand addLineToPoint:CGPointMake(w * 0.5 + tvW * 0.28, standBotY)];
+    [strokeCol setStroke];
+    stand.lineWidth = 1.5;
+    stand.lineCapStyle = kCGLineCapRound;
+    [stand stroke];
+
+    // Pallino di stato ciano in alto a destra quando AirPlay/HDMI e connesso
+    if (self.available || self.active) {
+        CGFloat dotR = 2.3;
+        UIBezierPath *dot = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(box.origin.x + box.size.width - dotR * 2.0 - 3.5,
+                                                                              box.origin.y + 3.5,
+                                                                              dotR * 2.0, dotR * 2.0)];
+        [(self.active ? [UIColor colorWithRed:0.18 green:0.92 blue:0.55 alpha:1.0] : cyanAccent) setFill];
+        [dot fill];
+    }
+}
+@end
+
+#pragma mark - TV Gamepad Mode Obsidian Backdrop (Full-Screen Dedicated Controller Surface)
+
+@interface ShadowTVGamepadBackdropView : UIView
+@end
+
+@implementation ShadowTVGamepadBackdropView
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.opaque = YES;
+        self.backgroundColor = [UIColor colorWithRed:0.028 green:0.030 blue:0.045 alpha:1.0];
+        self.userInteractionEnabled = NO;
+        self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        self.contentMode = UIViewContentModeRedraw;
+    }
+    return self;
+}
+
+- (void)drawRect:(CGRect)rect {
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (!ctx) return;
+
+    CGFloat W = rect.size.width;
+    CGFloat H = rect.size.height;
+    CGPoint center = CGPointMake(W * 0.5, H * 0.5);
+
+    // Base ossidiana opaca (zero blending offscreen)
+    [[UIColor colorWithRed:0.028 green:0.030 blue:0.045 alpha:1.0] setFill];
+    CGContextFillRect(ctx, rect);
+
+    // Sottile bagliore radiale cremisi al centro stile controller Shadow Pro
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    NSArray *colors = @[
+        (__bridge id)[UIColor colorWithRed:0.20 green:0.03 blue:0.06 alpha:0.42].CGColor,
+        (__bridge id)[UIColor colorWithRed:0.05 green:0.05 blue:0.08 alpha:0.18].CGColor,
+        (__bridge id)[UIColor colorWithRed:0.025 green:0.028 blue:0.042 alpha:0.0].CGColor
+    ];
+    CGFloat locs[] = {0.0, 0.48, 1.0};
+    CGGradientRef grad = CGGradientCreateWithColors(cs, (__bridge CFArrayRef)colors, locs);
+    CGContextDrawRadialGradient(ctx, grad, center, 10.0, center, MAX(W, H) * 0.56, 0);
+    CGGradientRelease(grad);
+    CGColorSpaceRelease(cs);
+
+    // Linee sottili di grip ergonomico laterali per orientamento rapido al tatto
+    UIBezierPath *frameLines = [UIBezierPath bezierPath];
+    [frameLines moveToPoint:CGPointMake(W * 0.36, 16.0)];
+    [frameLines addLineToPoint:CGPointMake(W * 0.64, 16.0)];
+    [frameLines moveToPoint:CGPointMake(W * 0.38, H - 14.0)];
+    [frameLines addLineToPoint:CGPointMake(W * 0.62, H - 14.0)];
+    [ShadowCrimsonColor(0.22) setStroke];
+    frameLines.lineWidth = 1.0;
+    [frameLines stroke];
+
+    // Filigrana centrale dell'emblema di Shadow (bassissima opacita per estetica console)
+    CGContextSaveGState(ctx);
+    CGContextSetAlpha(ctx, 0.08);
+    DrawShadowEmblem(ctx, CGPointMake(center.x, center.y - H * 0.04), MIN(W, H) * 0.24, ShadowCrimsonColor(1.0), 0.15);
+    CGContextRestoreGState(ctx);
+}
+@end
+
 #pragma mark - Unified Multi-Touch Overlay Controller
 
 enum class TouchTargetKind : int {
@@ -1249,7 +1440,8 @@ enum class TouchTargetKind : int {
     P2StatusPill,
     P2CardCopy,
     P2CardClose,
-    P2CardBody
+    P2CardBody,
+    TVModeExitBanner
 };
 
 struct ActiveTouchRecord {
@@ -1286,13 +1478,28 @@ struct ActiveTouchRecord {
 @property (nonatomic, strong) ShadowNavCircleButtonView *emeraldView;
 @property (nonatomic, strong) ShadowNavCircleButtonView *backView;
 
-// Quick HUD Bar (Opacità / Aptica / Auto-Hide 4s / 2 Giocatori) aperta dal Chaos Emerald
+// Quick HUD Bar (Opacità / Aptica / Auto-Hide 4s / TV / 2 Giocatori) aperta dal Chaos Emerald
 @property (nonatomic, strong) UIView *quickBarView;
 @property (nonatomic, strong) UILabel *quickOpacityLabel;
 @property (nonatomic, strong) UILabel *quickHapticsLabel;
 @property (nonatomic, strong) UILabel *quickAutoHideLabel;
+@property (nonatomic, strong) ShadowTVModeIconView *quickTVModeView;
 @property (nonatomic, strong) ShadowTwoPlayersIconView *quickTwoPlayersView;
 @property (nonatomic, assign) BOOL quickBarOpen;
+
+// Modalita TV (AirPlay / HDMI): gioco su schermo TV esterno + controller ingrandito cieco-giocabile su iPhone
+@property (nonatomic, strong) ShadowTVGamepadBackdropView *tvBackdropView;
+@property (nonatomic, strong) UIView *tvExitBannerView;
+@property (nonatomic, strong) UIView *tvExitDotView;
+@property (nonatomic, strong) UILabel *tvExitLabel;
+@property (nonatomic, assign) BOOL externalDisplayAvailable;
+@property (nonatomic, assign) BOOL tvGamepadMode;
+@property (nonatomic, strong) UIWindow *tvExternalWindow;
+@property (nonatomic, weak) UIView *tvMovedMetalView;
+@property (nonatomic, weak) UIView *tvOriginalMetalSuperview;
+@property (nonatomic, assign) CGRect tvOriginalMetalFrame;
+@property (nonatomic, assign) UIViewAutoresizing tvOriginalMetalAutoresizing;
+@property (nonatomic, assign) CGFloat tvOriginalMetalScale;
 
 // 2-Player Hotspot Local Server UI (mini-bottoncino Pairing -> Connected + QR Pairing Card + toast)
 @property (nonatomic, strong) UIView *p2StatusPillView;
@@ -1312,6 +1519,8 @@ struct ActiveTouchRecord {
 @property (nonatomic, assign) BOOL twoPlayerEnabled;
 @property (nonatomic, assign) BOOL p2ServerRunning;
 @property (nonatomic, assign) BOOL p2ClientConnected;
+@property (nonatomic, assign) BOOL p2ConnectedPillDismissed;
+@property (nonatomic, strong) NSTimer *p2ConnectedAutoHideTimer;
 @property (nonatomic, strong) NSTimer *p2ToastTimer;
 
 // Stato visibilità, trasparenza & 4s auto-hide
@@ -1326,6 +1535,7 @@ struct ActiveTouchRecord {
 - (void)updateExternalPhysical:(BOOL)sdlPhysical installerVisible:(BOOL)installerVisible chaosAura:(int)aura;
 - (void)clearAllInputs;
 - (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected url:(NSString *)url;
+- (void)refreshExternalDisplayAvailabilitySilent:(BOOL)silent;
 @end
 
 static __weak ShadowTouchOverlayView *g_p2CallbackOverlay = nil;
@@ -1370,12 +1580,51 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
                                            url:urlStr];
 }
 
+static UIWindowScene *FindExternalWindowScene(void) {
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if ([scene isKindOfClass:[UIWindowScene class]]) {
+            UIWindowScene *ws = (UIWindowScene *)scene;
+            if (![ws.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
+                return ws;
+            }
+        }
+    }
+    return nil;
+}
+
+static UIScreen *FindExternalScreen(void) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    UIScreen *mainScreen = [UIScreen mainScreen];
+    for (UIScreen *scr in [UIScreen screens]) {
+        if (scr != mainScreen) {
+            return scr;
+        }
+    }
+#pragma clang diagnostic pop
+    return nil;
+}
+
+static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
+    if (!root || root == excluded) return nil;
+    for (UIView *sub in root.subviews) {
+        if (sub == excluded) continue;
+        if ([sub.layer isKindOfClass:[CAMetalLayer class]]) {
+            return sub;
+        }
+        UIView *nested = FindMetalLayerViewInView(sub, excluded);
+        if (nested) return nested;
+    }
+    return nil;
+}
+
 @implementation ShadowTouchOverlayView {
     std::unordered_map<uintptr_t, ActiveTouchRecord> _activeTouches;
     CGRect _abxyClusterRect;
     CGRect _quickOpacityRect;
     CGRect _quickHapticsRect;
     CGRect _quickAutoHideRect;
+    CGRect _quickTVModeRect;
     CGRect _quickTwoPlayersRect;
     CGRect _p2CardCopyRect;
     CGRect _p2CardCloseRect;
@@ -1405,6 +1654,12 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         self.hidden = YES;
         self.userInteractionEnabled = NO;
 
+        // Sfondo scuro dedicato alla Modalita TV (nascosto finche TV Mode e OFF)
+        _tvBackdropView = [[ShadowTVGamepadBackdropView alloc] initWithFrame:self.bounds];
+        _tvBackdropView.alpha = 0.0;
+        _tvBackdropView.hidden = YES;
+        [self addSubview:_tvBackdropView];
+
         // Container animabile (il root view resta alpha=1.0 così hitTest intercetta sempre il risveglio!)
         _controlsContainer = [[UIView alloc] initWithFrame:self.bounds];
         _controlsContainer.backgroundColor = [UIColor clearColor];
@@ -1418,6 +1673,7 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         [self buildControls];
         [self buildQuickBar];
         [self registerNotifications];
+        [self refreshExternalDisplayAvailabilitySilent:YES];
 
         // Registra callback in tempo reale dal server locale 2P (Pairing -> Connected)
         g_p2CallbackOverlay = self;
@@ -1427,6 +1683,9 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         if (_p2ServerRunning || _p2ClientConnected) {
             _twoPlayerEnabled = YES;
             [self refreshP2StatusPillAnimated:NO];
+            if (_p2ClientConnected) {
+                [self scheduleP2ConnectedPillAutoHideAfter:kP2ConnectedPillAutoHideSeconds];
+            }
         }
 
         [self refreshPhysicalControllerState];
@@ -1442,6 +1701,15 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     }
     [_idleFadeTimer invalidate];
     [_p2ToastTimer invalidate];
+    [_p2ConnectedAutoHideTimer invalidate];
+    if (_tvExternalWindow) {
+        _tvExternalWindow.hidden = YES;
+        _tvExternalWindow.rootViewController = nil;
+        if (@available(iOS 13.0, *)) {
+            _tvExternalWindow.windowScene = nil;
+        }
+        _tvExternalWindow = nil;
+    }
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
@@ -1549,13 +1817,38 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     _quickOpacityLabel = makePill();
     _quickHapticsLabel = makePill();
     _quickAutoHideLabel = makePill();
+    _quickTVModeView = [[ShadowTVModeIconView alloc] initWithFrame:CGRectZero];
     _quickTwoPlayersView = [[ShadowTwoPlayersIconView alloc] initWithFrame:CGRectZero];
 
     [_quickBarView addSubview:_quickOpacityLabel];
     [_quickBarView addSubview:_quickHapticsLabel];
     [_quickBarView addSubview:_quickAutoHideLabel];
+    [_quickBarView addSubview:_quickTVModeView];
     [_quickBarView addSubview:_quickTwoPlayersView];
     [_controlsContainer addSubview:_quickBarView];
+
+    // Badge compatto in alto al centro in Modalita TV (mostra stato + uscita rapida con 1 tap)
+    _tvExitBannerView = [[UIView alloc] initWithFrame:CGRectZero];
+    _tvExitBannerView.backgroundColor = [UIColor colorWithRed:0.04 green:0.10 blue:0.16 alpha:0.92];
+    _tvExitBannerView.layer.cornerRadius = 13.0;
+    _tvExitBannerView.layer.borderWidth = 1.2;
+    _tvExitBannerView.layer.borderColor = [UIColor colorWithRed:0.220 green:0.741 blue:0.973 alpha:0.88].CGColor;
+    _tvExitBannerView.alpha = 0.0;
+    _tvExitBannerView.hidden = YES;
+    _tvExitBannerView.userInteractionEnabled = NO;
+
+    _tvExitDotView = [[UIView alloc] initWithFrame:CGRectZero];
+    _tvExitDotView.backgroundColor = [UIColor colorWithRed:0.220 green:0.741 blue:0.973 alpha:1.0];
+    _tvExitDotView.layer.cornerRadius = 3.5;
+    [_tvExitBannerView addSubview:_tvExitDotView];
+
+    _tvExitLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _tvExitLabel.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightHeavy];
+    _tvExitLabel.textColor = [UIColor colorWithRed:0.88 green:0.97 blue:1.0 alpha:1.0];
+    _tvExitLabel.textAlignment = NSTextAlignmentLeft;
+    _tvExitLabel.text = @"TV MODE • Torna su iPhone";
+    [_tvExitBannerView addSubview:_tvExitLabel];
+    [_controlsContainer addSubview:_tvExitBannerView];
 
     // Mini-bottoncino Pairing -> Connected per 2 Giocatori via Hotspot/Wi-Fi
     _p2StatusPillView = [[UIView alloc] initWithFrame:CGRectZero];
@@ -1669,15 +1962,42 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
 
 - (void)refreshQuickBarLabels {
     int pct = static_cast<int>(std::lround(self.preferredOpacity * 100.0));
-    self.quickOpacityLabel.text = [NSString stringWithFormat:@"Opacità %d%%", pct];
+    self.quickOpacityLabel.text = self.tvGamepadMode ? @"TV 100%" : [NSString stringWithFormat:@"Opacità %d%%", pct];
     self.quickHapticsLabel.text = self.haptics.enabled ? @"Aptica ON" : @"Aptica OFF";
     self.quickAutoHideLabel.text = self.autoHideEnabled ? @"Fade 4s" : @"Fisso";
+    self.quickTVModeView.available = self.externalDisplayAvailable;
+    self.quickTVModeView.active = self.tvGamepadMode;
     self.quickTwoPlayersView.active = self.twoPlayerEnabled;
     self.quickTwoPlayersView.connected = self.p2ClientConnected;
 }
 
+- (void)cancelP2ConnectedPillAutoHide {
+    [self.p2ConnectedAutoHideTimer invalidate];
+    self.p2ConnectedAutoHideTimer = nil;
+}
+
+- (void)scheduleP2ConnectedPillAutoHideAfter:(NSTimeInterval)delay {
+    [self cancelP2ConnectedPillAutoHide];
+    if (!self.twoPlayerEnabled || !self.p2ClientConnected || self.quickBarOpen) {
+        return;
+    }
+    __weak typeof(self) weakSelf = self;
+    self.p2ConnectedAutoHideTimer = [NSTimer scheduledTimerWithTimeInterval:delay repeats:NO block:^(NSTimer * _Nonnull timer) {
+        (void)timer;
+        ShadowTouchOverlayView *strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.p2ConnectedAutoHideTimer = nil;
+        if (strongSelf.twoPlayerEnabled && strongSelf.p2ClientConnected && !strongSelf.quickBarOpen) {
+            strongSelf.p2ConnectedPillDismissed = YES;
+            [strongSelf refreshP2StatusPillAnimated:YES];
+        }
+    }];
+}
+
 - (void)refreshP2StatusPillAnimated:(BOOL)animated {
-    BOOL shouldShow = self.twoPlayerEnabled;
+    // Quando Player 2 e connesso, "Connected" sparisce dopo pochi secondi per non occupare schermo;
+    // riappare subito se si disconnette oppure temporaneamente quando si apre il Chaos Emerald menu.
+    BOOL shouldShow = self.twoPlayerEnabled && (!self.p2ClientConnected || !self.p2ConnectedPillDismissed || self.quickBarOpen);
     if (self.p2ClientConnected) {
         self.p2StatusLabel.text = @"Connected";
         self.p2StatusLabel.textColor = [UIColor colorWithRed:0.84 green:1.0 blue:0.90 alpha:1.0];
@@ -1708,13 +2028,14 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         }
     }
 
-    NSTimeInterval dur = animated ? 0.20 : 0.0;
+    NSTimeInterval dur = animated ? 0.22 : 0.0;
     [UIView animateWithDuration:dur animations:^{
         self.p2StatusPillView.alpha = shouldShow ? 1.0 : 0.0;
         self.p2StatusPillView.transform = shouldShow ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.90, 0.90);
     } completion:^(BOOL finished) {
         (void)finished;
-        if (!self.twoPlayerEnabled) {
+        BOOL stillShow = self.twoPlayerEnabled && (!self.p2ClientConnected || !self.p2ConnectedPillDismissed || self.quickBarOpen);
+        if (!stillShow) {
             self.p2StatusPillView.hidden = YES;
             self.p2StatusPillView.transform = CGAffineTransformIdentity;
         }
@@ -1801,6 +2122,13 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     self.p2ClientConnected = connected;
     if (connected) {
         self.twoPlayerEnabled = YES;
+        if (!wasConnected) {
+            self.p2ConnectedPillDismissed = NO;
+        }
+    } else if (wasConnected) {
+        // Player 2 si e disconnesso: riapri subito il badge Pairing e annulla l'auto-hide!
+        [self cancelP2ConnectedPillAutoHide];
+        self.p2ConnectedPillDismissed = NO;
     }
     if (url.length > 0) {
         [self updateP2PairingCardURL:url];
@@ -1808,17 +2136,21 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [self refreshP2StatusPillAnimated:YES];
 
     if (connected && !wasConnected) {
-        // Chiude subito la card QR e conferma con aptica + badge Connected!
+        // Chiude subito la card QR, mostra "Connected" per ~3.5s poi lo nasconde automaticamente!
         if (self.p2CardVisible) {
             [self setP2PairingCardVisible:NO animated:YES];
         }
         [self.haptics ensureStarted];
         [self.haptics playButtonDownIsTrigger:NO pressure:0.95f];
         [self showP2Toast:@"Controller 2P connesso!" duration:2.8];
+        [self scheduleP2ConnectedPillAutoHideAfter:kP2ConnectedPillAutoHideSeconds];
         [self scheduleIdleFadeTimer];
     } else if (!connected && wasConnected && self.twoPlayerEnabled) {
-        [self.haptics playDPadTick];
-        [self showP2Toast:@"Controller 2P disconnesso — tocca Pairing per QR/Link" duration:3.0];
+        // Risveglia subito l'overlay per avvisare l'utente della disconnessione anche se era in fade!
+        [self wakeControlsAnimated:YES];
+        [self.haptics ensureStarted];
+        [self.haptics playButtonDownIsTrigger:NO pressure:0.80f];
+        [self showP2Toast:@"Controller 2P disconnesso — tocca Pairing per riconnettere" duration:4.0];
     }
 }
 
@@ -1842,12 +2174,240 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [self refreshP2StatusPillAnimated:YES];
 
     if (self.p2ClientConnected) {
-        [self showP2Toast:[NSString stringWithFormat:@"2P Connected • Link copiato: %@", urlStr] duration:3.5];
+        [self showP2Toast:[NSString stringWithFormat:@"2P Connected • Link copiato: %@", urlStr] duration:3.0];
+        [self scheduleP2ConnectedPillAutoHideAfter:kP2ConnectedPillAutoHideSeconds];
     } else if (self.p2ServerRunning) {
         [self setP2PairingCardVisible:!self.p2CardVisible animated:YES];
         [self showP2Toast:[NSString stringWithFormat:@"Link copiato: %@", urlStr] duration:4.0];
     } else {
         [self showP2Toast:@"Errore avvio server 2P — consenti Rete Locale in Impostazioni" duration:4.0];
+    }
+}
+
+#pragma mark - TV Mode (AirPlay / HDMI Dedicated Screen + Oversized Blind-Playable Gamepad)
+
+- (void)refreshExternalDisplayAvailabilitySilent:(BOOL)silent {
+    BOOL hasExt = (FindExternalWindowScene() != nil) || (FindExternalScreen() != nil);
+    BOOL changed = (hasExt != self.externalDisplayAvailable);
+    self.externalDisplayAvailable = hasExt;
+    self.quickTVModeView.available = hasExt;
+    self.quickTVModeView.active = self.tvGamepadMode;
+
+    if (!hasExt && (self.tvGamepadMode || self.tvExternalWindow != nil)) {
+        // AirPlay/HDMI disconnesso durante Modalita TV: riporta subito il gioco sull'iPhone!
+        [self disableTVModeWithNotify:NO];
+        if (!silent) {
+            [self.haptics ensureStarted];
+            [self.haptics playDPadTick];
+            [self showP2Toast:@"AirPlay/HDMI disconnesso — gioco tornato su iPhone" duration:3.5];
+        }
+    } else if (changed && hasExt && !silent && !self.hiddenForInstaller && !self.hiddenForPhysicalController) {
+        [self showP2Toast:@"AirPlay/HDMI rilevato — Modalità TV disponibile" duration:2.6];
+    }
+}
+
+- (void)enableTVMode {
+    if (self.tvGamepadMode || self.hiddenForInstaller) return;
+
+    UIWindowScene *extScene = FindExternalWindowScene();
+    UIScreen *extScreen = extScene ? extScene.screen : FindExternalScreen();
+    if (!extScene && !extScreen) {
+        self.externalDisplayAvailable = NO;
+        self.quickTVModeView.available = NO;
+        [self.haptics playDPadTick];
+        [self showP2Toast:@"Collega AirPlay o HDMI per attivare la Modalità TV" duration:2.8];
+        return;
+    }
+
+    UIView *hostView = self.superview;
+    UIView *metalView = FindMetalLayerViewInView(hostView, self);
+    if (!metalView && self.window) {
+        metalView = FindMetalLayerViewInView(self.window, self);
+    }
+    if (!metalView || metalView == hostView || metalView == self) {
+        [self showP2Toast:@"Schermo video non pronto — riprova tra un istante" duration:2.5];
+        return;
+    }
+
+    [self clearAllInputs];
+    [self toggleQuickBarOpen:NO];
+
+    // 1. Parcheggia in sicurezza il RenderThread Metal/MoltenVK prima di spostare il CAMetalLayer
+    ShadowIOS_VideoOnWillEnterBackground();
+
+    // 2. Salva gerarchia e scala originali sull'iPhone
+    self.tvMovedMetalView = metalView;
+    self.tvOriginalMetalSuperview = metalView.superview;
+    self.tvOriginalMetalFrame = metalView.frame;
+    self.tvOriginalMetalAutoresizing = metalView.autoresizingMask;
+    self.tvOriginalMetalScale = metalView.contentScaleFactor;
+
+    // 3. Crea la UIWindow dedicata sulla TV (preferisce UIWindowScene iOS 16+, fallback UIScreen per LiveContainer)
+    UIWindow *tvWin = nil;
+    if (extScene) {
+        tvWin = [[UIWindow alloc] initWithWindowScene:extScene];
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        tvWin = [[UIWindow alloc] initWithFrame:extScreen.bounds];
+        tvWin.screen = extScreen;
+#pragma clang diagnostic pop
+    }
+    tvWin.backgroundColor = [UIColor blackColor];
+    tvWin.userInteractionEnabled = NO;
+
+    UIViewController *tvVC = [[UIViewController alloc] init];
+    tvVC.view.backgroundColor = [UIColor blackColor];
+    tvVC.view.frame = tvWin.bounds;
+    tvWin.rootViewController = tvVC;
+
+    // 4. Sposta la vista CAMetalLayer di ShadowRecomp sulla TV a schermo intero (cap 1080p per zero Jetsam OOM su TV 4K)
+    [metalView removeFromSuperview];
+    CGRect tvBounds = tvVC.view.bounds;
+    metalView.frame = tvBounds;
+    metalView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [tvVC.view addSubview:metalView];
+    [tvVC.view layoutIfNeeded];
+
+    CGFloat rawScale = extScreen ? MAX(extScreen.scale, 1.0) : 1.0;
+    CGFloat tvScale = rawScale;
+    if (tvBounds.size.width > 1.0 && (tvBounds.size.width * tvScale) > 1920.0) {
+        tvScale = 1920.0 / tvBounds.size.width;
+    }
+    metalView.contentScaleFactor = tvScale;
+    if ([metalView.layer isKindOfClass:[CAMetalLayer class]]) {
+        CAMetalLayer *ml = (CAMetalLayer *)metalView.layer;
+        ml.contentsScale = tvScale;
+        ml.frame = tvBounds;
+        ml.drawableSize = CGSizeMake(std::round(tvBounds.size.width * tvScale),
+                                     std::round(tvBounds.size.height * tvScale));
+    }
+
+    // NON chiamare makeKeyAndVisible: l'iPhone deve restare keyWindow per ricevere multi-touch e aptica!
+    tvWin.hidden = NO;
+    self.tvExternalWindow = tvWin;
+
+    // 5. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK sul TV display
+    ShadowIOS_VideoOnDidEnterForeground();
+
+    // 6. Trasforma lo schermo iPhone in controller virtuale dedicato ingrandito cieco-giocabile
+    self.tvGamepadMode = YES;
+    self.isIdleFaded = NO;
+    [self.idleFadeTimer invalidate];
+    self.idleFadeTimer = nil;
+
+    self.tvBackdropView.hidden = NO;
+    self.tvBackdropView.alpha = 1.0;
+    self.tvExitBannerView.hidden = NO;
+    self.tvExitBannerView.alpha = 1.0;
+
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+    [self redrawAllVectorControls];
+    [self applyVisibilityAnimated:YES];
+    [self refreshQuickBarLabels];
+
+    [self.haptics ensureStarted];
+    [self.haptics playButtonDownIsTrigger:NO pressure:0.95f];
+    [self showP2Toast:@"Modalità TV attiva • Gioco su TV, Controller ingrandito su iPhone" duration:3.2];
+}
+
+- (void)redrawAllVectorControls {
+    NSArray<UIView *> *views = @[
+        self.ltView, self.lbView, self.l3View, self.r3View, self.rtView, self.rbView,
+        self.leftStickView, self.rightStickView, self.dpadView,
+        self.btnYView, self.btnXView, self.btnBView, self.btnAView,
+        self.pauseView, self.emeraldView, self.backView, self.tvBackdropView
+    ];
+    for (UIView *v in views) {
+        [v setNeedsDisplay];
+    }
+    [self.leftStickView.thumbCapView setNeedsDisplay];
+    [self.rightStickView.thumbCapView setNeedsDisplay];
+}
+
+- (void)disableTVModeWithNotify:(BOOL)notify {
+    if (!self.tvGamepadMode && !self.tvExternalWindow) return;
+
+    [self clearAllInputs];
+    if (self.quickBarOpen) {
+        [self toggleQuickBarOpen:NO];
+    }
+
+    // 1. Parcheggia Metal/MoltenVK prima di riportare la vista sull'iPhone
+    ShadowIOS_VideoOnWillEnterBackground();
+
+    // 2. Riporta CAMetalLayer nella finestra principale dell'iPhone dietro l'overlay
+    UIView *metalView = self.tvMovedMetalView;
+    UIView *origParent = self.tvOriginalMetalSuperview ?: self.superview;
+    if (metalView && origParent) {
+        [metalView removeFromSuperview];
+        CGRect restoreFrame = origParent.bounds;
+        metalView.frame = restoreFrame;
+        metalView.autoresizingMask = self.tvOriginalMetalAutoresizing;
+        [origParent insertSubview:metalView atIndex:0];
+        [origParent bringSubviewToFront:self];
+        [origParent layoutIfNeeded];
+
+        CGFloat fallbackScale = (self.window && self.window.screen) ? self.window.screen.scale : 3.0;
+        CGFloat phoneScale = (self.tvOriginalMetalScale > 0.5) ? self.tvOriginalMetalScale : fallbackScale;
+        metalView.contentScaleFactor = phoneScale;
+        if ([metalView.layer isKindOfClass:[CAMetalLayer class]]) {
+            CAMetalLayer *ml = (CAMetalLayer *)metalView.layer;
+            ml.contentsScale = phoneScale;
+            ml.frame = restoreFrame;
+            ml.drawableSize = CGSizeMake(std::round(restoreFrame.size.width * phoneScale),
+                                         std::round(restoreFrame.size.height * phoneScale));
+        }
+    }
+
+    // 3. Stacca completamente la finestra TV cosi iOS ripristina subito il mirroring / schermo iPhone
+    if (self.tvExternalWindow) {
+        self.tvExternalWindow.hidden = YES;
+        self.tvExternalWindow.rootViewController = nil;
+        if (@available(iOS 13.0, *)) {
+            self.tvExternalWindow.windowScene = nil;
+        }
+        self.tvExternalWindow = nil;
+    }
+    self.tvMovedMetalView = nil;
+    self.tvOriginalMetalSuperview = nil;
+
+    // 4. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK su iPhone
+    ShadowIOS_VideoOnDidEnterForeground();
+
+    // 5. Ripristina l'interfaccia normale su iPhone
+    self.tvGamepadMode = NO;
+    self.tvBackdropView.hidden = YES;
+    self.tvBackdropView.alpha = 0.0;
+    self.tvExitBannerView.hidden = YES;
+    self.tvExitBannerView.alpha = 0.0;
+
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
+    [self redrawAllVectorControls];
+    [self applyVisibilityAnimated:YES];
+    [self refreshQuickBarLabels];
+    [self scheduleIdleFadeTimer];
+
+    if (notify) {
+        [self.haptics ensureStarted];
+        [self.haptics playDPadTick];
+        [self showP2Toast:@"Modalità TV disattivata — gioco tornato su iPhone" duration:2.6];
+    }
+}
+
+- (void)toggleTVMode {
+    if (self.tvGamepadMode) {
+        [self disableTVModeWithNotify:YES];
+    } else {
+        [self refreshExternalDisplayAvailabilitySilent:YES];
+        if (!self.externalDisplayAvailable) {
+            [self.haptics playDPadTick];
+            [self showP2Toast:@"Collega AirPlay o HDMI per attivare la Modalità TV" duration:2.8];
+            return;
+        }
+        [self enableTVMode];
     }
 }
 
@@ -1859,6 +2419,24 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [nc addObserver:self selector:@selector(onAppDidEnterBackground:) name:UIApplicationDidEnterBackgroundNotification object:nil];
     [nc addObserver:self selector:@selector(onAppWillEnterForeground:) name:UIApplicationWillEnterForegroundNotification object:nil];
     [nc addObserver:self selector:@selector(onAppDidBecomeActive:) name:UIApplicationDidBecomeActiveNotification object:nil];
+    [nc addObserver:self selector:@selector(onExternalDisplayChanged:) name:@"ShadowIOSExternalDisplayChanged" object:nil];
+    if (@available(iOS 13.0, *)) {
+        [nc addObserver:self selector:@selector(onExternalDisplayChanged:) name:UISceneWillConnectNotification object:nil];
+        [nc addObserver:self selector:@selector(onExternalDisplayChanged:) name:UISceneDidDisconnectNotification object:nil];
+        [nc addObserver:self selector:@selector(onExternalDisplayChanged:) name:UISceneDidActivateNotification object:nil];
+    }
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+    [nc addObserver:self selector:@selector(onExternalDisplayChanged:) name:UIScreenDidConnectNotification object:nil];
+    [nc addObserver:self selector:@selector(onExternalDisplayChanged:) name:UIScreenDidDisconnectNotification object:nil];
+#pragma clang diagnostic pop
+}
+
+- (void)onExternalDisplayChanged:(NSNotification *)note {
+    (void)note;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [self refreshExternalDisplayAvailabilitySilent:NO];
+    });
 }
 
 - (void)onControllerConnectionChanged:(NSNotification *)note {
@@ -1897,6 +2475,7 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     }
     [self.haptics ensureStarted];
     [self refreshPhysicalControllerState];
+    [self refreshExternalDisplayAvailabilitySilent:YES];
     if (self.superview) {
         [self.superview bringSubviewToFront:self];
     }
@@ -1956,6 +2535,9 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
 
 - (void)applyVisibilityAnimated:(BOOL)animated {
     BOOL shouldHideCompletely = self.hiddenForPhysicalController || self.hiddenForInstaller;
+    if (self.hiddenForInstaller && self.tvGamepadMode) {
+        [self disableTVModeWithNotify:NO];
+    }
     self.userInteractionEnabled = !shouldHideCompletely;
     if (shouldHideCompletely) {
         self.controlsContainer.alpha = 0.0;
@@ -1963,7 +2545,8 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         return;
     }
     self.hidden = NO;
-    CGFloat targetAlpha = self.isIdleFaded ? 0.0 : self.preferredOpacity;
+    CGFloat activeAlpha = self.tvGamepadMode ? 1.0 : self.preferredOpacity;
+    CGFloat targetAlpha = (self.isIdleFaded && !self.tvGamepadMode) ? 0.0 : activeAlpha;
     NSTimeInterval dur = animated ? (targetAlpha < 0.01 ? 0.35 : 0.22) : 0.0;
 
     [UIView animateWithDuration:dur
@@ -1980,7 +2563,7 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [self.idleFadeTimer invalidate];
     self.idleFadeTimer = nil;
 
-    if (!self.autoHideEnabled || self.hiddenForPhysicalController || self.hiddenForInstaller || self.quickBarOpen || (self.twoPlayerEnabled && !self.p2ClientConnected)) {
+    if (self.tvGamepadMode || !self.autoHideEnabled || self.hiddenForPhysicalController || self.hiddenForInstaller || self.quickBarOpen || (self.twoPlayerEnabled && !self.p2ClientConnected)) {
         return;
     }
     if (!_activeTouches.empty()) {
@@ -1992,7 +2575,7 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         (void)timer;
         ShadowTouchOverlayView *strongSelf = weakSelf;
         if (!strongSelf) return;
-        if (!strongSelf->_activeTouches.empty() || !strongSelf.autoHideEnabled || strongSelf.quickBarOpen || (strongSelf.twoPlayerEnabled && !strongSelf.p2ClientConnected)) return;
+        if (strongSelf.tvGamepadMode || !strongSelf->_activeTouches.empty() || !strongSelf.autoHideEnabled || strongSelf.quickBarOpen || (strongSelf.twoPlayerEnabled && !strongSelf.p2ClientConnected)) return;
         if (strongSelf.hiddenForPhysicalController || strongSelf.hiddenForInstaller) return;
 
         strongSelf.isIdleFaded = YES;
@@ -2010,7 +2593,8 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [self.idleFadeTimer invalidate];
     self.idleFadeTimer = nil;
 
-    BOOL wasFaded = self.isIdleFaded || (self.controlsContainer.alpha < self.preferredOpacity - 0.03);
+    CGFloat activeAlpha = self.tvGamepadMode ? 1.0 : self.preferredOpacity;
+    BOOL wasFaded = self.isIdleFaded || (self.controlsContainer.alpha < activeAlpha - 0.03);
     self.isIdleFaded = NO;
 
     if (wasFaded) {
@@ -2018,7 +2602,7 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
                               delay:0
                             options:UIViewAnimationOptionBeginFromCurrentState | UIViewAnimationOptionAllowUserInteraction | UIViewAnimationCurveEaseOut
                          animations:^{
-            self.controlsContainer.alpha = self.preferredOpacity;
+            self.controlsContainer.alpha = activeAlpha;
         } completion:nil];
     }
     if (_activeTouches.empty()) {
@@ -2044,86 +2628,157 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     CGFloat W = b.size.width;
     // Scala ergonomica proporzionale all'altezza schermo (iPhone 16 Pro landscape ~402pt)
     CGFloat s = ClampF(static_cast<float>(H / 402.0), 0.76f, 1.32f);
+    CGFloat midX = W * 0.5;
+    self.tvBackdropView.frame = b;
 
-    // 1. Top-Left Shoulders (LT sopra, LB sotto, L3 ala interna angolata)
-    CGFloat trigW = 86.0 * s;
-    CGFloat trigH = 30.0 * s;
-    CGFloat wingW = 70.0 * s;
-    CGFloat wingH = 54.0 * s;
-    CGFloat gapY  = 6.0 * s;
+    if (self.tvGamepadMode) {
+        // MODALITA TV GAMEPAD: controlli ingranditi cieco-giocabili (zero sovrapposizioni, massima ergonomia guardando la TV)
+        CGFloat trigW = 128.0 * s;
+        CGFloat trigH = 40.0 * s;
+        CGFloat lbH   = 35.0 * s;
+        CGFloat wingW = 84.0 * s;
+        CGFloat wingH = 62.0 * s;
+        CGFloat gapY  = 7.0 * s;
 
-    self.ltView.frame = CGRectMake(leftPad, topPad, trigW, trigH);
-    self.lbView.frame = CGRectMake(leftPad, topPad + trigH + gapY, trigW, trigH * 0.88);
-    self.l3View.frame = CGRectMake(leftPad + trigW + 6.0 * s, topPad, wingW, wingH);
+        self.ltView.frame = CGRectMake(leftPad, topPad, trigW, trigH);
+        self.lbView.frame = CGRectMake(leftPad, topPad + trigH + gapY, trigW, lbH);
+        self.l3View.frame = CGRectMake(leftPad + trigW + 8.0 * s, topPad, wingW, wingH);
 
-    // 2. Top-Right Shoulders (speculari: R3 ala interna, RT sopra, RB sotto)
-    self.rtView.frame = CGRectMake(W - rightPad - trigW, topPad, trigW, trigH);
-    self.rbView.frame = CGRectMake(W - rightPad - trigW, topPad + trigH + gapY, trigW, trigH * 0.88);
-    self.r3View.frame = CGRectMake(W - rightPad - trigW - 6.0 * s - wingW, topPad, wingW, wingH);
+        self.rtView.frame = CGRectMake(W - rightPad - trigW, topPad, trigW, trigH);
+        self.rbView.frame = CGRectMake(W - rightPad - trigW, topPad + trigH + gapY, trigW, lbH);
+        self.r3View.frame = CGRectMake(W - rightPad - trigW - 8.0 * s - wingW, topPad, wingW, wingH);
 
-    // 3. Center-Left: L-Analog Stick (Shadow Emblem + anello uncinato) centrato verticalmente (50% altezza)
-    CGFloat lStickSize = 114.0 * s;
-    CGFloat lStickX = leftPad + 10.0 * s;
-    CGFloat midY = H * 0.50;
-    CGFloat minLeftY = CGRectGetMaxY(self.lbView.frame) + 12.0 * s;
-    CGFloat lStickY = MAX(minLeftY, midY - lStickSize * 0.5);
-    self.leftStickView.frame = CGRectMake(lStickX, lStickY, lStickSize, lStickSize);
+        CGFloat lStickSize = 152.0 * s;
+        CGFloat lStickX = leftPad + 4.0 * s;
+        CGFloat minLeftY = CGRectGetMaxY(self.lbView.frame) + 10.0 * s;
+        CGFloat lStickY = MAX(minLeftY, H * 0.44 - lStickSize * 0.5);
+        self.leftStickView.frame = CGRectMake(lStickX, lStickY, lStickSize, lStickSize);
 
-    // 4. Bottom-Left (stile Xbox Original): D-Pad 8-direzioni in basso leggermente verso l'interno
-    CGFloat dpadSize = 96.0 * s;
-    CGFloat dpadX = lStickX + lStickSize * 0.72;
-    CGFloat dpadY = H - bottomPad - dpadSize;
-    self.dpadView.frame = CGRectMake(dpadX, dpadY, dpadSize, dpadSize);
+        CGFloat dpadSize = 114.0 * s;
+        CGFloat dpadX = lStickX + lStickSize * 0.88;
+        CGFloat dpadY = H - bottomPad - dpadSize;
+        self.dpadView.frame = CGRectMake(dpadX, dpadY, dpadSize, dpadSize);
 
-    // 5. Center-Right: Diamante Action Buttons (Y, X, B, A) centrato verticalmente (allineato all'analogico sinistro)
-    CGFloat btnSize = 52.0 * s;
-    CGFloat diamondSpread = 45.0 * s;
-    CGFloat abxyCenterX = W - rightPad - 76.0 * s;
-    CGFloat minAbxyCenterY = CGRectGetMaxY(self.rbView.frame) + diamondSpread + btnSize * 0.5 + 12.0 * s;
-    CGFloat abxyCenterY = MAX(minAbxyCenterY, midY);
+        CGFloat btnSize = 66.0 * s;
+        CGFloat diamondSpread = 56.0 * s;
+        CGFloat abxyCenterX = W - rightPad - 94.0 * s;
+        CGFloat minAbxyCenterY = CGRectGetMaxY(self.rbView.frame) + diamondSpread + btnSize * 0.5 + 8.0 * s;
+        CGFloat abxyCenterY = MAX(minAbxyCenterY, H * 0.47);
 
-    self.btnYView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY - diamondSpread - btnSize * 0.5, btnSize, btnSize);
-    self.btnAView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY + diamondSpread - btnSize * 0.5, btnSize, btnSize);
-    self.btnXView.frame = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
-    self.btnBView.frame = CGRectMake(abxyCenterX + diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
-    _abxyClusterRect = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.56,
-                                  abxyCenterY - diamondSpread - btnSize * 0.56,
-                                  (diamondSpread + btnSize * 0.56) * 2.0,
-                                  (diamondSpread + btnSize * 0.56) * 2.0);
+        self.btnYView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY - diamondSpread - btnSize * 0.5, btnSize, btnSize);
+        self.btnAView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY + diamondSpread - btnSize * 0.5, btnSize, btnSize);
+        self.btnXView.frame = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
+        self.btnBView.frame = CGRectMake(abxyCenterX + diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
+        _abxyClusterRect = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.62,
+                                      abxyCenterY - diamondSpread - btnSize * 0.62,
+                                      (diamondSpread + btnSize * 0.62) * 2.0,
+                                      (diamondSpread + btnSize * 0.62) * 2.0);
 
-    // 6. Bottom-Right (speculare al D-Pad): R-Analog Camera Stick
-    CGFloat rStickSize = 88.0 * s;
-    CGFloat rStickX = abxyCenterX - diamondSpread - rStickSize * 0.72;
-    CGFloat rStickY = H - bottomPad - rStickSize;
-    self.rightStickView.frame = CGRectMake(rStickX, rStickY, rStickSize, rStickSize);
+        CGFloat rStickSize = 104.0 * s;
+        CGFloat rStickX = W - (dpadX + dpadSize);
+        CGFloat rStickY = H - bottomPad - rStickSize;
+        self.rightStickView.frame = CGRectMake(rStickX, rStickY, rStickSize, rStickSize);
 
-    // 7. Bottom-Center: Navigazione (Pausa, Chaos Emerald, Indietro)
-    CGFloat navSize = 40.0 * s;
-    CGFloat navGap  = 16.0 * s;
-    CGFloat navY    = H - bottomPad - navSize - 2.0 * s;
-    CGFloat midX    = W * 0.5;
+        CGFloat navSize = 46.0 * s;
+        CGFloat navGap  = 18.0 * s;
+        CGFloat navY    = H - bottomPad - navSize - 2.0 * s;
+        self.emeraldView.frame = CGRectMake(midX - navSize * 0.5, navY, navSize, navSize);
+        self.pauseView.frame   = CGRectMake(midX - navSize * 1.5 - navGap, navY, navSize, navSize);
+        self.backView.frame    = CGRectMake(midX + navSize * 0.5 + navGap, navY, navSize, navSize);
+    } else {
+        // 1. Top-Left Shoulders (LT sopra, LB sotto, L3 ala interna angolata)
+        CGFloat trigW = 86.0 * s;
+        CGFloat trigH = 30.0 * s;
+        CGFloat wingW = 70.0 * s;
+        CGFloat wingH = 54.0 * s;
+        CGFloat gapY  = 6.0 * s;
 
-    self.emeraldView.frame = CGRectMake(midX - navSize * 0.5, navY, navSize, navSize);
-    self.pauseView.frame   = CGRectMake(midX - navSize * 1.5 - navGap, navY, navSize, navSize);
-    self.backView.frame    = CGRectMake(midX + navSize * 0.5 + navGap, navY, navSize, navSize);
+        self.ltView.frame = CGRectMake(leftPad, topPad, trigW, trigH);
+        self.lbView.frame = CGRectMake(leftPad, topPad + trigH + gapY, trigW, trigH * 0.88);
+        self.l3View.frame = CGRectMake(leftPad + trigW + 6.0 * s, topPad, wingW, wingH);
 
-    // 8. Quick-HUD Bar sopra al Chaos Emerald (4 pulsanti: Opacità | Aptica | Fade 4s | 2 Omini)
-    CGFloat qbW = 342.0 * s;
+        // 2. Top-Right Shoulders (speculari: R3 ala interna, RT sopra, RB sotto)
+        self.rtView.frame = CGRectMake(W - rightPad - trigW, topPad, trigW, trigH);
+        self.rbView.frame = CGRectMake(W - rightPad - trigW, topPad + trigH + gapY, trigW, trigH * 0.88);
+        self.r3View.frame = CGRectMake(W - rightPad - trigW - 6.0 * s - wingW, topPad, wingW, wingH);
+
+        // 3. Center-Left: L-Analog Stick (Shadow Emblem + anello uncinato) centrato verticalmente (50% altezza)
+        CGFloat lStickSize = 114.0 * s;
+        CGFloat lStickX = leftPad + 10.0 * s;
+        CGFloat midY = H * 0.50;
+        CGFloat minLeftY = CGRectGetMaxY(self.lbView.frame) + 12.0 * s;
+        CGFloat lStickY = MAX(minLeftY, midY - lStickSize * 0.5);
+        self.leftStickView.frame = CGRectMake(lStickX, lStickY, lStickSize, lStickSize);
+
+        // 4. Bottom-Left (stile Xbox Original): D-Pad 8-direzioni in basso leggermente verso l'interno
+        CGFloat dpadSize = 96.0 * s;
+        CGFloat dpadX = lStickX + lStickSize * 0.72;
+        CGFloat dpadY = H - bottomPad - dpadSize;
+        self.dpadView.frame = CGRectMake(dpadX, dpadY, dpadSize, dpadSize);
+
+        // 5. Center-Right: Diamante Action Buttons (Y, X, B, A) centrato verticalmente (allineato all'analogico sinistro)
+        CGFloat btnSize = 52.0 * s;
+        CGFloat diamondSpread = 45.0 * s;
+        CGFloat abxyCenterX = W - rightPad - 76.0 * s;
+        CGFloat minAbxyCenterY = CGRectGetMaxY(self.rbView.frame) + diamondSpread + btnSize * 0.5 + 12.0 * s;
+        CGFloat abxyCenterY = MAX(minAbxyCenterY, midY);
+
+        self.btnYView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY - diamondSpread - btnSize * 0.5, btnSize, btnSize);
+        self.btnAView.frame = CGRectMake(abxyCenterX - btnSize * 0.5, abxyCenterY + diamondSpread - btnSize * 0.5, btnSize, btnSize);
+        self.btnXView.frame = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
+        self.btnBView.frame = CGRectMake(abxyCenterX + diamondSpread - btnSize * 0.5, abxyCenterY - btnSize * 0.5, btnSize, btnSize);
+        _abxyClusterRect = CGRectMake(abxyCenterX - diamondSpread - btnSize * 0.56,
+                                      abxyCenterY - diamondSpread - btnSize * 0.56,
+                                      (diamondSpread + btnSize * 0.56) * 2.0,
+                                      (diamondSpread + btnSize * 0.56) * 2.0);
+
+        // 6. Bottom-Right (speculare al D-Pad): R-Analog Camera Stick
+        CGFloat rStickSize = 88.0 * s;
+        CGFloat rStickX = abxyCenterX - diamondSpread - rStickSize * 0.72;
+        CGFloat rStickY = H - bottomPad - rStickSize;
+        self.rightStickView.frame = CGRectMake(rStickX, rStickY, rStickSize, rStickSize);
+
+        // 7. Bottom-Center: Navigazione (Pausa, Chaos Emerald, Indietro)
+        CGFloat navSize = 40.0 * s;
+        CGFloat navGap  = 16.0 * s;
+        CGFloat navY    = H - bottomPad - navSize - 2.0 * s;
+
+        self.emeraldView.frame = CGRectMake(midX - navSize * 0.5, navY, navSize, navSize);
+        self.pauseView.frame   = CGRectMake(midX - navSize * 1.5 - navGap, navY, navSize, navSize);
+        self.backView.frame    = CGRectMake(midX + navSize * 0.5 + navGap, navY, navSize, navSize);
+    }
+
+    // 7b. Banner compatto Modalita TV in alto al centro (ben distante da L3 e R3)
+    CGFloat tvBannerW = 198.0 * s;
+    CGFloat tvBannerH = 26.0 * s;
+    self.tvExitBannerView.frame = CGRectMake(midX - tvBannerW * 0.5, topPad + 2.0 * s, tvBannerW, tvBannerH);
+    self.tvExitBannerView.layer.cornerRadius = tvBannerH * 0.5;
+    CGFloat tvDotSz = 7.0 * s;
+    self.tvExitDotView.frame = CGRectMake(11.0 * s, (tvBannerH - tvDotSz) * 0.5, tvDotSz, tvDotSz);
+    self.tvExitDotView.layer.cornerRadius = tvDotSz * 0.5;
+    self.tvExitLabel.frame = CGRectMake(24.0 * s, 0, tvBannerW - 32.0 * s, tvBannerH);
+
+    // 8. Quick-HUD Bar sopra al Chaos Emerald (5 pulsanti: Opacità | Aptica | Fade 4s | TV | 2 Omini)
+    CGFloat navY = CGRectGetMinY(self.emeraldView.frame);
+    CGFloat qbW = 396.0 * s;
     CGFloat qbH = 38.0 * s;
     self.quickBarView.frame = CGRectMake(midX - qbW * 0.5, navY - qbH - 10.0 * s, qbW, qbH);
     CGFloat pad = 5.0 * s;
+    CGFloat tvBtnW = 44.0 * s;
     CGFloat twoPBtnW = 46.0 * s;
-    CGFloat textAreaW = qbW - pad * 5.0 - twoPBtnW;
+    CGFloat textAreaW = qbW - pad * 6.0 - tvBtnW - twoPBtnW;
     CGFloat itemW = textAreaW / 3.0;
     CGFloat itemH = qbH - pad * 2.0;
     self.quickOpacityLabel.frame   = CGRectMake(pad, pad, itemW, itemH);
     self.quickHapticsLabel.frame   = CGRectMake(pad * 2.0 + itemW, pad, itemW, itemH);
     self.quickAutoHideLabel.frame  = CGRectMake(pad * 3.0 + itemW * 2.0, pad, itemW, itemH);
-    self.quickTwoPlayersView.frame = CGRectMake(pad * 4.0 + itemW * 3.0, pad, twoPBtnW, itemH);
+    self.quickTVModeView.frame     = CGRectMake(pad * 4.0 + itemW * 3.0, pad, tvBtnW, itemH);
+    self.quickTwoPlayersView.frame = CGRectMake(pad * 5.0 + itemW * 3.0 + tvBtnW, pad, twoPBtnW, itemH);
 
     _quickOpacityRect    = [self convertRect:self.quickOpacityLabel.frame fromView:self.quickBarView];
     _quickHapticsRect    = [self convertRect:self.quickHapticsLabel.frame fromView:self.quickBarView];
     _quickAutoHideRect   = [self convertRect:self.quickAutoHideLabel.frame fromView:self.quickBarView];
+    _quickTVModeRect     = [self convertRect:self.quickTVModeView.frame fromView:self.quickBarView];
     _quickTwoPlayersRect = [self convertRect:self.quickTwoPlayersView.frame fromView:self.quickBarView];
 
     // 9. Mini-bottoncino Pairing -> Connected + Toast 2P sopra la Quick-HUD Bar (o sopra Chaos Emerald se chiusa)
@@ -2212,25 +2867,31 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         if (CGRectContainsPoint(CGRectInset(_p2CardCloseRect, -6, -6), p)) return TouchTargetKind::P2CardClose;
         if (CGRectContainsPoint(self.p2PairingCardView.frame, p))          return TouchTargetKind::P2CardBody;
     }
-    if (self.twoPlayerEnabled && !self.p2StatusPillView.hidden && CGRectContainsPoint(CGRectInset(self.p2StatusPillView.frame, -8, -8), p)) {
+    if (self.twoPlayerEnabled && !self.p2StatusPillView.hidden && self.p2StatusPillView.alpha > 0.1 &&
+        CGRectContainsPoint(CGRectInset(self.p2StatusPillView.frame, -8, -8), p)) {
         return TouchTargetKind::P2StatusPill;
+    }
+    if (self.tvGamepadMode && !self.tvExitBannerView.hidden &&
+        CGRectContainsPoint(CGRectInset(self.tvExitBannerView.frame, -8, -8), p)) {
+        return TouchTargetKind::TVModeExitBanner;
     }
     if (self.quickBarOpen && CGRectContainsPoint(CGRectInset(self.quickBarView.frame, -6, -6), p)) {
         return TouchTargetKind::QuickBar;
     }
-    if (CGRectContainsPoint(CGRectInset(self.leftStickView.frame, -12, -12), p))  return TouchTargetKind::LeftStick;
-    if (CGRectContainsPoint(CGRectInset(self.rightStickView.frame, -10, -10), p)) return TouchTargetKind::RightStick;
-    if (CGRectContainsPoint(CGRectInset(self.dpadView.frame, -8, -8), p))         return TouchTargetKind::DPad;
-    if (CGRectContainsPoint(_abxyClusterRect, p))                                 return TouchTargetKind::ABXYCluster;
-    if (CGRectContainsPoint(CGRectInset(self.ltView.frame, -6, -6), p))           return TouchTargetKind::LT;
-    if (CGRectContainsPoint(CGRectInset(self.lbView.frame, -6, -6), p))           return TouchTargetKind::LB;
-    if (CGRectContainsPoint(CGRectInset(self.l3View.frame, -5, -5), p))           return TouchTargetKind::L3;
-    if (CGRectContainsPoint(CGRectInset(self.r3View.frame, -5, -5), p))           return TouchTargetKind::R3;
-    if (CGRectContainsPoint(CGRectInset(self.rtView.frame, -6, -6), p))           return TouchTargetKind::RT;
-    if (CGRectContainsPoint(CGRectInset(self.rbView.frame, -6, -6), p))           return TouchTargetKind::RB;
-    if (CGRectContainsPoint(CGRectInset(self.pauseView.frame, -8, -8), p))        return TouchTargetKind::Start;
-    if (CGRectContainsPoint(CGRectInset(self.emeraldView.frame, -8, -8), p))      return TouchTargetKind::ChaosEmerald;
-    if (CGRectContainsPoint(CGRectInset(self.backView.frame, -8, -8), p))         return TouchTargetKind::Back;
+    CGFloat xp = self.tvGamepadMode ? 6.0 : 0.0;
+    if (CGRectContainsPoint(CGRectInset(self.leftStickView.frame, -(12 + xp), -(12 + xp)), p))  return TouchTargetKind::LeftStick;
+    if (CGRectContainsPoint(CGRectInset(self.rightStickView.frame, -(10 + xp), -(10 + xp)), p)) return TouchTargetKind::RightStick;
+    if (CGRectContainsPoint(CGRectInset(self.dpadView.frame, -(8 + xp), -(8 + xp)), p))         return TouchTargetKind::DPad;
+    if (CGRectContainsPoint(_abxyClusterRect, p))                                               return TouchTargetKind::ABXYCluster;
+    if (CGRectContainsPoint(CGRectInset(self.ltView.frame, -(6 + xp), -(6 + xp)), p))           return TouchTargetKind::LT;
+    if (CGRectContainsPoint(CGRectInset(self.lbView.frame, -(6 + xp), -(6 + xp)), p))           return TouchTargetKind::LB;
+    if (CGRectContainsPoint(CGRectInset(self.l3View.frame, -(5 + xp), -(5 + xp)), p))           return TouchTargetKind::L3;
+    if (CGRectContainsPoint(CGRectInset(self.r3View.frame, -(5 + xp), -(5 + xp)), p))           return TouchTargetKind::R3;
+    if (CGRectContainsPoint(CGRectInset(self.rtView.frame, -(6 + xp), -(6 + xp)), p))           return TouchTargetKind::RT;
+    if (CGRectContainsPoint(CGRectInset(self.rbView.frame, -(6 + xp), -(6 + xp)), p))           return TouchTargetKind::RB;
+    if (CGRectContainsPoint(CGRectInset(self.pauseView.frame, -(8 + xp), -(8 + xp)), p))        return TouchTargetKind::Start;
+    if (CGRectContainsPoint(CGRectInset(self.emeraldView.frame, -(8 + xp), -(8 + xp)), p))      return TouchTargetKind::ChaosEmerald;
+    if (CGRectContainsPoint(CGRectInset(self.backView.frame, -(8 + xp), -(8 + xp)), p))         return TouchTargetKind::Back;
     return TouchTargetKind::None;
 }
 
@@ -2245,9 +2906,13 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     if (kind != TouchTargetKind::None) {
         return self;
     }
-    // Tocchi fuori dai comandi: chiudi eventuale Quick-Bar e lascia passare il tocco a SDL3/ImGui
+    // Tocchi fuori dai comandi: chiudi eventuale Quick-Bar
     if (self.quickBarOpen) {
         [self toggleQuickBarOpen:NO];
+    }
+    // In Modalita TV l'iPhone e un controller dedicato: assorbe tocchi casuali sullo sfondo scuro
+    if (self.tvGamepadMode) {
+        return self;
     }
     return nil;
 }
@@ -2345,10 +3010,17 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     if (self.quickBarOpen == open) return;
     self.quickBarOpen = open;
     if (open) {
+        [self refreshExternalDisplayAvailabilitySilent:YES];
         [self refreshQuickBarLabels];
         self.quickBarView.hidden = NO;
         [self.idleFadeTimer invalidate];
         self.idleFadeTimer = nil;
+        if (self.twoPlayerEnabled && self.p2ClientConnected) {
+            [self cancelP2ConnectedPillAutoHide];
+            [self refreshP2StatusPillAnimated:YES];
+        }
+    } else if (self.twoPlayerEnabled && self.p2ClientConnected) {
+        [self scheduleP2ConnectedPillAutoHideAfter:2.0];
     }
     [UIView animateWithDuration:0.18 animations:^{
         self.quickBarView.alpha = open ? 1.0 : 0.0;
@@ -2383,9 +3055,12 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
         self.autoHideEnabled = !self.autoHideEnabled;
         [ud setBool:self.autoHideEnabled forKey:@"ShadowIOS_AutoHide4s"];
         [self.haptics playDPadTick];
+    } else if (CGRectContainsPoint(_quickTVModeRect, p)) {
+        [self toggleTVMode];
     } else if (CGRectContainsPoint(_quickTwoPlayersRect, p)) {
         self.twoPlayerEnabled = !self.twoPlayerEnabled;
         if (self.twoPlayerEnabled) {
+            self.p2ConnectedPillDismissed = NO;
             [self.haptics ensureStarted];
             [self.haptics playButtonDownIsTrigger:NO pressure:0.8f];
             [self refreshP2StatusPillAnimated:YES];
@@ -2395,6 +3070,8 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
             IOSRemoteP2_StopServer();
             self.p2ServerRunning = NO;
             self.p2ClientConnected = NO;
+            self.p2ConnectedPillDismissed = NO;
+            [self cancelP2ConnectedPillAutoHide];
             [self setP2PairingCardVisible:NO animated:YES];
             [self.p2ToastTimer invalidate];
             self.p2ToastTimer = nil;
@@ -2446,6 +3123,9 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
                 [self setP2PairingCardVisible:NO animated:YES];
                 continue;
             case TouchTargetKind::P2CardBody:
+                continue;
+            case TouchTargetKind::TVModeExitBanner:
+                [self disableTVModeWithNotify:YES];
                 continue;
             case TouchTargetKind::P2StatusPill:
                 [self handlePairingPillTap];
@@ -2787,6 +3467,7 @@ static void EnsureOverlayAttachedOnMainThread(bool hasPhysical, bool installerVi
     [g_sharedOverlay updateExternalPhysical:hasPhysical
                            installerVisible:installerVisible
                                   chaosAura:chaosAura];
+    [g_sharedOverlay refreshExternalDisplayAvailabilitySilent:YES];
 }
 
 extern "C" {

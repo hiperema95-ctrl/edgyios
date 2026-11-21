@@ -480,6 +480,54 @@ test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairin
   assert.match(infoPlist, /NSAllowsLocalNetworking/);
 });
 
+test('Connected pill auto-hide with disconnect alert and AirPlay/HDMI TV Mode (dual-screen + oversized blind-playable gamepad) are wired', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const vcMm = byPath.get('ios/ios_virtual_controller.mm') ?? '';
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+
+  // Feature A: Auto-hide "Connected" pill after 3.5s + immediate wake & alert on disconnect
+  assert.match(vcMm, /kP2ConnectedPillAutoHideSeconds = 3\.5/);
+  assert.match(vcMm, /p2ConnectedAutoHideTimer/);
+  assert.match(vcMm, /p2ConnectedPillDismissed/);
+  assert.match(vcMm, /scheduleP2ConnectedPillAutoHideAfter:/);
+  assert.match(vcMm, /cancelP2ConnectedPillAutoHide/);
+  assert.match(vcMm, /Controller 2P disconnesso/);
+
+  // Feature B: TV Mode icon button placed immediately to the LEFT of "2 omini" in Quick-HUD Bar
+  assert.match(vcMm, /ShadowTVModeIconView/);
+  assert.match(vcMm, /ShadowTVGamepadBackdropView/);
+  assert.match(vcMm, /TouchTargetKind::TVModeExitBanner/);
+  const tvFrameIdx = vcMm.indexOf('self.quickTVModeView.frame');
+  const twoPFrameIdx = vcMm.indexOf('self.quickTwoPlayersView.frame');
+  assert.ok(tvFrameIdx > 0 && twoPFrameIdx > tvFrameIdx, 'TV Mode button must be laid out immediately to the left of 2-Player button');
+  assert.match(vcMm, /pad \* 5\.0 \+ itemW \* 3\.0 \+ tvBtnW/);
+
+  // AirPlay/HDMI external display detection (UIWindowScene + UIScreen fallback for LiveContainer) + SDL external scene readiness
+  assert.match(vcMm, /FindExternalWindowScene/);
+  assert.match(vcMm, /FindExternalScreen/);
+  assert.match(vcMm, /FindMetalLayerViewInView/);
+  assert.match(vcMm, /UISceneWillConnectNotification/);
+  assert.match(vcMm, /UISceneDidDisconnectNotification/);
+  assert.match(vcMm, /UIScreenDidConnectNotification/);
+  assert.match(vcMm, /UIScreenDidDisconnectNotification/);
+  assert.match(vcMm, /ShadowIOSExternalDisplayChanged/);
+  assert.match(applyScript, /ShadowIOSExternalDisplayChanged/);
+  assert.doesNotMatch(applyScript, /rifiuta scene ExternalDisplay\/AirPlay/);
+
+  // Safe Metal/MoltenVK park -> CAMetalLayer reparent -> TV UIWindow -> clean teardown & oversized blind-playable layout
+  assert.match(vcMm, /#import <QuartzCore\/CAMetalLayer\.h>/);
+  assert.match(vcMm, /#import <Metal\/Metal\.h>/);
+  assert.match(vcMm, /ShadowIOS_VideoOnWillEnterBackground\(\)/);
+  assert.match(vcMm, /ShadowIOS_VideoOnDidEnterForeground\(\)/);
+  assert.match(vcMm, /self\.tvExternalWindow\.windowScene = nil;/);
+  assert.match(vcMm, /self\.tvGamepadMode/);
+  assert.match(vcMm, /CGFloat lStickSize = 152\.0 \* s;/);
+  assert.match(vcMm, /CGFloat btnSize = 66\.0 \* s;/);
+  assert.match(vcMm, /redrawAllVectorControls/);
+});
+
 
 
 

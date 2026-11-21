@@ -736,9 +736,10 @@ extern "C" void Discord_RegisterSteamGame(const char*, const char*)
     discord_reg.write_text(discord_stub, encoding="utf-8")
     print("Patched discord_register_linux.cpp (iOS no-op stub without system())")
 
-# 5f. SDL3 UIKit AirPlay / External Display crash fix (Feather standalone):
-#     Impedisce a SDLUIKitSceneDelegate di agganciare scene AirPlay esterne (evitando doppio avvio di main()
-#     e mantenendo il mirroring nativo iOS su TV come LiveContainer) e filtra UIKit_GetActiveWindowScene / UIKit_AddDisplay.
+# 5f. SDL3 UIKit AirPlay / External Display crash fix + TV Mode readiness (Feather standalone & LiveContainer):
+#     Lascia connettere la UIWindowScene esterna in connectedScenes SENZA agganciare finestre SDL e SENZA
+#     riavviare main(): di default iOS fa mirroring nativo senza crash, ma quando l'utente attiva la
+#     Modalita TV il nostro controller virtuale puo creare una UIWindow dedicata sulla TV in tempo reale!
 sdl_uikit_dir = pathlib.Path(sys.argv[8])
 if sdl_uikit_dir.exists():
     app_del = sdl_uikit_dir / "SDL_uikitappdelegate.m"
@@ -747,17 +748,18 @@ if sdl_uikit_dir.exists():
         if "SHADOW_IOS_AIRPLAY_SCENE_FIX" not in ad_src:
             old_cfg = """    // This doesn't appear to be called, but it needs to be implemented to signal that we support the UIScene life cycle
     UISceneConfiguration *config = [[UISceneConfiguration alloc] initWithName:@"SDLSceneConfiguration" sessionRole:connectingSceneSession.role];"""
-            new_cfg = """    /* SHADOW_IOS_AIRPLAY_SCENE_FIX: rifiuta scene ExternalDisplay/AirPlay cosi iOS usa mirroring nativo */
-    if (![connectingSceneSession.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
-        return nil;
-    }
+            new_cfg = """    /* SHADOW_IOS_AIRPLAY_SCENE_FIX: mantiene connessa la scena ExternalDisplay in connectedScenes per Modalita TV (senza window finche e OFF -> mirroring nativo) */
     UISceneConfiguration *config = [[UISceneConfiguration alloc] initWithName:@"SDLSceneConfiguration" sessionRole:connectingSceneSession.role];"""
 
             old_conn = """    if (![scene isKindOfClass:[UIWindowScene class]]) {
         return;
     }"""
-            new_conn = """    if (![scene isKindOfClass:[UIWindowScene class]] ||
-        ![session.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
+            new_conn = """    if (![scene isKindOfClass:[UIWindowScene class]]) {
+        return;
+    }
+    if (![session.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
+        /* Notifica l'overlay virtuale che AirPlay/HDMI e disponibile per la Modalita TV */
+        [[NSNotificationCenter defaultCenter] postNotificationName:@"ShadowIOSExternalDisplayChanged" object:nil];
         return;
     }"""
 
@@ -823,7 +825,7 @@ if sdl_uikit_dir.exists():
                       .replace(old_post, new_post, 1)
                       .replace(old_fg, new_fg, 1))
             app_del.write_text(ad_src, encoding="utf-8")
-            print("Patched SDL_uikitappdelegate.m (AirPlay external scene rejection + single main() guard)")
+            print("Patched SDL_uikitappdelegate.m (AirPlay/HDMI TV Mode scene readiness + single main() guard)")
 
     uikit_vid = sdl_uikit_dir / "SDL_uikitvideo.m"
     if uikit_vid.exists():
