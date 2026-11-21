@@ -70,9 +70,9 @@ test('generateShadowRecompModProfileJson matches ModLoader::Init() schema', () =
   assert.deepEqual(def.EnabledMods, ['Shadow_Reloaded']);
 });
 
-test('buildZipArchiveBytes generates valid PKZIP binary containing all 16 files including .gitignore', () => {
+test('buildZipArchiveBytes generates valid PKZIP binary containing all 18 files including .gitignore', () => {
   const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
-  assert.equal(files.length, 16);
+  assert.equal(files.length, 18);
   const gitignore = files.find((f) => f.path === '.gitignore')?.content ?? '';
   assert.match(gitignore, /\*\.xbe/);
   assert.match(gitignore, /\*\.xiso/);
@@ -406,6 +406,61 @@ test('AirPlay TV external display scene rejection and single-main guard are patc
   assert.match(nfdMm, /UIWindowSceneSessionRoleApplication/);
   assert.match(modMm, /UIWindowSceneSessionRoleApplication/);
 });
+
+test('2-Player Hotspot local HTTP/WebSocket server, "2 omini" HUD button, Pairing->Connected pill, and Player 2 input injection are wired', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const p2H = byPath.get('ios/include/ios_p2_server.h') ?? '';
+  const p2Mm = byPath.get('ios/ios_p2_server.mm') ?? '';
+  const vcMm = byPath.get('ios/ios_virtual_controller.mm') ?? '';
+  const cmakeIos = byPath.get('cmake/ShadowRecompIOS.cmake') ?? '';
+  const applyScript = byPath.get('scripts/apply_ios_port.sh') ?? '';
+  const infoPlist = byPath.get('ios/Info.plist') ?? '';
+
+  // 1. Header & Server implementation (Hotspot bridge100 + RFC 6455 WebSocket + Big Shadow Web Controller)
+  assert.match(p2H, /IOSRemoteP2_StartServer/);
+  assert.match(p2H, /IOSRemoteP2_StopServer/);
+  assert.match(p2H, /IOSRemoteP2_IsConnected/);
+  assert.match(p2H, /IOSRemoteP2_GetURL/);
+  assert.match(p2H, /IOSRemoteP2_GetState/);
+  assert.match(p2H, /IOSRemoteP2_SetRumble/);
+  assert.match(p2H, /IOSRemoteP2_SetStateCallback/);
+
+  assert.match(p2Mm, /bridge100/);
+  assert.match(p2Mm, /172\.20\.10\.1/);
+  assert.match(p2Mm, /258EAFA5-E914-47DA-95CA-C5AB0DC85B11/);
+  assert.match(p2Mm, /Sec-WebSocket-Accept/);
+  assert.match(p2Mm, /CC_SHA1/);
+  assert.match(p2Mm, /TCP_NODELAY/);
+  assert.match(p2Mm, /ShadowRecomp — Controller 2P/);
+  assert.match(p2Mm, /navigator\.vibrate/);
+  assert.match(p2Mm, /requestFullscreen/);
+
+  // 2. Quick-HUD Bar "2 omini" icon + Pairing -> Connected floating pill + UIPasteboard copy
+  assert.match(vcMm, /#include <ios_p2_server\.h>/);
+  assert.match(vcMm, /ShadowTwoPlayersIconView/);
+  assert.match(vcMm, /TouchTargetKind::P2StatusPill/);
+  assert.match(vcMm, /@"Pairing"/);
+  assert.match(vcMm, /@"Connected"/);
+  assert.match(vcMm, /UIPasteboard generalPasteboard/);
+  assert.match(vcMm, /IOSRemoteP2_StartServer\(8765\)/);
+  assert.match(vcMm, /IOSRemoteP2_StopServer\(\)/);
+  assert.match(vcMm, /IOSRemoteP2_SetStateCallback/);
+
+  // 3. CMake + apply_ios_port.sh Player 2 (dwUserIndex == 2) wiring + Info.plist local networking
+  assert.match(cmakeIos, /"os\/ios\/ios_p2_server\.mm"/);
+  assert.match(applyScript, /"os\/ios\/ios_p2_server\.mm"/);
+  assert.match(applyScript, /ios_p2_server\.h/);
+  assert.match(applyScript, /dwUserIndex == 2 && !hasController/);
+  assert.match(applyScript, /IOSRemoteP2_GetState\(&vpad2\)/);
+  assert.match(applyScript, /Config::HorizontalCamera2P == ECameraRotationMode::Reverse/);
+  assert.match(applyScript, /IOSRemoteP2_IsConnected\(\)/);
+  assert.match(applyScript, /IOSRemoteP2_SetRumble/);
+  assert.match(infoPlist, /NSLocalNetworkUsageDescription/);
+  assert.match(infoPlist, /NSAllowsLocalNetworking/);
+});
+
 
 
 

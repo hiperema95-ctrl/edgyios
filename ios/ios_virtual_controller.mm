@@ -16,6 +16,7 @@
 #import <GameController/GameController.h>
 
 #include <ios_virtual_controller.h>
+#include <ios_p2_server.h>
 #include <algorithm>
 #include <atomic>
 #include <cmath>
@@ -1127,6 +1128,105 @@ enum class NavIconType : int {
 }
 @end
 
+#pragma mark - 2-Player ("2 Omini") Vector Icon Button for Quick-HUD Bar
+
+@interface ShadowTwoPlayersIconView : UIView
+@property (nonatomic, assign) BOOL active;
+@property (nonatomic, assign) BOOL connected;
+@end
+
+@implementation ShadowTwoPlayersIconView
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor clearColor];
+        self.opaque = NO;
+        self.userInteractionEnabled = NO;
+        self.layer.cornerRadius = 10.0;
+        self.layer.masksToBounds = YES;
+    }
+    return self;
+}
+
+- (void)setActive:(BOOL)active {
+    if (_active != active) {
+        _active = active;
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)setConnected:(BOOL)connected {
+    if (_connected != connected) {
+        _connected = connected;
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)drawRect:(CGRect)rect {
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (!ctx) return;
+
+    CGRect box = CGRectInset(rect, 0.75, 0.75);
+    UIBezierPath *bg = [UIBezierPath bezierPathWithRoundedRect:box cornerRadius:9.5];
+    if (self.connected) {
+        [[UIColor colorWithRed:0.08 green:0.42 blue:0.22 alpha:0.65] setFill];
+        [bg fill];
+        [[UIColor colorWithRed:0.18 green:0.86 blue:0.46 alpha:0.95] setStroke];
+        bg.lineWidth = 1.3;
+        [bg stroke];
+    } else if (self.active) {
+        [ShadowCrimsonColor(0.32) setFill];
+        [bg fill];
+        [ShadowCrimsonColor(0.95) setStroke];
+        bg.lineWidth = 1.3;
+        [bg stroke];
+    } else {
+        [[UIColor colorWithWhite:1.0 alpha:0.08] setFill];
+        [bg fill];
+    }
+
+    // Disegna 2 omini stilizzati affiancati (Giocatore 1 + Giocatore 2)
+    CGFloat w = rect.size.width;
+    CGFloat h = rect.size.height;
+    CGFloat cy = h * 0.50;
+    CGFloat headR = MIN(w, h) * 0.145;
+
+    auto drawPerson = ^(CGFloat cx, CGFloat yOffset, CGFloat scale, UIColor *color) {
+        CGFloat r = headR * scale;
+        CGFloat headY = cy - r * 1.15 + yOffset;
+        [color setFill];
+
+        // Testa
+        UIBezierPath *head = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(cx - r, headY - r, r * 2.0, r * 2.0)];
+        [head fill];
+
+        // Spalle / busto a cupola pulita
+        CGFloat bodyW = r * 2.95;
+        CGFloat bodyH = r * 1.95;
+        CGFloat bodyTop = headY + r * 1.20;
+        UIBezierPath *body = [UIBezierPath bezierPath];
+        [body moveToPoint:CGPointMake(cx - bodyW * 0.5, bodyTop + bodyH)];
+        [body addCurveToPoint:CGPointMake(cx + bodyW * 0.5, bodyTop + bodyH)
+                controlPoint1:CGPointMake(cx - bodyW * 0.5, bodyTop - bodyH * 0.28)
+                controlPoint2:CGPointMake(cx + bodyW * 0.5, bodyTop - bodyH * 0.28)];
+        [body closePath];
+        [body fill];
+    };
+
+    UIColor *backColor = self.connected
+        ? [UIColor colorWithRed:0.55 green:0.98 blue:0.72 alpha:0.92]
+        : (self.active ? [UIColor colorWithRed:1.0 green:0.58 blue:0.64 alpha:0.95] : [UIColor colorWithWhite:0.82 alpha:0.80]);
+    UIColor *frontColor = self.connected
+        ? [UIColor colorWithRed:0.86 green:1.0 blue:0.92 alpha:1.0]
+        : [UIColor whiteColor];
+
+    // Omino 2 (destra, leggermente arretrato)
+    drawPerson(w * 0.62, 0.5, 0.88, backColor);
+    // Omino 1 (sinistra, in primo piano)
+    drawPerson(w * 0.37, 0.0, 1.0, frontColor);
+}
+@end
+
 #pragma mark - Unified Multi-Touch Overlay Controller
 
 enum class TouchTargetKind : int {
@@ -1144,7 +1244,8 @@ enum class TouchTargetKind : int {
     Start,
     Back,
     ChaosEmerald,
-    QuickBar
+    QuickBar,
+    P2StatusPill
 };
 
 struct ActiveTouchRecord {
@@ -1181,12 +1282,23 @@ struct ActiveTouchRecord {
 @property (nonatomic, strong) ShadowNavCircleButtonView *emeraldView;
 @property (nonatomic, strong) ShadowNavCircleButtonView *backView;
 
-// Quick HUD Bar (Opacità / Aptica / Auto-Hide 4s) aperta dal Chaos Emerald
+// Quick HUD Bar (Opacità / Aptica / Auto-Hide 4s / 2 Giocatori) aperta dal Chaos Emerald
 @property (nonatomic, strong) UIView *quickBarView;
 @property (nonatomic, strong) UILabel *quickOpacityLabel;
 @property (nonatomic, strong) UILabel *quickHapticsLabel;
 @property (nonatomic, strong) UILabel *quickAutoHideLabel;
+@property (nonatomic, strong) ShadowTwoPlayersIconView *quickTwoPlayersView;
 @property (nonatomic, assign) BOOL quickBarOpen;
+
+// 2-Player Hotspot Local Server UI (mini-bottoncino Pairing -> Connected + toast link copiato)
+@property (nonatomic, strong) UIView *p2StatusPillView;
+@property (nonatomic, strong) UIView *p2StatusDotView;
+@property (nonatomic, strong) UILabel *p2StatusLabel;
+@property (nonatomic, strong) UILabel *p2ToastLabel;
+@property (nonatomic, assign) BOOL twoPlayerEnabled;
+@property (nonatomic, assign) BOOL p2ServerRunning;
+@property (nonatomic, assign) BOOL p2ClientConnected;
+@property (nonatomic, strong) NSTimer *p2ToastTimer;
 
 // Stato visibilità, trasparenza & 4s auto-hide
 @property (nonatomic, assign) CGFloat preferredOpacity;
@@ -1199,7 +1311,17 @@ struct ActiveTouchRecord {
 
 - (void)updateExternalPhysical:(BOOL)sdlPhysical installerVisible:(BOOL)installerVisible chaosAura:(int)aura;
 - (void)clearAllInputs;
+- (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected;
 @end
+
+static __weak ShadowTouchOverlayView *g_p2CallbackOverlay = nil;
+
+static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected) {
+    ShadowTouchOverlayView *overlay = g_p2CallbackOverlay;
+    if (!overlay) return;
+    [overlay handleRemoteP2StateChangedRunning:(serverRunning ? YES : NO)
+                                     connected:(clientConnected ? YES : NO)];
+}
 
 @implementation ShadowTouchOverlayView {
     std::unordered_map<uintptr_t, ActiveTouchRecord> _activeTouches;
@@ -1207,6 +1329,7 @@ struct ActiveTouchRecord {
     CGRect _quickOpacityRect;
     CGRect _quickHapticsRect;
     CGRect _quickAutoHideRect;
+    CGRect _quickTwoPlayersRect;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -1244,6 +1367,17 @@ struct ActiveTouchRecord {
         [self buildControls];
         [self buildQuickBar];
         [self registerNotifications];
+
+        // Registra callback in tempo reale dal server locale 2P (Pairing -> Connected)
+        g_p2CallbackOverlay = self;
+        IOSRemoteP2_SetStateCallback(&OnIOSRemoteP2StateChanged);
+        _p2ServerRunning = IOSRemoteP2_IsServerRunning() ? YES : NO;
+        _p2ClientConnected = IOSRemoteP2_IsConnected() ? YES : NO;
+        if (_p2ServerRunning || _p2ClientConnected) {
+            _twoPlayerEnabled = YES;
+            [self refreshP2StatusPillAnimated:NO];
+        }
+
         [self refreshPhysicalControllerState];
         [self scheduleIdleFadeTimer];
     }
@@ -1251,7 +1385,12 @@ struct ActiveTouchRecord {
 }
 
 - (void)dealloc {
+    if (g_p2CallbackOverlay == self) {
+        g_p2CallbackOverlay = nil;
+        IOSRemoteP2_SetStateCallback(nullptr);
+    }
     [_idleFadeTimer invalidate];
+    [_p2ToastTimer invalidate];
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
@@ -1359,10 +1498,53 @@ struct ActiveTouchRecord {
     _quickOpacityLabel = makePill();
     _quickHapticsLabel = makePill();
     _quickAutoHideLabel = makePill();
+    _quickTwoPlayersView = [[ShadowTwoPlayersIconView alloc] initWithFrame:CGRectZero];
+
     [_quickBarView addSubview:_quickOpacityLabel];
     [_quickBarView addSubview:_quickHapticsLabel];
     [_quickBarView addSubview:_quickAutoHideLabel];
+    [_quickBarView addSubview:_quickTwoPlayersView];
     [_controlsContainer addSubview:_quickBarView];
+
+    // Mini-bottoncino Pairing -> Connected per 2 Giocatori via Hotspot/Wi-Fi
+    _p2StatusPillView = [[UIView alloc] initWithFrame:CGRectZero];
+    _p2StatusPillView.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.12 alpha:0.92];
+    _p2StatusPillView.layer.cornerRadius = 13.0;
+    _p2StatusPillView.layer.borderWidth = 1.3;
+    _p2StatusPillView.layer.borderColor = ShadowCrimsonColor(0.92).CGColor;
+    _p2StatusPillView.alpha = 0.0;
+    _p2StatusPillView.hidden = YES;
+    _p2StatusPillView.userInteractionEnabled = NO;
+
+    _p2StatusDotView = [[UIView alloc] initWithFrame:CGRectZero];
+    _p2StatusDotView.backgroundColor = ShadowCrimsonColor(1.0);
+    _p2StatusDotView.layer.cornerRadius = 3.5;
+    [_p2StatusPillView addSubview:_p2StatusDotView];
+
+    _p2StatusLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _p2StatusLabel.font = [UIFont systemFontOfSize:11.5 weight:UIFontWeightHeavy];
+    _p2StatusLabel.textColor = [UIColor whiteColor];
+    _p2StatusLabel.textAlignment = NSTextAlignmentLeft;
+    _p2StatusLabel.text = @"Pairing";
+    [_p2StatusPillView addSubview:_p2StatusLabel];
+
+    [_controlsContainer addSubview:_p2StatusPillView];
+
+    // Toast compatto sopra il bottoncino Pairing quando il link locale viene copiato negli appunti
+    _p2ToastLabel = [[UILabel alloc] initWithFrame:CGRectZero];
+    _p2ToastLabel.font = [UIFont monospacedSystemFontOfSize:10.5 weight:UIFontWeightSemibold];
+    _p2ToastLabel.textColor = [UIColor colorWithRed:0.95 green:0.96 blue:0.99 alpha:1.0];
+    _p2ToastLabel.textAlignment = NSTextAlignmentCenter;
+    _p2ToastLabel.backgroundColor = [UIColor colorWithRed:0.05 green:0.06 blue:0.10 alpha:0.92];
+    _p2ToastLabel.layer.cornerRadius = 10.0;
+    _p2ToastLabel.layer.masksToBounds = YES;
+    _p2ToastLabel.layer.borderWidth = 1.0;
+    _p2ToastLabel.layer.borderColor = ShadowCrimsonColor(0.70).CGColor;
+    _p2ToastLabel.alpha = 0.0;
+    _p2ToastLabel.hidden = YES;
+    _p2ToastLabel.userInteractionEnabled = NO;
+    [_controlsContainer addSubview:_p2ToastLabel];
+
     [self refreshQuickBarLabels];
 }
 
@@ -1371,6 +1553,129 @@ struct ActiveTouchRecord {
     self.quickOpacityLabel.text = [NSString stringWithFormat:@"Opacità %d%%", pct];
     self.quickHapticsLabel.text = self.haptics.enabled ? @"Aptica ON" : @"Aptica OFF";
     self.quickAutoHideLabel.text = self.autoHideEnabled ? @"Fade 4s" : @"Fisso";
+    self.quickTwoPlayersView.active = self.twoPlayerEnabled;
+    self.quickTwoPlayersView.connected = self.p2ClientConnected;
+}
+
+- (void)refreshP2StatusPillAnimated:(BOOL)animated {
+    BOOL shouldShow = self.twoPlayerEnabled;
+    if (self.p2ClientConnected) {
+        self.p2StatusLabel.text = @"Connected";
+        self.p2StatusLabel.textColor = [UIColor colorWithRed:0.84 green:1.0 blue:0.90 alpha:1.0];
+        self.p2StatusDotView.backgroundColor = [UIColor colorWithRed:0.133 green:0.820 blue:0.420 alpha:1.0];
+        self.p2StatusPillView.backgroundColor = [UIColor colorWithRed:0.04 green:0.18 blue:0.10 alpha:0.94];
+        self.p2StatusPillView.layer.borderColor = [UIColor colorWithRed:0.16 green:0.86 blue:0.46 alpha:0.95].CGColor;
+    } else {
+        self.p2StatusLabel.text = @"Pairing";
+        self.p2StatusLabel.textColor = [UIColor whiteColor];
+        self.p2StatusDotView.backgroundColor = self.p2ServerRunning
+            ? [UIColor colorWithRed:0.98 green:0.72 blue:0.12 alpha:1.0]
+            : ShadowCrimsonColor(1.0);
+        self.p2StatusPillView.backgroundColor = [UIColor colorWithRed:0.08 green:0.07 blue:0.12 alpha:0.92];
+        self.p2StatusPillView.layer.borderColor = (self.p2ServerRunning
+            ? [UIColor colorWithRed:0.98 green:0.72 blue:0.12 alpha:0.95]
+            : ShadowCrimsonColor(0.92)).CGColor;
+    }
+
+    self.quickTwoPlayersView.active = self.twoPlayerEnabled;
+    self.quickTwoPlayersView.connected = self.p2ClientConnected;
+
+    if (shouldShow) {
+        self.p2StatusPillView.hidden = NO;
+        self.p2StatusPillView.transform = CGAffineTransformIdentity;
+        [self updateP2FloatingFrames];
+        if (animated && self.p2StatusPillView.alpha < 0.1) {
+            self.p2StatusPillView.transform = CGAffineTransformMakeScale(0.90, 0.90);
+        }
+    }
+
+    NSTimeInterval dur = animated ? 0.20 : 0.0;
+    [UIView animateWithDuration:dur animations:^{
+        self.p2StatusPillView.alpha = shouldShow ? 1.0 : 0.0;
+        self.p2StatusPillView.transform = shouldShow ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.90, 0.90);
+    } completion:^(BOOL finished) {
+        (void)finished;
+        if (!self.twoPlayerEnabled) {
+            self.p2StatusPillView.hidden = YES;
+            self.p2StatusPillView.transform = CGAffineTransformIdentity;
+        }
+    }];
+}
+
+- (void)showP2Toast:(NSString *)message duration:(NSTimeInterval)seconds {
+    [self.p2ToastTimer invalidate];
+    self.p2ToastTimer = nil;
+
+    self.p2ToastLabel.text = [NSString stringWithFormat:@"  %@  ", message];
+    self.p2ToastLabel.hidden = NO;
+    [self updateP2FloatingFrames];
+
+    [UIView animateWithDuration:0.18 animations:^{
+        self.p2ToastLabel.alpha = 1.0;
+    }];
+
+    __weak typeof(self) weakSelf = self;
+    self.p2ToastTimer = [NSTimer scheduledTimerWithTimeInterval:seconds repeats:NO block:^(NSTimer * _Nonnull timer) {
+        (void)timer;
+        ShadowTouchOverlayView *strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [UIView animateWithDuration:0.25 animations:^{
+            strongSelf.p2ToastLabel.alpha = 0.0;
+        } completion:^(BOOL finished) {
+            (void)finished;
+            if (strongSelf.p2ToastLabel.alpha < 0.05) {
+                strongSelf.p2ToastLabel.hidden = YES;
+            }
+        }];
+    }];
+}
+
+- (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected {
+    BOOL wasConnected = self.p2ClientConnected;
+    self.p2ServerRunning = running;
+    self.p2ClientConnected = connected;
+    if (connected) {
+        self.twoPlayerEnabled = YES;
+    }
+    [self refreshP2StatusPillAnimated:YES];
+
+    if (connected && !wasConnected) {
+        // Conferma aptica + feedback visivo nell'esatto istante in cui Smartphone 2 si collega!
+        [self.haptics ensureStarted];
+        [self.haptics playButtonDownIsTrigger:NO pressure:0.95f];
+        [self showP2Toast:@"Controller 2P connesso!" duration:2.8];
+        [self scheduleIdleFadeTimer];
+    } else if (!connected && wasConnected && self.twoPlayerEnabled) {
+        [self.haptics playDPadTick];
+        [self showP2Toast:@"Controller 2P disconnesso — in attesa su Pairing" duration:3.0];
+    }
+}
+
+- (void)handlePairingPillTap {
+    if (!self.twoPlayerEnabled) return;
+
+    BOOL started = IOSRemoteP2_StartServer(8765) ? YES : NO;
+    self.p2ServerRunning = started || (IOSRemoteP2_IsServerRunning() ? YES : NO);
+    self.p2ClientConnected = IOSRemoteP2_IsConnected() ? YES : NO;
+
+    char urlBuf[160] = {0};
+    IOSRemoteP2_GetURL(urlBuf, sizeof(urlBuf));
+    NSString *urlStr = [NSString stringWithUTF8String:urlBuf];
+    if (urlStr.length > 0) {
+        [UIPasteboard generalPasteboard].string = urlStr;
+    }
+
+    [self.haptics ensureStarted];
+    [self.haptics playButtonDownIsTrigger:NO pressure:0.85f];
+    [self refreshP2StatusPillAnimated:YES];
+
+    if (self.p2ClientConnected) {
+        [self showP2Toast:[NSString stringWithFormat:@"2P Connected • Link copiato: %@", urlStr] duration:3.5];
+    } else if (self.p2ServerRunning) {
+        [self showP2Toast:[NSString stringWithFormat:@"Link copiato: %@", urlStr] duration:4.5];
+    } else {
+        [self showP2Toast:@"Errore avvio server 2P — controlla Hotspot" duration:3.5];
+    }
 }
 
 - (void)registerNotifications {
@@ -1480,7 +1785,7 @@ struct ActiveTouchRecord {
     [self.idleFadeTimer invalidate];
     self.idleFadeTimer = nil;
 
-    if (!self.autoHideEnabled || self.hiddenForPhysicalController || self.hiddenForInstaller || self.quickBarOpen) {
+    if (!self.autoHideEnabled || self.hiddenForPhysicalController || self.hiddenForInstaller || self.quickBarOpen || (self.twoPlayerEnabled && !self.p2ClientConnected)) {
         return;
     }
     if (!_activeTouches.empty()) {
@@ -1492,7 +1797,7 @@ struct ActiveTouchRecord {
         (void)timer;
         ShadowTouchOverlayView *strongSelf = weakSelf;
         if (!strongSelf) return;
-        if (!strongSelf->_activeTouches.empty() || !strongSelf.autoHideEnabled || strongSelf.quickBarOpen) return;
+        if (!strongSelf->_activeTouches.empty() || !strongSelf.autoHideEnabled || strongSelf.quickBarOpen || (strongSelf.twoPlayerEnabled && !strongSelf.p2ClientConnected)) return;
         if (strongSelf.hiddenForPhysicalController || strongSelf.hiddenForInstaller) return;
 
         strongSelf.isIdleFaded = YES;
@@ -1607,25 +1912,73 @@ struct ActiveTouchRecord {
     self.pauseView.frame   = CGRectMake(midX - navSize * 1.5 - navGap, navY, navSize, navSize);
     self.backView.frame    = CGRectMake(midX + navSize * 0.5 + navGap, navY, navSize, navSize);
 
-    // 8. Quick-HUD Bar sopra al Chaos Emerald
-    CGFloat qbW = 286.0 * s;
+    // 8. Quick-HUD Bar sopra al Chaos Emerald (4 pulsanti: Opacità | Aptica | Fade 4s | 2 Omini)
+    CGFloat qbW = 342.0 * s;
     CGFloat qbH = 38.0 * s;
     self.quickBarView.frame = CGRectMake(midX - qbW * 0.5, navY - qbH - 10.0 * s, qbW, qbH);
     CGFloat pad = 5.0 * s;
-    CGFloat itemW = (qbW - pad * 4.0) / 3.0;
+    CGFloat twoPBtnW = 46.0 * s;
+    CGFloat textAreaW = qbW - pad * 5.0 - twoPBtnW;
+    CGFloat itemW = textAreaW / 3.0;
     CGFloat itemH = qbH - pad * 2.0;
-    self.quickOpacityLabel.frame  = CGRectMake(pad, pad, itemW, itemH);
-    self.quickHapticsLabel.frame  = CGRectMake(pad * 2.0 + itemW, pad, itemW, itemH);
-    self.quickAutoHideLabel.frame = CGRectMake(pad * 3.0 + itemW * 2.0, pad, itemW, itemH);
+    self.quickOpacityLabel.frame   = CGRectMake(pad, pad, itemW, itemH);
+    self.quickHapticsLabel.frame   = CGRectMake(pad * 2.0 + itemW, pad, itemW, itemH);
+    self.quickAutoHideLabel.frame  = CGRectMake(pad * 3.0 + itemW * 2.0, pad, itemW, itemH);
+    self.quickTwoPlayersView.frame = CGRectMake(pad * 4.0 + itemW * 3.0, pad, twoPBtnW, itemH);
 
-    _quickOpacityRect  = [self convertRect:self.quickOpacityLabel.frame fromView:self.quickBarView];
-    _quickHapticsRect  = [self convertRect:self.quickHapticsLabel.frame fromView:self.quickBarView];
-    _quickAutoHideRect = [self convertRect:self.quickAutoHideLabel.frame fromView:self.quickBarView];
+    _quickOpacityRect    = [self convertRect:self.quickOpacityLabel.frame fromView:self.quickBarView];
+    _quickHapticsRect    = [self convertRect:self.quickHapticsLabel.frame fromView:self.quickBarView];
+    _quickAutoHideRect   = [self convertRect:self.quickAutoHideLabel.frame fromView:self.quickBarView];
+    _quickTwoPlayersRect = [self convertRect:self.quickTwoPlayersView.frame fromView:self.quickBarView];
+
+    // 9. Mini-bottoncino Pairing -> Connected + Toast 2P sopra la Quick-HUD Bar (o sopra Chaos Emerald se chiusa)
+    [self updateP2FloatingFrames];
+}
+
+- (void)updateP2FloatingFrames {
+    CGRect b = self.bounds;
+    if (b.size.width < 100.0 || b.size.height < 100.0) return;
+
+    CGFloat H = b.size.height;
+    CGFloat W = b.size.width;
+    CGFloat s = ClampF(static_cast<float>(H / 402.0), 0.76f, 1.32f);
+    CGFloat midX = W * 0.5;
+
+    CGFloat pillW = (self.p2ClientConnected ? 116.0 : 96.0) * s;
+    CGFloat pillH = 26.0 * s;
+    CGFloat navY = CGRectGetMinY(self.emeraldView.frame);
+    CGFloat qbH = 38.0 * s;
+    CGFloat anchorY = self.quickBarOpen
+        ? (navY - qbH - 10.0 * s - pillH - 8.0 * s)
+        : (navY - pillH - 10.0 * s);
+
+    CGAffineTransform prevT = self.p2StatusPillView.transform;
+    self.p2StatusPillView.transform = CGAffineTransformIdentity;
+    self.p2StatusPillView.frame = CGRectMake(midX - pillW * 0.5, anchorY, pillW, pillH);
+    self.p2StatusPillView.layer.cornerRadius = pillH * 0.5;
+    self.p2StatusPillView.transform = prevT;
+
+    CGFloat dotSize = 7.0 * s;
+    CGFloat dotX = 11.0 * s;
+    self.p2StatusDotView.frame = CGRectMake(dotX, (pillH - dotSize) * 0.5, dotSize, dotSize);
+    self.p2StatusDotView.layer.cornerRadius = dotSize * 0.5;
+
+    CGFloat lblX = dotX + dotSize + 7.0 * s;
+    self.p2StatusLabel.frame = CGRectMake(lblX, 0, pillW - lblX - 8.0 * s, pillH);
+
+    // Toast link copiato centrato subito sopra il bottoncino Pairing
+    CGSize toastSize = [self.p2ToastLabel sizeThatFits:CGSizeMake(W * 0.78, 24.0 * s)];
+    CGFloat toastW = MIN(W * 0.82, MAX(148.0 * s, toastSize.width + 14.0 * s));
+    CGFloat toastH = 22.0 * s;
+    self.p2ToastLabel.frame = CGRectMake(midX - toastW * 0.5, anchorY - toastH - 6.0 * s, toastW, toastH);
 }
 
 #pragma mark - Hit Testing & Passthrough
 
 - (TouchTargetKind)targetKindAtPoint:(CGPoint)p {
+    if (self.twoPlayerEnabled && !self.p2StatusPillView.hidden && CGRectContainsPoint(CGRectInset(self.p2StatusPillView.frame, -8, -8), p)) {
+        return TouchTargetKind::P2StatusPill;
+    }
     if (self.quickBarOpen && CGRectContainsPoint(CGRectInset(self.quickBarView.frame, -6, -6), p)) {
         return TouchTargetKind::QuickBar;
     }
@@ -1764,6 +2117,7 @@ struct ActiveTouchRecord {
     [UIView animateWithDuration:0.18 animations:^{
         self.quickBarView.alpha = open ? 1.0 : 0.0;
         self.quickBarView.transform = open ? CGAffineTransformIdentity : CGAffineTransformMakeScale(0.92, 0.92);
+        [self updateP2FloatingFrames];
     } completion:^(BOOL finished) {
         (void)finished;
         if (!self.quickBarOpen) {
@@ -1793,6 +2147,26 @@ struct ActiveTouchRecord {
         self.autoHideEnabled = !self.autoHideEnabled;
         [ud setBool:self.autoHideEnabled forKey:@"ShadowIOS_AutoHide4s"];
         [self.haptics playDPadTick];
+    } else if (CGRectContainsPoint(_quickTwoPlayersRect, p)) {
+        self.twoPlayerEnabled = !self.twoPlayerEnabled;
+        if (self.twoPlayerEnabled) {
+            [self.haptics ensureStarted];
+            [self.haptics playButtonDownIsTrigger:NO pressure:0.8f];
+            [self refreshP2StatusPillAnimated:YES];
+            [self.idleFadeTimer invalidate];
+            self.idleFadeTimer = nil;
+        } else {
+            IOSRemoteP2_StopServer();
+            self.p2ServerRunning = NO;
+            self.p2ClientConnected = NO;
+            [self.p2ToastTimer invalidate];
+            self.p2ToastTimer = nil;
+            self.p2ToastLabel.alpha = 0.0;
+            self.p2ToastLabel.hidden = YES;
+            [self.haptics playDPadTick];
+            [self refreshP2StatusPillAnimated:YES];
+            [self scheduleIdleFadeTimer];
+        }
     }
     [self refreshQuickBarLabels];
 }
@@ -1816,6 +2190,9 @@ struct ActiveTouchRecord {
         rec.analogVal = pressure;
 
         switch (kind) {
+            case TouchTargetKind::P2StatusPill:
+                [self handlePairingPillTap];
+                continue;
             case TouchTargetKind::QuickBar:
                 [self handleQuickBarTapAtPoint:p];
                 continue;

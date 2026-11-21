@@ -99,5 +99,14 @@
             <string>ExtendedGamepad</string>
         </dict>
     </array>
+
+    <!-- Permessi Rete Locale & HTTP locale per Controller 2P via Hotspot Personale / Wi-Fi -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>ShadowRecomp usa la rete locale o l'Hotspot Personale per collegare un secondo smartphone come Controller Giocatore 2.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
 </dict>
 </plist>

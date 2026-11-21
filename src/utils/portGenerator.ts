@@ -1,4 +1,5 @@
 import { IOS_VIRTUAL_CONTROLLER_H, IOS_VIRTUAL_CONTROLLER_MM } from './virtualControllerTemplate';
+import { IOS_P2_SERVER_H, IOS_P2_SERVER_MM } from './p2WebControllerTemplate';
 
 export interface PortBuildConfig {
   upstreamRepoUrl: string;
@@ -502,6 +503,8 @@ cp "\${PORT_DIR}/ios/curl_ios_stub.mm" "\${UPSTREAM_DIR}/ShadowRecomp/os/ios/cur
 cp "\${PORT_DIR}/ios/include/curl/curl.h" "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/curl/curl.h"
 cp "\${PORT_DIR}/ios/ios_virtual_controller.mm" "\${UPSTREAM_DIR}/ShadowRecomp/os/ios/ios_virtual_controller.mm"
 cp "\${PORT_DIR}/ios/include/ios_virtual_controller.h" "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/ios_virtual_controller.h"
+cp "\${PORT_DIR}/ios/ios_p2_server.mm" "\${UPSTREAM_DIR}/ShadowRecomp/os/ios/ios_p2_server.mm"
+cp "\${PORT_DIR}/ios/include/ios_p2_server.h" "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/ios_p2_server.h"
 cat << 'EOF_NFD_HPP' > "\${UPSTREAM_DIR}/ShadowRecomp/ios_compat/include/nfd.hpp"
 #pragma once
 #include <nfd.h>
@@ -1511,6 +1514,7 @@ elseif (CMAKE_SYSTEM_NAME STREQUAL "iOS")
         "os/ios/ios_mod_manager.mm"
         "os/ios/curl_ios_stub.mm"
         "os/ios/ios_virtual_controller.mm"
+        "os/ios/ios_p2_server.mm"
     )
 endif()'''
 if "os/ios/ios_platform.mm" not in sr_src:
@@ -2488,7 +2492,7 @@ void Heap::Free(void* ptr)
     print("Patched kernel/heap.cpp with iOS Jetsam MADV_FREE page discard")
 PY_IOS_RUNTIME
 
-echo "==> [8/8] Patch ShadowRecomp/input/input.cpp per Controller Virtuale Xbox Original iOS + Haptics..."
+echo "==> [8/8] Patch ShadowRecomp/input/input.cpp per Controller Virtuale 1P + Server Hotspot 2P + Haptics..."
 python3 - "\${UPSTREAM_DIR}/ShadowRecomp/input/input.cpp" << 'PY_IOS_INPUT'
 import sys, pathlib
 
@@ -2496,12 +2500,13 @@ inp_p = pathlib.Path(sys.argv[1])
 inp_src = inp_p.read_text(encoding="utf-8")
 
 if "IOSVirtualController_GetState" not in inp_src:
-    # 1. Include header bridge iOS + InstallerWizard
+    # 1. Include header bridge iOS 1P + Server 2P Hotspot + InstallerWizard
     old_inc = '#include <os/logger.h>'
     new_inc = '''#include <os/logger.h>
 #if defined(SHADOW_IOS_PORT)
 #include <ui/installer_wizard.h>
 #include <ios_virtual_controller.h>
+#include <ios_p2_server.h>
 #endif'''
     if old_inc not in inp_src:
         raise RuntimeError("Failed to locate #include <os/logger.h> in input/input.cpp!")
@@ -2558,7 +2563,7 @@ if "IOSVirtualController_GetState" not in inp_src:
         raise RuntimeError("Failed to locate input::Update() in input/input.cpp!")
     inp_src = inp_src.replace(old_upd, new_upd, 1)
 
-    # 4. Mostra icone Xbox Original nei prompt di gioco quando si usa il controller virtuale su iOS
+    # 4. Mostra icone Xbox Original nei prompt di gioco per 1P virtuale e 2P web remoto su iOS
     old_dev = '''input::EInputDevice input::GetPadDevice(uint32_t playerIndex)
 {
 \tconst auto frame = GetPadFrame();
@@ -2572,6 +2577,8 @@ if "IOSVirtualController_GetState" not in inp_src:
 #if defined(SHADOW_IOS_PORT)
 \tif (playerIndex == 0)
 \t\treturn EInputDevice::Xbox;
+\tif (playerIndex == 1 && IOSRemoteP2_IsConnected())
+\t\treturn EInputDevice::Xbox;
 #endif
 \treturn EInputDevice::Unknown;
 }'''
@@ -2579,7 +2586,7 @@ if "IOSVirtualController_GetState" not in inp_src:
         raise RuntimeError("Failed to locate input::GetPadDevice() in input/input.cpp!")
     inp_src = inp_src.replace(old_dev, new_dev, 1)
 
-    # 5. Inietta lo stato Xbox Original del controller virtuale in input::GetState (prima del return keyboard!)
+    # 5. Inietta lo stato Xbox Original 1P (touch overlay) e 2P (Smartphone 2 via Hotspot WebSocket) in input::GetState
     old_kb_branch = '''\t\tif (dwUserIndex == g_keyboardPort)'''
     new_kb_branch = '''#if defined(SHADOW_IOS_PORT)
 \t\tif (dwUserIndex == 1 && !hasController)
@@ -2611,6 +2618,28 @@ if "IOSVirtualController_GetState" not in inp_src:
 \t\t\t\t}
 \t\t\t}
 \t\t}
+\t\telse if (dwUserIndex == 2 && !hasController)
+\t\t{
+\t\t\tIOSVirtualPadSnapshot vpad2{};
+\t\t\tif (IOSRemoteP2_GetState(&vpad2))
+\t\t\t{
+\t\t\t\tauto& pad = pState->Gamepad;
+\t\t\t\tpad.wButtons |= vpad2.wButtons;
+\t\t\t\tfor (int i = 0; i < 8; i++)
+\t\t\t\t{
+\t\t\t\t\tif (vpad2.bAnalogButtons[i] > pad.bAnalogButtons[i])
+\t\t\t\t\t\tpad.bAnalogButtons[i] = vpad2.bAnalogButtons[i];
+\t\t\t\t}
+\t\t\t\tpad.sThumbLX = vpad2.sThumbLX;
+\t\t\t\tpad.sThumbLY = vpad2.sThumbLY;
+\t\t\t\tint16_t rx2 = vpad2.sThumbRX;
+\t\t\t\tif (Config::HorizontalCamera2P == ECameraRotationMode::Reverse)
+\t\t\t\t\trx2 = static_cast<int16_t>(std::clamp(-static_cast<int32_t>(rx2), -32768, 32767));
+\t\t\t\tpad.sThumbRX = rx2;
+\t\t\t\tpad.sThumbRY = vpad2.sThumbRY;
+\t\t\t\treturn ERROR_SUCCESS;
+\t\t\t}
+\t\t}
 #endif
 
 \t\tif (dwUserIndex == g_keyboardPort)'''
@@ -2618,12 +2647,19 @@ if "IOSVirtualController_GetState" not in inp_src:
         raise RuntimeError("Failed to locate g_keyboardPort branch in input::GetState!")
     inp_src = inp_src.replace(old_kb_branch, new_kb_branch, 1)
 
-    # 6. Inoltra la vibrazione Xbox Original al Taptic Engine (CoreHaptics) se non c'è un controller fisico
+    # 6. Inoltra la vibrazione Xbox Original al Taptic Engine (1P) e a Smartphone 2 via WebSocket (2P)
     old_set_state = '''\tif (!frame.hasActiveController)
 \t{
 \t\treturn ERROR_DEVICE_NOT_CONNECTED;
 \t}'''
-    new_set_state = '''\tif (!frame.hasActiveController)
+    new_set_state = '''#if defined(SHADOW_IOS_PORT)
+\tif (dwUserIndex == 2 && (!frame.hasActiveController || (frame.pads.size() > 1 && !frame.pads[1].connected)) && IOSRemoteP2_IsConnected())
+\t{
+\t\tIOSRemoteP2_SetRumble(outPacket->wLeftMotorSpeed, outPacket->wRightMotorSpeed);
+\t\treturn ERROR_SUCCESS;
+\t}
+#endif
+\tif (!frame.hasActiveController)
 \t{
 #if defined(SHADOW_IOS_PORT)
 \t\tif (dwUserIndex == 1)
@@ -2639,7 +2675,7 @@ if "IOSVirtualController_GetState" not in inp_src:
     inp_src = inp_src.replace(old_set_state, new_set_state, 1)
 
     inp_p.write_text(inp_src, encoding="utf-8")
-    print("Patched ShadowRecomp/input/input.cpp with iOS Xbox Original virtual controller + CoreHaptics rumble")
+    print("Patched ShadowRecomp/input/input.cpp with iOS 1P virtual controller + 2P Hotspot Web controller + rumble")
 PY_IOS_INPUT
 
 echo "==> [9/9] Patch iOS completata con successo!"`;
@@ -2683,6 +2719,7 @@ function(shadow_configure_ios_target TARGET_NAME)
         "os/ios/ios_mod_manager.mm"
         "os/ios/curl_ios_stub.mm"
         "os/ios/ios_virtual_controller.mm"
+        "os/ios/ios_p2_server.mm"
         PROPERTIES
             SKIP_PRECOMPILE_HEADERS ON
             COMPILE_OPTIONS "-fobjc-arc"
@@ -3625,6 +3662,15 @@ void curl_slist_free_all(struct curl_slist*) {}
             <string>ExtendedGamepad</string>
         </dict>
     </array>
+
+    <!-- Permessi Rete Locale & HTTP locale per Controller 2P via Hotspot Personale / Wi-Fi -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>ShadowRecomp usa la rete locale o l'Hotspot Personale per collegare un secondo smartphone come Controller Giocatore 2.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
 </dict>
 </plist>`;
 
@@ -3741,6 +3787,20 @@ Tutta la compilazione avviene nel cloud su **GitHub Actions (\`macos-15\`)**, se
       language: 'cpp',
       description: 'Interfaccia C/C++ lock-safe tra ShadowRecomp/input/input.cpp e l’overlay touch Xbox Original UIKit.',
       content: IOS_VIRTUAL_CONTROLLER_H,
+    },
+    {
+      path: 'ios/ios_p2_server.mm',
+      title: 'Server Locale Hotspot 2P (HTTP + WebSocket + Web Gamepad)',
+      language: 'objc',
+      description: 'Server TCP/HTTP/WebSocket locale su iPhone (Hotspot 172.20.10.1:8765 / Wi-Fi) che serve il controller web 2P con bottoni grandi per iOS e Android.',
+      content: IOS_P2_SERVER_MM,
+    },
+    {
+      path: 'ios/include/ios_p2_server.h',
+      title: 'Header Bridge Controller Remoto 2P',
+      language: 'cpp',
+      description: 'Interfaccia C/C++ per avviare il server 2P, leggere lo stato Player 2 (dwUserIndex == 2) e notificare Pairing -> Connected.',
+      content: IOS_P2_SERVER_H,
     },
     {
       path: 'ios/os/ios_platform.mm',
