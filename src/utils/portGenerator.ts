@@ -2093,6 +2093,11 @@ extern "C" void ShadowIOS_VideoOnDidEnterForeground()
 	}
 	g_iosLifecycleCv.notify_all();
 }
+
+extern "C" void ShadowIOS_VideoRequestSwapChainRebuild()
+{
+	g_iosSwapChainForceRebuild.store(true, std::memory_order_release);
+}
 #endif
 
 static void ProcEndFrame(const RenderCommand& cmd)
@@ -2106,7 +2111,7 @@ static void ProcEndFrame(const RenderCommand& cmd)
     new_chk_sc = """#if defined(SHADOW_IOS_PORT)
 \tShadowIOSParkIfBackgrounded();
 \tconst bool iosForceRebuild = g_iosSwapChainForceRebuild.exchange(false, std::memory_order_acq_rel);
-\tconst bool canRebuildSwapChain = cmd.endFrame.gameThreadWaits || iosForceRebuild;
+\tconst bool canRebuildSwapChain = cmd.endFrame.gameThreadWaits || iosForceRebuild || !g_swapChainValid;
 \tif (iosForceRebuild)
 \t{
 \t\tg_swapChainValid = false;

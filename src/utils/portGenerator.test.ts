@@ -495,10 +495,11 @@ test('Connected pill auto-hide with disconnect alert and AirPlay/HDMI TV Mode (d
   assert.match(vcMm, /cancelP2ConnectedPillAutoHide/);
   assert.match(vcMm, /Controller 2P disconnesso/);
 
-  // Feature B: TV Mode icon button placed immediately to the LEFT of "2 omini" in Quick-HUD Bar
+  // Feature B: TV Mode icon button placed immediately to the LEFT of "2 omini" in Quick-HUD Bar (clean screen, no top exit banner popup)
   assert.match(vcMm, /ShadowTVModeIconView/);
   assert.match(vcMm, /ShadowTVGamepadBackdropView/);
-  assert.match(vcMm, /TouchTargetKind::TVModeExitBanner/);
+  assert.doesNotMatch(vcMm, /tvExitBannerView/);
+  assert.doesNotMatch(vcMm, /TVModeExitBanner/);
   const tvFrameIdx = vcMm.indexOf('self.quickTVModeView.frame');
   const twoPFrameIdx = vcMm.indexOf('self.quickTwoPlayersView.frame');
   assert.ok(tvFrameIdx > 0 && twoPFrameIdx > tvFrameIdx, 'TV Mode button must be laid out immediately to the left of 2-Player button');
@@ -522,6 +523,16 @@ test('Connected pill auto-hide with disconnect alert and AirPlay/HDMI TV Mode (d
   assert.match(vcMm, /ShadowIOSExternalDisplayChanged/);
   assert.match(applyScript, /ShadowIOSExternalDisplayChanged/);
   assert.doesNotMatch(applyScript, /rifiuta scene ExternalDisplay\/AirPlay/);
+
+  // TV Mode lock-screen / app-switch background detach & foreground fresh-UIWindow + swapchain recovery (zero video freeze)
+  assert.match(vcMm, /tvModeSuspendedForBackground/);
+  assert.match(vcMm, /teardownTVExternalWindowOnly/);
+  assert.match(vcMm, /attachMetalViewToExternalDisplay:/);
+  assert.match(vcMm, /resumeTVModeAfterForegroundActivationWithAttempt:/);
+  assert.match(vcMm, /scheduleTVSwapChainFollowUpNudgesForGeneration:/);
+  assert.match(vcMm, /ShadowIOS_VideoRequestSwapChainRebuild\(\)/);
+  assert.match(applyScript, /extern "C" void ShadowIOS_VideoRequestSwapChainRebuild\(\)/);
+  assert.match(applyScript, /iosForceRebuild \|\| !g_swapChainValid/);
 
   // Safe Metal/MoltenVK park -> CAMetalLayer reparent -> TV UIWindow -> clean teardown & oversized blind-playable layout
   assert.match(vcMm, /#import <QuartzCore\/CAMetalLayer\.h>/);
@@ -550,9 +561,9 @@ test('automatic phone system language detection localizes virtual controller HUD
   assert.match(vcMm, /@"Sfuma 4s"/);
   assert.match(vcMm, /@"Abbina"/);
   assert.match(vcMm, /@"Connesso"/);
-  assert.match(vcMm, /@"MODALITÀ TV • Torna su iPhone"/);
+  assert.match(vcMm, /@"Modalità TV attiva • Gioco su TV, Controller su iPhone"/);
   assert.match(vcMm, /@"Auto-Hide 4s"/);
-  assert.match(vcMm, /@"TV MODE • Back to iPhone"/);
+  assert.match(vcMm, /@"TV Mode active • Game on TV, Gamepad on iPhone"/);
   assert.match(vcMm, /@"Vincular"/);
   assert.match(vcMm, /@"Jumeler"/);
   assert.match(vcMm, /@"Koppeln"/);

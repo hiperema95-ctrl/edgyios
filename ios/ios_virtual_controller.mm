@@ -29,6 +29,7 @@
 
 extern "C" void ShadowIOS_VideoOnWillEnterBackground(void);
 extern "C" void ShadowIOS_VideoOnDidEnterForeground(void);
+extern "C" void ShadowIOS_VideoRequestSwapChainRebuild(void);
 
 namespace {
 
@@ -84,7 +85,6 @@ struct ShadowLocalizedStrings {
     __unsafe_unretained NSString *toastP2ConnectedLinkFmt;
     __unsafe_unretained NSString *toastLinkCopiedFmt;
     __unsafe_unretained NSString *toastServerError;
-    __unsafe_unretained NSString *tvExitBanner;
     __unsafe_unretained NSString *toastTVNeedExt;
     __unsafe_unretained NSString *toastTVReady;
     __unsafe_unretained NSString *toastTVDisconnected;
@@ -133,7 +133,6 @@ static const ShadowLocalizedStrings &L(void) {
             @"2P Connected • Link copied: %@",
             @"Link copied: %@",
             @"2P server error — allow Local Network in Settings",
-            @"TV MODE • Back to iPhone",
             @"Connect AirPlay or HDMI to enable TV Mode",
             @"AirPlay/HDMI detected — TV Mode ready",
             @"AirPlay/HDMI disconnected — game returned to iPhone",
@@ -162,7 +161,6 @@ static const ShadowLocalizedStrings &L(void) {
             @"2P Connesso • Link copiato: %@",
             @"Link copiato: %@",
             @"Errore avvio server 2P — consenti Rete Locale in Impostazioni",
-            @"MODALITÀ TV • Torna su iPhone",
             @"Collega AirPlay o HDMI per attivare la Modalità TV",
             @"AirPlay/HDMI rilevato — Modalità TV disponibile",
             @"AirPlay/HDMI disconnesso — gioco tornato su iPhone",
@@ -191,7 +189,6 @@ static const ShadowLocalizedStrings &L(void) {
             @"2P Conectado • Enlace copiado: %@",
             @"Enlace copiado: %@",
             @"Error del servidor 2P — permite Red Local en Ajustes",
-            @"MODO TV • Volver al iPhone",
             @"Conecta AirPlay o HDMI para activar el Modo TV",
             @"AirPlay/HDMI detectado — Modo TV disponible",
             @"AirPlay/HDMI desconectado — juego devuelto al iPhone",
@@ -220,7 +217,6 @@ static const ShadowLocalizedStrings &L(void) {
             @"2J Connecté • Lien copié : %@",
             @"Lien copié : %@",
             @"Erreur serveur 2J — autorisez Réseau local dans Réglages",
-            @"MODE TV • Retour sur iPhone",
             @"Connectez AirPlay ou HDMI pour activer le Mode TV",
             @"AirPlay/HDMI détecté — Mode TV disponible",
             @"AirPlay/HDMI déconnecté — jeu revenu sur iPhone",
@@ -249,7 +245,6 @@ static const ShadowLocalizedStrings &L(void) {
             @"2P Verbunden • Link kopiert: %@",
             @"Link kopiert: %@",
             @"2P-Serverfehler — erlaube Lokales Netzwerk in Einstellungen",
-            @"TV-MODUS • Zurück zum iPhone",
             @"Verbinde AirPlay oder HDMI für den TV-Modus",
             @"AirPlay/HDMI erkannt — TV-Modus bereit",
             @"AirPlay/HDMI getrennt — Spiel zurück auf iPhone",
@@ -278,7 +273,6 @@ static const ShadowLocalizedStrings &L(void) {
             @"2P接続済み • コピー完了: %@",
             @"リンクをコピー: %@",
             @"2Pサーバー起動エラー — 設定でローカルネットワークを許可",
-            @"TVモード • iPhoneに戻る",
             @"TVモードを使うにはAirPlayまたはHDMIを接続してください",
             @"AirPlay/HDMIを検出 — TVモード利用可能",
             @"AirPlay/HDMI切断 — ゲームがiPhoneに戻りました",
@@ -1675,8 +1669,7 @@ enum class TouchTargetKind : int {
     P2StatusPill,
     P2CardCopy,
     P2CardClose,
-    P2CardBody,
-    TVModeExitBanner
+    P2CardBody
 };
 
 struct ActiveTouchRecord {
@@ -1724,11 +1717,10 @@ struct ActiveTouchRecord {
 
 // Modalita TV (AirPlay / HDMI): gioco su schermo TV esterno + controller ingrandito cieco-giocabile su iPhone
 @property (nonatomic, strong) ShadowTVGamepadBackdropView *tvBackdropView;
-@property (nonatomic, strong) UIView *tvExitBannerView;
-@property (nonatomic, strong) UIView *tvExitDotView;
-@property (nonatomic, strong) UILabel *tvExitLabel;
 @property (nonatomic, assign) BOOL externalDisplayAvailable;
 @property (nonatomic, assign) BOOL tvGamepadMode;
+@property (nonatomic, assign) BOOL tvModeSuspendedForBackground;
+@property (nonatomic, assign) NSUInteger tvResumeGeneration;
 @property (nonatomic, strong) UIWindow *tvExternalWindow;
 @property (nonatomic, weak) UIWindow *tvPhoneWindow;
 @property (nonatomic, weak) UIViewController *tvPhoneRootVC;
@@ -2108,29 +2100,6 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     [_quickBarView addSubview:_quickTwoPlayersView];
     [_controlsContainer addSubview:_quickBarView];
 
-    // Badge compatto in alto al centro in Modalita TV (mostra stato + uscita rapida con 1 tap)
-    _tvExitBannerView = [[UIView alloc] initWithFrame:CGRectZero];
-    _tvExitBannerView.backgroundColor = [UIColor colorWithRed:0.04 green:0.10 blue:0.16 alpha:0.92];
-    _tvExitBannerView.layer.cornerRadius = 13.0;
-    _tvExitBannerView.layer.borderWidth = 1.2;
-    _tvExitBannerView.layer.borderColor = [UIColor colorWithRed:0.220 green:0.741 blue:0.973 alpha:0.88].CGColor;
-    _tvExitBannerView.alpha = 0.0;
-    _tvExitBannerView.hidden = YES;
-    _tvExitBannerView.userInteractionEnabled = NO;
-
-    _tvExitDotView = [[UIView alloc] initWithFrame:CGRectZero];
-    _tvExitDotView.backgroundColor = [UIColor colorWithRed:0.220 green:0.741 blue:0.973 alpha:1.0];
-    _tvExitDotView.layer.cornerRadius = 3.5;
-    [_tvExitBannerView addSubview:_tvExitDotView];
-
-    _tvExitLabel = [[UILabel alloc] initWithFrame:CGRectZero];
-    _tvExitLabel.font = [UIFont systemFontOfSize:10.5 weight:UIFontWeightHeavy];
-    _tvExitLabel.textColor = [UIColor colorWithRed:0.88 green:0.97 blue:1.0 alpha:1.0];
-    _tvExitLabel.textAlignment = NSTextAlignmentLeft;
-    _tvExitLabel.text = L().tvExitBanner;
-    [_tvExitBannerView addSubview:_tvExitLabel];
-    [_controlsContainer addSubview:_tvExitBannerView];
-
     // Mini-bottoncino Pairing -> Connected per 2 Giocatori via Hotspot/Wi-Fi
     _p2StatusPillView = [[UIView alloc] initWithFrame:CGRectZero];
     _p2StatusPillView.backgroundColor = [UIColor colorWithRed:0.07 green:0.07 blue:0.12 alpha:0.92];
@@ -2474,12 +2443,191 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
 
 #pragma mark - TV Mode (AirPlay / HDMI Dedicated Screen + Oversized Blind-Playable Gamepad)
 
+- (BOOL)isAppForegroundActive {
+    return [UIApplication sharedApplication].applicationState == UIApplicationStateActive;
+}
+
+- (void)teardownTVExternalWindowOnly {
+    if (self.tvMovedMetalView && self.tvExternalWindow &&
+        [self.tvMovedMetalView isDescendantOfView:self.tvExternalWindow]) {
+        [self.tvMovedMetalView removeFromSuperview];
+    }
+    if (self.tvExternalWindow) {
+        self.tvExternalWindow.hidden = YES;
+        self.tvExternalWindow.rootViewController = nil;
+        if (@available(iOS 13.0, *)) {
+            self.tvExternalWindow.windowScene = nil;
+        }
+        self.tvExternalWindow = nil;
+    }
+}
+
+- (void)syncTVMetalLayerDrawableForWindow:(UIWindow *)tvWin screen:(UIScreen *)extScreen {
+    UIView *metalView = self.tvMovedMetalView;
+    if (!metalView || !tvWin) return;
+
+    UIView *tvContainer = tvWin.rootViewController ? tvWin.rootViewController.view : tvWin;
+    [tvWin layoutIfNeeded];
+    [tvContainer layoutIfNeeded];
+
+    CGRect tvBounds = tvContainer.bounds;
+    if ((tvBounds.size.width < 10.0 || tvBounds.size.height < 10.0) && extScreen) {
+        tvBounds = extScreen.bounds;
+        tvWin.frame = tvBounds;
+        tvContainer.frame = tvBounds;
+    }
+    if (tvBounds.size.width < 10.0 || tvBounds.size.height < 10.0) return;
+
+    // Cap 1080p per zero Jetsam OOM su TV 4K e 60/120fps rock-solid
+    CGFloat rawScale = extScreen ? MAX(extScreen.scale, 1.0) : 1.0;
+    CGFloat tvScale = rawScale;
+    if ((tvBounds.size.width * tvScale) > 1920.0) {
+        tvScale = 1920.0 / tvBounds.size.width;
+    }
+    metalView.frame = tvBounds;
+    metalView.contentScaleFactor = tvScale;
+    [metalView layoutIfNeeded];
+
+    CAMetalLayer *ml = FindCAMetalLayerInView(metalView);
+    if (ml) {
+        ml.contentsScale = tvScale;
+        ml.frame = metalView.bounds;
+        ml.drawableSize = CGSizeMake(std::round(tvBounds.size.width * tvScale),
+                                     std::round(tvBounds.size.height * tvScale));
+    }
+}
+
+- (BOOL)attachMetalViewToExternalDisplay:(UIView *)metalView scene:(UIWindowScene *)extScene screen:(UIScreen *)extScreen {
+    if (!metalView || (!extScene && !extScreen)) return NO;
+
+    [self teardownTVExternalWindowOnly];
+
+    if (extScreen) {
+        extScreen.overscanCompensation = UIScreenOverscanCompensationNone;
+    }
+    UIWindow *tvWin = nil;
+    if (extScene) {
+        tvWin = [[UIWindow alloc] initWithWindowScene:extScene];
+    } else {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+        tvWin = [[UIWindow alloc] initWithFrame:extScreen.bounds];
+        tvWin.screen = extScreen;
+#pragma clang diagnostic pop
+    }
+    if ((tvWin.bounds.size.width < 10.0 || tvWin.bounds.size.height < 10.0) && extScreen) {
+        tvWin.frame = extScreen.bounds;
+    }
+    tvWin.backgroundColor = [UIColor blackColor];
+    tvWin.userInteractionEnabled = NO;
+
+    UIViewController *tvVC = [[UIViewController alloc] init];
+    tvVC.view.backgroundColor = [UIColor blackColor];
+    tvVC.view.clipsToBounds = YES;
+    tvVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    tvVC.view.frame = tvWin.bounds;
+    tvWin.rootViewController = tvVC;
+
+    // Sposta SOLO la vista CAMetalLayer di ShadowRecomp sulla TV a schermo intero (zero bottoni virtuali!)
+    [metalView removeFromSuperview];
+    metalView.userInteractionEnabled = NO;
+    metalView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [tvVC.view addSubview:metalView];
+
+    // NON chiamare makeKeyAndVisible: l'iPhone deve restare keyWindow per ricevere multi-touch e aptica!
+    tvWin.hidden = NO;
+    self.tvExternalWindow = tvWin;
+    [self syncTVMetalLayerDrawableForWindow:tvWin screen:extScreen];
+
+    UIWindow *phoneWindow = self.tvPhoneWindow ?: self.window;
+    if (phoneWindow && !phoneWindow.isKeyWindow) {
+        [phoneWindow makeKeyAndVisible];
+    }
+    return YES;
+}
+
+- (void)scheduleTVSwapChainFollowUpNudgesForGeneration:(NSUInteger)gen {
+    static const double kDelays[2] = { 0.35, 0.95 };
+    __weak typeof(self) weakSelf = self;
+    for (int i = 0; i < 2; ++i) {
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kDelays[i] * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            ShadowTouchOverlayView *strongSelf = weakSelf;
+            if (!strongSelf || !strongSelf.tvGamepadMode || strongSelf.tvModeSuspendedForBackground) return;
+            if (strongSelf.tvResumeGeneration != gen || ![strongSelf isAppForegroundActive]) return;
+
+            UIWindowScene *curScene = FindExternalWindowScene();
+            UIScreen *curScreen = curScene ? curScene.screen : FindExternalScreen();
+            if (!curScene && !curScreen) return;
+
+            BOOL sceneChanged = (curScene != nil && strongSelf.tvExternalWindow != nil && strongSelf.tvExternalWindow.windowScene != curScene);
+            if (strongSelf.tvExternalWindow == nil || sceneChanged || strongSelf.tvMovedMetalView.superview == nil) {
+                ShadowIOS_VideoOnWillEnterBackground();
+                [strongSelf attachMetalViewToExternalDisplay:strongSelf.tvMovedMetalView scene:curScene screen:curScreen];
+                ShadowIOS_VideoOnDidEnterForeground();
+            } else {
+                strongSelf.tvExternalWindow.hidden = NO;
+                [strongSelf syncTVMetalLayerDrawableForWindow:strongSelf.tvExternalWindow screen:curScreen];
+                ShadowIOS_VideoRequestSwapChainRebuild();
+            }
+        });
+    }
+}
+
+- (void)resumeTVModeAfterForegroundActivationWithAttempt:(NSInteger)attempt generation:(NSUInteger)gen {
+    if (gen != self.tvResumeGeneration || !self.tvGamepadMode) return;
+    if (![self isAppForegroundActive]) return;
+
+    UIWindowScene *extScene = FindExternalWindowScene();
+    UIScreen *extScreen = extScene ? extScene.screen : FindExternalScreen();
+
+    if (extScene || extScreen) {
+        self.externalDisplayAvailable = YES;
+        self.quickTVModeView.available = YES;
+        self.quickTVModeView.active = YES;
+
+        // Ricrea SEMPRE una UIWindow esterna fresca dopo blocco schermo/app-switch cosi
+        // AirPlay/WindowServer assegna una nuova superficie composita sana a CAMetalLayer!
+        ShadowIOS_VideoOnWillEnterBackground();
+        [self attachMetalViewToExternalDisplay:self.tvMovedMetalView scene:extScene screen:extScreen];
+        self.tvModeSuspendedForBackground = NO;
+        ShadowIOS_VideoOnDidEnterForeground();
+
+        // Nudge di sicurezza post-handshake AirPlay (350ms e 950ms) per azzerare qualsiasi freeze residuo
+        [self scheduleTVSwapChainFollowUpNudgesForGeneration:gen];
+        return;
+    }
+
+    // AirPlay puo impiegare 0.3s-1.5s a rinegoziare la scena esterna allo sblocco: breve finestra di retry
+    // (mantiene Metal parcheggiato finche la finestra TV non e pronta o il gioco torna su iPhone)
+    if (attempt < 4) {
+        ShadowIOS_VideoOnWillEnterBackground();
+        double delaySec = (attempt == 0) ? 0.30 : ((attempt == 1) ? 0.40 : 0.50);
+        __weak typeof(self) weakSelf = self;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delaySec * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            ShadowTouchOverlayView *strongSelf = weakSelf;
+            if (!strongSelf) return;
+            [strongSelf resumeTVModeAfterForegroundActivationWithAttempt:(attempt + 1) generation:gen];
+        });
+        return;
+    }
+
+    // Schermo esterno davvero scollegato durante il blocco/background: riporta pulitamente il gioco su iPhone
+    self.tvModeSuspendedForBackground = NO;
+    [self disableTVModeWithNotify:NO];
+    [self showP2Toast:L().toastTVDisconnected duration:3.5];
+}
+
 - (void)refreshExternalDisplayAvailabilitySilent:(BOOL)silent {
     BOOL hasExt = (FindExternalWindowScene() != nil) || (FindExternalScreen() != nil);
     BOOL changed = (hasExt != self.externalDisplayAvailable);
     self.externalDisplayAvailable = hasExt;
     self.quickTVModeView.available = hasExt;
     self.quickTVModeView.active = self.tvGamepadMode;
+
+    // Non toccare MAI la finestra TV o il RenderThread Metal mentre l'app e in background/blocco schermo!
+    if (![self isAppForegroundActive] || self.tvModeSuspendedForBackground) {
+        return;
+    }
 
     if (!hasExt && (self.tvGamepadMode || self.tvExternalWindow != nil)) {
         // AirPlay/HDMI disconnesso durante Modalita TV: riporta subito il gioco sull'iPhone!
@@ -2541,6 +2689,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     self.tvOriginalMetalFrame = metalView.frame;
     self.tvOriginalMetalAutoresizing = metalView.autoresizingMask;
     self.tvOriginalMetalScale = metalView.contentScaleFactor;
+    self.tvModeSuspendedForBackground = NO;
 
     // 3. Stacca SEMPRE ShadowTouchOverlayView da metalView PRIMA di spostare metalView sulla TV:
     //    cosi sulla TV esce SOLO il gioco pulito a schermo intero con ZERO bottoni virtuali!
@@ -2577,76 +2726,15 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         [safePhoneParent bringSubviewToFront:self];
     }
 
-    // 4. Crea la UIWindow dedicata sulla TV (preferisce UIWindowScene iOS 16+, fallback UIScreen per LiveContainer)
-    if (extScreen) {
-        extScreen.overscanCompensation = UIScreenOverscanCompensationNone;
-    }
-    UIWindow *tvWin = nil;
-    if (extScene) {
-        tvWin = [[UIWindow alloc] initWithWindowScene:extScene];
-    } else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-        tvWin = [[UIWindow alloc] initWithFrame:extScreen.bounds];
-        tvWin.screen = extScreen;
-#pragma clang diagnostic pop
-    }
-    if ((tvWin.bounds.size.width < 10.0 || tvWin.bounds.size.height < 10.0) && extScreen) {
-        tvWin.frame = extScreen.bounds;
-    }
-    tvWin.backgroundColor = [UIColor blackColor];
-    tvWin.userInteractionEnabled = NO;
+    // 4. Crea la UIWindow dedicata sulla TV e sposta SOLO metalView (zero bottoni virtuali sulla TV!)
+    [self attachMetalViewToExternalDisplay:metalView scene:extScene screen:extScreen];
 
-    UIViewController *tvVC = [[UIViewController alloc] init];
-    tvVC.view.backgroundColor = [UIColor blackColor];
-    tvVC.view.clipsToBounds = YES;
-    tvVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    tvVC.view.frame = tvWin.bounds;
-    tvWin.rootViewController = tvVC;
-
-    // 5. Sposta SOLO la vista CAMetalLayer di ShadowRecomp sulla TV a schermo intero (zero bottoni virtuali!)
-    [metalView removeFromSuperview];
-    metalView.userInteractionEnabled = NO;
-    metalView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [tvVC.view addSubview:metalView];
-
-    // NON chiamare makeKeyAndVisible: l'iPhone deve restare keyWindow per ricevere multi-touch e aptica!
-    tvWin.hidden = NO;
-    [tvWin layoutIfNeeded];
-    [tvVC.view layoutIfNeeded];
-    self.tvExternalWindow = tvWin;
-
-    CGRect tvBounds = tvVC.view.bounds;
-    if ((tvBounds.size.width < 10.0 || tvBounds.size.height < 10.0) && extScreen) {
-        tvBounds = extScreen.bounds;
-        tvVC.view.frame = tvBounds;
-    }
-    // Cap 1080p per zero Jetsam OOM su TV 4K e 60/120fps rock-solid
-    CGFloat rawScale = extScreen ? MAX(extScreen.scale, 1.0) : 1.0;
-    CGFloat tvScale = rawScale;
-    if (tvBounds.size.width > 1.0 && (tvBounds.size.width * tvScale) > 1920.0) {
-        tvScale = 1920.0 / tvBounds.size.width;
-    }
-    metalView.frame = tvBounds;
-    metalView.contentScaleFactor = tvScale;
-    [metalView layoutIfNeeded];
-
-    CAMetalLayer *ml = FindCAMetalLayerInView(metalView);
-    if (ml) {
-        ml.contentsScale = tvScale;
-        ml.frame = metalView.bounds;
-        ml.drawableSize = CGSizeMake(std::round(tvBounds.size.width * tvScale),
-                                     std::round(tvBounds.size.height * tvScale));
-    }
-
-    if (!phoneWindow.isKeyWindow) {
-        [phoneWindow makeKeyAndVisible];
-    }
-
-    // 6. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK sul TV display
+    // 5. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK sul TV display
     ShadowIOS_VideoOnDidEnterForeground();
+    self.tvResumeGeneration += 1;
+    [self scheduleTVSwapChainFollowUpNudgesForGeneration:self.tvResumeGeneration];
 
-    // 7. Trasforma lo schermo iPhone in controller virtuale dedicato ingrandito cieco-giocabile
+    // 6. Trasforma lo schermo iPhone in controller virtuale dedicato ingrandito cieco-giocabile
     self.tvGamepadMode = YES;
     self.isIdleFaded = NO;
     [self.idleFadeTimer invalidate];
@@ -2654,8 +2742,6 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
 
     self.tvBackdropView.hidden = NO;
     self.tvBackdropView.alpha = 1.0;
-    self.tvExitBannerView.hidden = NO;
-    self.tvExitBannerView.alpha = 1.0;
 
     [self setNeedsLayout];
     [self layoutIfNeeded];
@@ -2684,6 +2770,9 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
 
 - (void)disableTVModeWithNotify:(BOOL)notify {
     if (!self.tvGamepadMode && !self.tvExternalWindow) return;
+
+    self.tvResumeGeneration += 1;
+    self.tvModeSuspendedForBackground = NO;
 
     [self clearAllInputs];
     if (self.quickBarOpen) {
@@ -2764,14 +2853,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     }
 
     // 3. Stacca completamente la finestra TV cosi iOS ripristina subito il mirroring / schermo iPhone
-    if (self.tvExternalWindow) {
-        self.tvExternalWindow.hidden = YES;
-        self.tvExternalWindow.rootViewController = nil;
-        if (@available(iOS 13.0, *)) {
-            self.tvExternalWindow.windowScene = nil;
-        }
-        self.tvExternalWindow = nil;
-    }
+    [self teardownTVExternalWindowOnly];
     self.tvPhoneHostView = nil;
     self.tvMovedMetalView = nil;
     self.tvOriginalMetalSuperview = nil;
@@ -2784,15 +2866,15 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         [phoneWindow makeKeyAndVisible];
     }
 
-    // 4. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK su iPhone
-    ShadowIOS_VideoOnDidEnterForeground();
+    // 4. Riattiva il RenderThread SOLO se l'app e realmente attiva in foreground (mai commit Metal in background!)
+    if ([self isAppForegroundActive]) {
+        ShadowIOS_VideoOnDidEnterForeground();
+    }
 
     // 5. Ripristina l'interfaccia normale su iPhone
     self.tvGamepadMode = NO;
     self.tvBackdropView.hidden = YES;
     self.tvBackdropView.alpha = 0.0;
-    self.tvExitBannerView.hidden = YES;
-    self.tvExitBannerView.alpha = 0.0;
 
     [self setNeedsLayout];
     [self layoutIfNeeded];
@@ -2846,6 +2928,26 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
 - (void)onExternalDisplayChanged:(NSNotification *)note {
     (void)note;
     dispatch_async(dispatch_get_main_queue(), ^{
+        if (![self isAppForegroundActive]) {
+            return;
+        }
+        if (self.tvGamepadMode) {
+            UIWindowScene *extScene = FindExternalWindowScene();
+            UIScreen *extScreen = extScene ? extScene.screen : FindExternalScreen();
+            BOOL needsRebuild = self.tvModeSuspendedForBackground ||
+                                (self.tvExternalWindow == nil) ||
+                                (extScene != nil && self.tvExternalWindow.windowScene != extScene);
+            if ((extScene || extScreen) && needsRebuild) {
+                self.tvResumeGeneration += 1;
+                [self resumeTVModeAfterForegroundActivationWithAttempt:0 generation:self.tvResumeGeneration];
+                return;
+            }
+            if ((extScene || extScreen) && self.tvExternalWindow != nil) {
+                [self syncTVMetalLayerDrawableForWindow:self.tvExternalWindow screen:extScreen];
+                ShadowIOS_VideoRequestSwapChainRebuild();
+                return;
+            }
+        }
         [self refreshExternalDisplayAvailabilitySilent:NO];
     });
 }
@@ -2868,6 +2970,14 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         // Mantiene vivo NWListener per ~25s mentre l'utente incolla il link su WhatsApp/Messaggi
         IOSRemoteP2_SetAppInBackground(true);
     }
+    if (self.tvGamepadMode) {
+        // Stacca pulitamente la finestra TV esterna in background cosi AirPlay/WindowServer
+        // non lascia una superficie CAMetalLayer orfana allo sblocco o al rientro nell'app!
+        self.tvResumeGeneration += 1;
+        self.tvModeSuspendedForBackground = YES;
+        ShadowIOS_VideoOnWillEnterBackground();
+        [self teardownTVExternalWindowOnly];
+    }
 }
 
 - (void)onAppWillEnterForeground:(NSNotification *)note {
@@ -2886,7 +2996,15 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     }
     [self.haptics ensureStarted];
     [self refreshPhysicalControllerState];
-    [self refreshExternalDisplayAvailabilitySilent:YES];
+
+    if (self.tvGamepadMode) {
+        // Ricostruisce la finestra TV dedicata + swapchain MoltenVK in modo sicuro dopo blocco schermo o app-switch
+        self.tvResumeGeneration += 1;
+        [self resumeTVModeAfterForegroundActivationWithAttempt:0 generation:self.tvResumeGeneration];
+    } else {
+        [self refreshExternalDisplayAvailabilitySilent:YES];
+    }
+
     if (self.superview) {
         [self.superview bringSubviewToFront:self];
     }
@@ -3159,17 +3277,6 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         self.backView.frame    = CGRectMake(midX + navSize * 0.5 + navGap, navY, navSize, navSize);
     }
 
-    // 7b. Banner compatto Modalita TV in alto al centro (larghezza adattata alla lingua del telefono)
-    CGSize tvLblSz = [self.tvExitLabel sizeThatFits:CGSizeMake(W * 0.48, 24.0 * s)];
-    CGFloat tvBannerW = MIN(W * 0.44, MAX(186.0 * s, tvLblSz.width + 38.0 * s));
-    CGFloat tvBannerH = 26.0 * s;
-    self.tvExitBannerView.frame = CGRectMake(midX - tvBannerW * 0.5, topPad + 2.0 * s, tvBannerW, tvBannerH);
-    self.tvExitBannerView.layer.cornerRadius = tvBannerH * 0.5;
-    CGFloat tvDotSz = 7.0 * s;
-    self.tvExitDotView.frame = CGRectMake(11.0 * s, (tvBannerH - tvDotSz) * 0.5, tvDotSz, tvDotSz);
-    self.tvExitDotView.layer.cornerRadius = tvDotSz * 0.5;
-    self.tvExitLabel.frame = CGRectMake(24.0 * s, 0, tvBannerW - 32.0 * s, tvBannerH);
-
     // 8. Quick-HUD Bar sopra al Chaos Emerald (5 pulsanti: Opacità | Aptica | Sfuma 4s | TV | 2 Omini)
     CGFloat navY = CGRectGetMinY(self.emeraldView.frame);
     CGFloat qbW = 396.0 * s;
@@ -3283,10 +3390,6 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     if (self.twoPlayerEnabled && !self.p2StatusPillView.hidden && self.p2StatusPillView.alpha > 0.1 &&
         CGRectContainsPoint(CGRectInset(self.p2StatusPillView.frame, -8, -8), p)) {
         return TouchTargetKind::P2StatusPill;
-    }
-    if (self.tvGamepadMode && !self.tvExitBannerView.hidden &&
-        CGRectContainsPoint(CGRectInset(self.tvExitBannerView.frame, -8, -8), p)) {
-        return TouchTargetKind::TVModeExitBanner;
     }
     if (self.quickBarOpen && CGRectContainsPoint(CGRectInset(self.quickBarView.frame, -6, -6), p)) {
         return TouchTargetKind::QuickBar;
@@ -3536,9 +3639,6 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
                 [self setP2PairingCardVisible:NO animated:YES];
                 continue;
             case TouchTargetKind::P2CardBody:
-                continue;
-            case TouchTargetKind::TVModeExitBanner:
-                [self disableTVModeWithNotify:YES];
                 continue;
             case TouchTargetKind::P2StatusPill:
                 [self handlePairingPillTap];
