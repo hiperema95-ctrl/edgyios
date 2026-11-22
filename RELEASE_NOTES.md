@@ -1,52 +1,52 @@
 # EdgyiOS v1.0.0 — Shadow The Hedgehog Recompiled for iOS
 
-Prima release stabile completa del porting iOS / iPadOS nativo di [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), sviluppata da **hiperema** con **Google AI Studio**.
+Initial global release of **EdgyiOS**, the native iOS & iPadOS port of [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), developed by **hiperema** with **Google AI Studio**.
 
-> **Zero asset di gioco inclusi:** l'`.ipa` contiene solo il motore ricompilato nativo arm64 e i moduli iOS. Al primo avvio importa i file estratti dalla **tua copia originale legalmente posseduta** di *Shadow the Hedgehog (2005)* tramite l'App File di iOS.
-
----
-
-## Novità Principali di v1.0.0
-
-### Motore Nativo, Risoluzione & 120Hz ProMotion
-- **Esecuzione nativa arm64 + Metal 3 (MoltenVK)** senza JIT, con sblocco **120Hz ProMotion** e pieno supporto a **Feather** (standalone) e **LiveContainer** (`-fPIC -Wl,-pie`).
-- **Risoluzione nativa full-screen** su iPhone e iPad tramite `UILaunchScreen` (es. `2622×1206` su iPhone 16 Pro, risolto lo scaling 1440×960 su Feather).
-- **Sospensione/Ripresa GPU Metal sicura**: drenaggio sincronizzato su blocco schermo o cambio app e recovery automatico della swapchain senza crash o freeze.
-- **Icona iOS personalizzata** compilata in `Assets.car` + crediti localizzati nell'installer (*"Porting iOS sviluppato da hiperema"*).
-
-### Controller Virtuale Xbox Original & CoreHaptics
-- **Overlay vettoriale a tema Shadow** con analogico sinistro ad emblema 3D-tilt/pressione, D-Pad scorrevole, ABXY, grilletti analogici `LT/RT`, `LB/RB`, `L3/R3`, `Start/Back` e **Chaos Emerald Quick-HUD** (aura Hero/Neutral/Dark).
-- **Taptic Engine CoreHaptics**: click meccanici, detent analogici e rumble del gioco in tempo reale.
-- **Auto-hide 4s** con risveglio istantaneo al tocco, opacità regolabile salvata e scomparsa automatica con controller fisici (DualSense, Xbox, Backbone, MFi).
-
-### Multiplayer 2 Giocatori (Hotspot / Wi-Fi — iOS & Android)
-- **Server HTTP + WebSocket locale integrato** (`Network.framework`, porta `8765`, zero internet richiesto, zero impatto sui 120 FPS).
-- **QR Code nativo + link copiato** con pillola **Abbina → Connesso** che scompare automaticamente dopo 3,5 secondi e avvisa solo in caso di disconnessione.
-- **Web Controller 2P cross-platform** con bottoni grandi giocabili alla cieca su qualsiasi smartphone Android o iPhone.
-
-### Modalità TV Dedicata (AirPlay & HDMI Dual-Screen)
-- **Pulsante TV** nel menu Smeraldo attivo automaticamente al collegamento AirPlay o HDMI.
-- **Zero bottoni virtuali sulla TV**: sulla TV appare solo il gioco pulito a schermo intero (no overscan, cap 1080p anti-Jetsam su TV 4K), mentre sull'iPhone restano i comandi virtuali ingranditi su sfondo scuro con aptica completa e supporto 2P.
-- **Ripresa fluida senza freeze** dopo blocco schermo o cambio app in Modalità TV, con ritorno automatico su iPhone se AirPlay/HDMI viene scollegato.
-
-### Lingua Automatica di Sistema (6 Lingue)
-- Rilevamento automatico all'avvio di **Italiano, Inglese, Spagnolo, Francese, Tedesco e Giapponese** su tutta l'UI iOS, sul selettore File nativo e sul controller web del secondo smartphone.
+> **Zero Game Assets Included:** `EdgyiOS-iOS.ipa` contains only the native arm64 recompiled runtime and iOS subsystems. On first launch, import the files extracted from **your own legally owned Xbox copy** of *Shadow the Hedgehog (2005)* via the iOS Files app.
 
 ---
 
-## Dispositivi Compatibili (iOS / iPadOS 17.0+)
-- **Consigliati (120Hz ProMotion):** iPhone 13 Pro / 14 Pro / 15 Pro / 16 Pro / 17 Pro (e Pro Max), iPad Pro M1 / M2 / M4.
-- **Ottimi (60Hz):** iPhone 13 / 14 / 15 / 16 / 16e / 17, iPhone 12 Pro, iPhone SE 3ª gen, iPad Air M1/M2/M3, iPad mini 6/7.
-- **Supporto base (60Hz):** iPhone XS / XR / 11 / 12 / SE 2ª gen, iPad 9ª/10ª/11ª gen (su dispositivi con 3–4 GB di RAM chiudere le app in background).
+## Highlights in v1.0.0
+
+### Native Engine, Full-Screen Resolution & 120Hz ProMotion
+- **Native arm64 + Metal 3 (MoltenVK)** execution with **zero JIT**, **120Hz ProMotion** support, and full compatibility with both **Feather** (standalone) and **LiveContainer** (`-fPIC -Wl,-pie`).
+- **True native full-screen resolution** on iPhone & iPad via `UILaunchScreen` (e.g., `2622×1206` on iPhone 16 Pro, eliminating stretched 1440×960 Feather scaling).
+- **Safe Metal GPU lifecycle**: synchronous GPU drain on lock-screen/background and automatic Vulkan swapchain recovery on foreground resume.
+- **Dedicated identity & custom icon**: App Name **`EdgyiOS`**, Bundle ID **`com.hiperema.edgyios.ios`**, compiled `Assets.car` icon, and localized installer credits (*"iOS port developed by hiperema"*).
+
+### Shadow-Themed Xbox Virtual Controller & CoreHaptics
+- **Vector CoreGraphics / QuartzCore overlay** with 3D-tilt & pressure-sensitive Shadow Emblem left stick, sliding 8-way D-Pad, ABXY, analog `LT/RT`, `LB/RB`, `L3/R3`, `Start/Back`, and the **Chaos Emerald Quick-HUD** (dynamic Hero/Neutral/Dark aura).
+- **Taptic Engine CoreHaptics**: crisp mechanical button clicks, analog stick detents, and native in-game rumble.
+- **4-second auto-hide** with instant touch wake, saved opacity settings, and automatic hiding whenever a physical Bluetooth/USB-C controller is connected.
+
+### Cross-Platform 2-Player Multiplayer (Hotspot / Local Wi-Fi)
+- **Built-in local HTTP + WebSocket server** (`Network.framework`, port `8765`, zero internet required, zero impact on 120 FPS).
+- **Native QR Code + auto-copied link** with a smart **Pairing → Connected** status pill that auto-hides after 3.5 seconds and alerts only on disconnect.
+- **Oversized blind-playable web controller** compatible with any **Android** or **iPhone** browser.
+
+### Dedicated Dual-Screen TV Mode (AirPlay & HDMI)
+- **TV Mode button** in the Chaos Emerald bar activates automatically when connected to AirPlay or HDMI.
+- **Zero virtual buttons on TV**: displays only the clean full-screen game on your TV (overscan disabled, 1080p cap to prevent 4K Jetsam OOM), while your iPhone becomes an oversized dark blind-playable controller with full haptics and 2P support.
+- **Freeze-free background & lock-screen recovery**: cleanly detaches the external window in background and automatically rebuilds the TV window and MoltenVK swapchain upon returning.
+
+### Automatic 6-Language System Localization
+- Automatically detects your device language at launch across **English, Italian, Spanish, French, German, and Japanese** for all native UI overlays, the iOS Files picker, and Smartphone 2's web controller.
 
 ---
 
-## Installazione Rapida
-1. Scarica **`ShadowRecomp-iOS.ipa`** e verifica facoltativamente l'impronta in `SHA256SUMS-ShadowRecomp.txt`.
-2. Installa con **Feather** o importa in **LiveContainer**.
-3. Al primo avvio seleziona i file estratti dalla tua copia originale Xbox tramite l'**App File di iOS** e riavvia il gioco al termine dell'importazione.
+## Compatible Devices (iOS / iPadOS 17.0+)
+- **Optimal (120Hz ProMotion):** iPhone 13 Pro / 14 Pro / 15 Pro / 16 Pro / 17 Pro (and Pro Max), iPad Pro M1 / M2 / M4.
+- **Excellent (60Hz):** iPhone 13 / 14 / 15 / 16 / 16e / 17, iPhone 12 Pro, iPhone SE (3rd gen), iPad Air M1/M2/M3, iPad mini 6/7.
+- **Basic Support (60Hz):** iPhone XS / XR / 11 / 12 / SE (2nd gen), iPad 9th/10th/11th gen *(closing background apps recommended on 3–4 GB RAM models)*.
 
 ---
 
-## Note Legali
-Nessun asset protetto da copyright è incluso in questa release. Consulta [LEGAL.md](LEGAL.md) e [README.md](README.md) per tutte le informazioni legali, i crediti e le licenze dei progetti open-source utilizzati.
+## Quick Installation
+1. Download **`EdgyiOS-iOS.ipa`** (and optionally verify `SHA256SUMS-EdgyiOS.txt`).
+2. Install via **Feather** or import into **LiveContainer**.
+3. On first launch, select the files extracted from your own legal Xbox copy via **iOS Files**, complete installation, and relaunch.
+
+---
+
+## Legal
+No copyrighted game assets are included in this release. See [LEGAL.md](LEGAL.md) and [README.md](README.md) for full legal notices, upstream credits, and open-source licenses.

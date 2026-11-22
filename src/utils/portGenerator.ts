@@ -43,8 +43,8 @@ export const DEFAULT_BUILD_CONFIG: PortBuildConfig = {
   upstreamRepoUrl: 'https://github.com/FoxWorkshop/ShadowRecomp.git',
   upstreamBranch: 'master',
   iosRefRepoUrl: 'https://github.com/DevZer0D4Y/MarathonRecompilediOS',
-  bundleId: 'com.foxworkshop.shadowrecomp.ios',
-  appName: 'ShadowRecomp',
+  bundleId: 'com.hiperema.edgyios.ios',
+  appName: 'EdgyiOS',
   appVersion: '1.0.0',
   deploymentTarget: '17.0',
   targetInstaller: 'both',
@@ -90,13 +90,13 @@ export function generateGitHubWorkflowYaml(config: PortBuildConfig): string {
       ? '-Wl,-pie'
       : '';
 
-  return `name: Build ShadowRecomp iOS Unsigned IPA (No-Mac Cloud Builder)
+  return `name: Build EdgyiOS Unsigned IPA (No-Mac Cloud Builder)
 
 on:
   workflow_dispatch:
     inputs:
       build_configuration:
-        description: 'Configurazione CMake/Xcode'
+        description: 'CMake / Xcode build configuration'
         required: true
         default: '${config.buildConfiguration}'
         type: choice
@@ -104,17 +104,17 @@ on:
           - Release
           - RelWithDebInfo
       upstream_branch:
-        description: 'Branch di FoxWorkshop/ShadowRecomp (default: master)'
+        description: 'FoxWorkshop/ShadowRecomp branch (default: master)'
         required: true
         default: '${config.upstreamBranch}'
         type: string
       default_xbe_url:
-        description: 'URL temporaneo opzionale al tuo default.xbe (4.8MB) se non hai impostato il Secret DEFAULT_XBE_URL'
+        description: 'Optional temporary direct URL to your own default.xbe (4.8MB) if DEFAULT_XBE_URL Secret is not set'
         required: false
         default: ''
         type: string
       publish_release:
-        description: 'Pubblica anche ShadowRecomp-iOS.ipa come GitHub Release (stile MarathonRecompilediOS)'
+        description: 'Publish ${config.appName}-iOS.ipa as a GitHub Release'
         required: false
         default: false
         type: boolean
@@ -131,8 +131,8 @@ env:
   FREETYPE_VERSION: "2.13.3"
 
 jobs:
-  build-shadowrecomp-ios-ipa:
-    name: Build Unsigned IPA on GitHub macOS-15 (iPhone 16 Pro / arm64)
+  build-edgyios-ipa:
+    name: Build EdgyiOS Unsigned IPA on GitHub macOS-15 (arm64)
     runs-on: macos-15
     timeout-minutes: 90
     permissions:
@@ -363,32 +363,45 @@ jobs:
                   print("Patched build-ios/ShadowRecompLib/x86/x86_context.h for AppleClang 16 builtins")
           PY_X86_CTX
 
-      - name: 8. Compila ShadowRecomp.app (arm64 Unsigned via Ninja)
+      - name: 8. Build ShadowRecomp Target (iOS arm64 via Ninja)
         working-directory: ShadowRecomp-Upstream
         run: |
           cmake --build build-ios --target ShadowRecomp --parallel "\$(sysctl -n hw.ncpu)" -- -k 10
 
-      - name: 9. Firma Ad-Hoc (ldid) & Impacchetta IPA Unsigned per Feather / LiveContainer
+      - name: 9. Ad-Hoc Sign (ldid) & Package EdgyiOS Unsigned IPA (Feather / LiveContainer)
         run: |
           APP_BUNDLE="\$(find ShadowRecomp-Upstream/build-ios -type d -name "\${APP_NAME}.app" | head -n 1)"
           if [ -z "\${APP_BUNDLE}" ]; then
-            echo "::error::Bundle \${APP_NAME}.app non trovato in build-ios!"
+            APP_BUNDLE="\$(find ShadowRecomp-Upstream/build-ios -type d -name "ShadowRecomp.app" | head -n 1)"
+          fi
+          if [ -z "\${APP_BUNDLE}" ]; then
+            echo "::error::Bundle \${APP_NAME}.app / ShadowRecomp.app not found in build-ios!"
             find ShadowRecomp-Upstream/build-ios -maxdepth 4
             exit 1
           fi
-          echo "==> Trovato bundle: \${APP_BUNDLE}"
+          echo "==> Found compiled bundle: \${APP_BUNDLE}"
 
           rm -rf Payload
           mkdir -p "Payload/\${APP_NAME}.app"
           if [ -f "\${APP_BUNDLE}/\${APP_NAME}" ]; then
             cp -R "\${APP_BUNDLE}/." "Payload/\${APP_NAME}.app/"
+          elif [ -f "\${APP_BUNDLE}/ShadowRecomp" ]; then
+            cp -R "\${APP_BUNDLE}/." "Payload/\${APP_NAME}.app/"
+            if [ "\${APP_NAME}" != "ShadowRecomp" ]; then
+              mv "Payload/\${APP_NAME}.app/ShadowRecomp" "Payload/\${APP_NAME}.app/\${APP_NAME}"
+            fi
           elif [ -f "\${APP_BUNDLE}/Contents/MacOS/\${APP_NAME}" ]; then
             cp "\${APP_BUNDLE}/Contents/MacOS/\${APP_NAME}" "Payload/\${APP_NAME}.app/\${APP_NAME}"
             if [ -d "\${APP_BUNDLE}/Contents/Resources" ]; then
               cp -R "\${APP_BUNDLE}/Contents/Resources/." "Payload/\${APP_NAME}.app/"
             fi
+          elif [ -f "\${APP_BUNDLE}/Contents/MacOS/ShadowRecomp" ]; then
+            cp "\${APP_BUNDLE}/Contents/MacOS/ShadowRecomp" "Payload/\${APP_NAME}.app/\${APP_NAME}"
+            if [ -d "\${APP_BUNDLE}/Contents/Resources" ]; then
+              cp -R "\${APP_BUNDLE}/Contents/Resources/." "Payload/\${APP_NAME}.app/"
+            fi
           else
-            echo "::error::Binario \${APP_NAME} non trovato dentro \${APP_BUNDLE}!"
+            echo "::error::Executable \${APP_NAME} / ShadowRecomp not found inside \${APP_BUNDLE}!"
             find "\${APP_BUNDLE}" -maxdepth 4
             exit 1
           fi
@@ -454,7 +467,7 @@ jobs:
           ls -lh "\${IPA_NAME}"
           shasum -a 256 "\${IPA_NAME}" > "\${IPA_NAME}.sha256"
 
-      - name: 10. Carica Artifact IPA Pronto per Feather / LiveContainer
+      - name: 10. Upload Unsigned IPA Artifact (Feather / LiveContainer)
         uses: actions/upload-artifact@v4
         with:
           name: \${{ env.APP_NAME }}-iOS-Unsigned-IPA
@@ -463,7 +476,7 @@ jobs:
             \${{ env.APP_NAME }}-iOS-v\${{ env.APP_VERSION }}-Unsigned.ipa.sha256
           retention-days: 7
 
-      - name: 11. Pubblica GitHub Release Opzionale (EdgyiOS)
+      - name: 11. Publish Optional GitHub Release (EdgyiOS)
         if: \${{ inputs.publish_release == true }}
         env:
           GH_TOKEN: \${{ github.token }}
@@ -3611,7 +3624,7 @@ void curl_slist_free_all(struct curl_slist*) {}
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>it</string>
+    <string>en</string>
     <key>CFBundleDisplayName</key>
     <string>${config.appName}</string>
     <key>CFBundleExecutable</key>
@@ -3708,9 +3721,9 @@ void curl_slist_free_all(struct curl_slist*) {}
         </dict>
     </array>
 
-    <!-- Permessi Rete Locale & HTTP locale per Controller 2P via Hotspot Personale / Wi-Fi -->
+    <!-- Local Network & HTTP permissions for 2P Controller over Personal Hotspot / Wi-Fi -->
     <key>NSLocalNetworkUsageDescription</key>
-    <string>ShadowRecomp usa la rete locale o l'Hotspot Personale per collegare un secondo smartphone come Controller Giocatore 2.</string>
+    <string>${config.appName} uses the local network or Personal Hotspot to connect a second smartphone as a Player 2 Controller.</string>
     <key>NSBonjourServices</key>
     <array>
         <string>_http._tcp</string>

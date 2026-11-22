@@ -584,7 +584,10 @@ test('automatic phone system language detection localizes virtual controller HUD
   assert.match(nfdMm, /@"Seleziona file di gioco"/);
 });
 
-test('EdgyiOS README.md, LEGAL.md, RELEASE_NOTES.md, and GitHub Release step are complete and consistent', () => {
+test('EdgyiOS English README.md, LEGAL.md, RELEASE_NOTES.md, com.hiperema.edgyios.ios bundle ID, and IPA packaging are consistent', () => {
+  assert.equal(DEFAULT_BUILD_CONFIG.appName, 'EdgyiOS');
+  assert.equal(DEFAULT_BUILD_CONFIG.bundleId, 'com.hiperema.edgyios.ios');
+
   const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
   const byPath = new Map(files.map((f) => [f.path, f.content]));
 
@@ -592,6 +595,7 @@ test('EdgyiOS README.md, LEGAL.md, RELEASE_NOTES.md, and GitHub Release step are
   const legal = byPath.get('LEGAL.md') ?? '';
   const releaseNotes = byPath.get('RELEASE_NOTES.md') ?? '';
   const workflow = byPath.get('.github/workflows/build-ios-ipa.yml') ?? '';
+  const infoPlist = byPath.get('ios/Info.plist') ?? '';
 
   assert.match(readme, /# EdgyiOS/);
   assert.match(readme, /Shadow The Hedgehog Recompiled for iOS/);
@@ -600,12 +604,13 @@ test('EdgyiOS README.md, LEGAL.md, RELEASE_NOTES.md, and GitHub Release step are
   assert.match(readme, /FoxWorkshop\/ShadowRecomp/);
   assert.match(readme, /DevZer0D4Y\/MarathonRecompilediOS/);
   assert.match(readme, /KhronosGroup\/MoltenVK/);
-  assert.match(readme, /iPhone Compatibili/);
-  assert.match(readme, /iPad Compatibili/);
-  assert.match(readme, /Modalità TV Dedicata/);
-  assert.match(readme, /Multiplayer 2 Giocatori/);
+  assert.match(readme, /Compatible iPhones/);
+  assert.match(readme, /Compatible iPads/);
+  assert.match(readme, /Dedicated Dual-Screen TV Mode/);
+  assert.match(readme, /Cross-Platform 2-Player Multiplayer/);
 
-  assert.match(legal, /Zero Copyrighted Assets/);
+  assert.match(legal, /Zero Copyrighted Assets Policy/);
+  assert.match(legal, /com\.hiperema\.edgyios\.ios/);
   assert.match(legal, /SEGA CORPORATION/);
   assert.match(legal, /Google AI Studio/);
   assert.match(legal, /Apache License 2\.0/);
@@ -613,8 +618,18 @@ test('EdgyiOS README.md, LEGAL.md, RELEASE_NOTES.md, and GitHub Release step are
 
   assert.match(releaseNotes, /EdgyiOS v1\.0\.0 — Shadow The Hedgehog Recompiled for iOS/);
   assert.match(releaseNotes, /Google AI Studio/);
+  assert.match(releaseNotes, /EdgyiOS-iOS\.ipa/);
+
+  assert.match(workflow, /APP_NAME: "EdgyiOS"/);
+  assert.match(workflow, /BUNDLE_ID: "com\.hiperema\.edgyios\.ios"/);
+  assert.match(workflow, /mv "Payload\/\$\{APP_NAME\}\.app\/ShadowRecomp" "Payload\/\$\{APP_NAME\}\.app\/\$\{APP_NAME\}"/);
   assert.match(workflow, /--title "EdgyiOS v\$\{APP_VERSION\} — Shadow The Hedgehog Recompiled for iOS/);
   assert.match(workflow, /--notes-file ios-port\/RELEASE_NOTES\.md/);
+
+  assert.match(infoPlist, /<key>CFBundleDisplayName<\/key>\s*<string>EdgyiOS<\/string>/);
+  assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>EdgyiOS<\/string>/);
+  assert.match(infoPlist, /<key>CFBundleIdentifier<\/key>\s*<string>com\.hiperema\.edgyios\.ios<\/string>/);
+  assert.match(infoPlist, /<key>CFBundleDevelopmentRegion<\/key>\s*<string>en<\/string>/);
 });
 
 

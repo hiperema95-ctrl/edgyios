@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleDevelopmentRegion</key>
-    <string>it</string>
+    <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>ShadowRecomp</string>
+    <string>EdgyiOS</string>
     <key>CFBundleExecutable</key>
-    <string>ShadowRecomp</string>
+    <string>EdgyiOS</string>
     <key>CFBundleIdentifier</key>
-    <string>com.foxworkshop.shadowrecomp.ios</string>
+    <string>com.hiperema.edgyios.ios</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>ShadowRecomp</string>
+    <string>EdgyiOS</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
@@ -67,7 +67,7 @@
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
 
-    <!-- Accesso completo dall'App File di iOS ("Su iPhone -> ShadowRecomp") -->
+    <!-- Accesso completo dall'App File di iOS ("Su iPhone -> EdgyiOS") -->
     <key>UIFileSharingEnabled</key>
     <true/>
     <key>LSSupportsOpeningDocumentsInPlace</key>
@@ -100,9 +100,9 @@
         </dict>
     </array>
 
-    <!-- Permessi Rete Locale & HTTP locale per Controller 2P via Hotspot Personale / Wi-Fi -->
+    <!-- Local Network & HTTP permissions for 2P Controller over Personal Hotspot / Wi-Fi -->
     <key>NSLocalNetworkUsageDescription</key>
-    <string>ShadowRecomp usa la rete locale o l'Hotspot Personale per collegare un secondo smartphone come Controller Giocatore 2.</string>
+    <string>EdgyiOS uses the local network or Personal Hotspot to connect a second smartphone as a Player 2 Controller.</string>
     <key>NSBonjourServices</key>
     <array>
         <string>_http._tcp</string>

@@ -5,193 +5,193 @@
 # EdgyiOS
 ### *Shadow The Hedgehog Recompiled for iOS*
 
-**Porting nativo iOS / iPadOS (arm64 · Metal 3 · 120Hz ProMotion) sviluppato da hiperema con il supporto di Google AI Studio**
+**Native iOS & iPadOS port (arm64 · Metal 3 · 120Hz ProMotion) developed by hiperema with Google AI Studio**
 
-[![Platform](https://img.shields.io/badge/Platform-iOS%2017.0%2B%20%7C%20iPadOS%2017.0%2B-111111?style=for-the-badge&logo=apple&logoColor=white)](#dispositivi-compatibili)
-[![Architecture](https://img.shields.io/badge/Arch-arm64%20Native%20(Zero%20JIT)-dc2626?style=for-the-badge)](#architettura-e-sviluppo)
-[![Graphics](https://img.shields.io/badge/Graphics-Vulkan%20%E2%86%92%20MoltenVK%20%E2%86%92%20Metal%203-0ea5e9?style=for-the-badge)](#funzionalita-esclusive-ios)
-[![Sideload](https://img.shields.io/badge/Sideload-Feather%20%7C%20LiveContainer-6366f1?style=for-the-badge)](#installazione-su-iphone-e-ipad)
-[![Assets](https://img.shields.io/badge/Copyrighted%20Assets-0%25%20Clean%20Repo-16a34a?style=for-the-badge)](#note-legali-e-copyright)
+[![Platform](https://img.shields.io/badge/Platform-iOS%2017.0%2B%20%7C%20iPadOS%2017.0%2B-111111?style=for-the-badge&logo=apple&logoColor=white)](#compatible-devices)
+[![Architecture](https://img.shields.io/badge/Arch-arm64%20Native%20(Zero%20JIT)-dc2626?style=for-the-badge)](#how-it-was-developed)
+[![Graphics](https://img.shields.io/badge/Graphics-Vulkan%20%E2%86%92%20MoltenVK%20%E2%86%92%20Metal%203-0ea5e9?style=for-the-badge)](#ios-exclusive-features)
+[![Sideload](https://img.shields.io/badge/Sideload-Feather%20%7C%20LiveContainer-6366f1?style=for-the-badge)](#installation-on-iphone--ipad)
+[![Assets](https://img.shields.io/badge/Copyrighted%20Assets-0%25%20Clean%20Repo-16a34a?style=for-the-badge)](#legal--copyright-notice)
 
 <p>
-  <a href="#funzionalita-esclusive-ios">Funzionalità iOS</a> •
-  <a href="#dispositivi-compatibili">iPhone &amp; iPad Compatibili</a> •
-  <a href="#architettura-e-sviluppo">Come è Stato Sviluppato</a> •
-  <a href="#risorse-github-e-crediti">Risorse GitHub</a> •
-  <a href="#compilazione-cloud-zero-mac">Build Cloud</a> •
-  <a href="#installazione-su-iphone-e-ipad">Installazione</a> •
+  <a href="#ios-exclusive-features">iOS Features</a> •
+  <a href="#compatible-devices">Compatible iPhone &amp; iPad</a> •
+  <a href="#how-it-was-developed">How It Was Developed</a> •
+  <a href="#github-resources--credits">GitHub Resources &amp; Credits</a> •
+  <a href="#cloud-build-no-mac-required">No-Mac Cloud Build</a> •
+  <a href="#installation-on-iphone--ipad">Installation</a> •
   <a href="RELEASE_NOTES.md">Release v1.0.0</a> •
-  <a href="LEGAL.md">Note Legali</a>
+  <a href="LEGAL.md">Legal &amp; Licensing</a>
 </p>
 
 </div>
 
 ---
 
-## Panoramica
+## Overview
 
-**EdgyiOS: Shadow The Hedgehog Recompiled for iOS** è il porting iOS e iPadOS nativo del progetto open-source [ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), progettato per eseguire *Shadow the Hedgehog (2005)* a piena velocità nativa su Apple Silicon senza emulazione JIT e senza bisogno di un Mac per compilare.
+**EdgyiOS: Shadow The Hedgehog Recompiled for iOS** is a native iOS and iPadOS port of the open-source static recompilation project [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), engineered to run *Shadow the Hedgehog (2005)* at full native Apple Silicon speed without JIT emulation and without requiring a Mac to build.
 
-A differenza degli emulatori tradizionali, la ricompilazione statica traduce l'eseguibile Xbox originale direttamente in codice C++ nativo **arm64** e gli shader grafici in **SPIR-V / Metal 3** tramite MoltenVK. Il risultato è un'applicazione leggera, reattiva e capace di spingersi fino a **120 FPS** sui dispositivi ProMotion, arricchita da funzionalità pensate su misura per iPhone e iPad: controller touch vettoriale con CoreHaptics, multiplayer 2 giocatori via Hotspot/Wi-Fi locale, Modalità TV Dual-Screen (AirPlay & HDMI) e localizzazione automatica in 6 lingue.
+Unlike traditional emulators, static recompilation translates the original Xbox executable directly into native **arm64 C++** and compiles its shaders into **SPIR-V / Metal 3** via MoltenVK. The result is a fast, responsive native iOS app capable of up to **120 FPS** on ProMotion displays, featuring custom mobile enhancements: a vector Shadow-themed virtual controller with CoreHaptics, cross-platform 2-Player Hotspot/Wi-Fi multiplayer, Dual-Screen AirPlay & HDMI TV Mode, and automatic 6-language localization.
 
-> **Importante — Zero file protetti da copyright:** né questo repository né il pacchetto `.ipa` finale contengono asset, texture, audio, video o codice di gioco di proprietà SEGA/Sonic Team. Per avviare il gioco è obbligatorio importare i file estratti dalla **propria copia originale legalmente posseduta** del gioco per Xbox tramite l'App File di iOS. Consulta [LEGAL.md](LEGAL.md) per tutti i dettagli.
-
----
-
-## Funzionalità Esclusive iOS
-
-### 1. Prestazioni Native arm64, Metal 3 & 120Hz ProMotion
-- **Esecuzione 100% nativa senza JIT**: compatibile con iOS standard senza jailbreak, sia in modalità standalone (**Feather**) che containerizzata (**LiveContainer**, compilato con `-fPIC -Wl,-pie`).
-- **Risoluzione nativa full-screen**: supporto `UILaunchScreen` e `UIDeviceFamily` universale (iPhone + iPad), sfruttando l'intero pannello (es. `2622×1206` su iPhone 16 Pro) senza barre nere o scaling sfocato.
-- **Sblocco ProMotion 120Hz**: `CADisableMinimumFrameDurationOnPhone` attivo, compositing overlay ottimizzato (`allowsGroupOpacity = NO`) e bridge input lock-free a 0 allocazioni per mantenere 120 FPS fluidi anche nelle zone ad alto carico.
-- **Gestione memoria estesa & ciclo vita GPU**: entitlements `increased-memory-limit` ed `extended-virtual-addressing`, drenaggio sicuro della coda Metal (`vkQueueWaitIdle`) su blocco schermo o cambio app con ricostruzione automatica della swapchain al rientro.
-
-### 2. Controller Virtuale Xbox Original a Tema Shadow the Hedgehog
-- **Grafica vettoriale CoreGraphics / QuartzCore**: design in vetro ossidiana traslucido con bagliore cremisi, analogico sinistro con emblema Shadow & anello uncinato a inclinazione 3D e sensibilità alla pressione, analogico destro camera, D-Pad scorrevole a 8 direzioni, ABXY Xbox Original, grilletti analogici `LT/RT`, pulsanti `LB (White)`, `RB (Black)`, `L3`, `R3`, `Start` e `Back`.
-- **Feedback Aptico CoreHaptics (Taptic Engine)**: click meccanico calibrato su pressione e rilascio, detent tattili sugli analogici e inoltro nativo della vibrazione di gioco (`XboxVibrationPacket`) al Taptic Engine.
-- **Chaos Emerald Quick-HUD**: pulsante centrale a forma di Smeraldo del Caos che cambia aura dinamicamente (**Hero / Neutral / Dark**) e apre la barra rapida con:
-  - Regolazione **Opacità** (`25%–95%`, salvata in `NSUserDefaults`);
-  - Toggle **Aptica** (ON/OFF);
-  - **Auto-Hide 4s** (dissolvenza automatica dopo 4 secondi di inattività con riapparizione istantanea al primo tocco);
-  - Pulsante **Modalità TV** (AirPlay/HDMI);
-  - Pulsante **Multiplayer 2P**.
-- **Rilevamento Controller Fisici**: collegando qualsiasi gamepad Bluetooth o USB-C (DualSense, Xbox Wireless, Backbone, MFi), i comandi touch scompaiono automaticamente lasciando lo schermo completamente libero.
-
-### 3. Multiplayer 2 Giocatori via Hotspot Personale / Wi-Fi (iOS & Android)
-- **Server HTTP + WebSocket integrato sull'iPhone**: basato su Apple `Network.framework` (`nw_listener_t`, porta `8765`, `TCP_NODELAY`), rileva automaticamente l'interfaccia Hotspot (`bridge100` / `172.20.10.1`) o la rete Wi-Fi locale senza richiedere connessione a Internet.
-- **Abbinamento istantaneo**: attivando l'icona **2 Giocatori** dal menu Smeraldo compare la pillola **Abbina**; toccandola si apre una scheda con **QR Code nativo** (`CoreImage`) e il link viene copiato automaticamente negli appunti (con background keep-alive per incollarlo su WhatsApp/Messaggi senza chiudere il server).
-- **Controller Web Cross-Platform**: il secondo giocatore (su qualsiasi **Android** o **iPhone**) apre il link dal browser e ottiene un controller virtuale a schermo intero con bottoni ingranditi giocabili senza distogliere lo sguardo dallo schermo principale, vibrazione aptica e stato di connessione in tempo reale.
-- **Pillola intelligente**: appena il Giocatore 2 si collega, la pillola passa a **Connesso** e scompare automaticamente dopo 3,5 secondi per non occupare spazio sullo schermo, riapparendo con notifica solo in caso di disconnessione.
-- **Iniezione nativa Giocatore 2**: supporta sia la modalità competitiva **2P** sia il controllo di Sonic e dei compagni negli stage della storia.
-
-### 4. Modalità TV Dedicata Dual-Screen (AirPlay & HDMI)
-- **Attivazione automatica su schermo esterno**: il pulsante **TV** accanto al pulsante 2P si illumina automaticamente quando l'iPhone o l'iPad è connesso via **AirPlay** o cavo/adattatore **HDMI**.
-- **Schermo pulito sulla TV, gamepad dedicato sull'iPhone**:
-  - Sulla **TV** viene spostata **esclusivamente** la superficie Metal del gioco a schermo intero (zero bottoni virtuali sulla TV, compensazione overscan disabilitata, cap intelligente a 1080p per evitare crash Jetsam su TV 4K).
-  - Sull'**iPhone** lo schermo passa a uno sfondo scuro dedicato con **comandi virtuali ingranditi** progettati per giocare alla cieca mantenendo pieno feedback aptico e compatibilità simultanea con il Multiplayer 2P.
-- **Ripresa senza freeze**: bloccando lo schermo o cambiando app durante la Modalità TV, la finestra esterna viene staccata in sicurezza e ricostruita automaticamente al rientro con recovery continuo della swapchain MoltenVK.
-
-### 5. Localizzazione Automatica in 6 Lingue
-- All'avvio l'app rileva automaticamente la lingua di sistema del dispositivo (`[NSLocale preferredLanguages]`) e localizza coerentemente ogni etichetta dell'HUD, del Multiplayer 2P, della Modalità TV, del selettore File iOS e i crediti dell'installer (*"Porting iOS sviluppato da hiperema"*).
-- Anche il controller web del secondo smartphone si adatta automaticamente alla lingua del proprio browser (`navigator.language`).
-- **Lingue supportate**: Italiano, Inglese (fallback universale), Spagnolo, Francese, Tedesco e Giapponese.
-
-### 6. App File iOS Nativa, Mod Manager & Icona Dedicata
-- **Importazione da App File**: bridge nativo `UIDocumentPickerViewController` a schermo intero con copia sicura in sandbox (`asCopy`) + rilevamento automatico dei file già copiati in *Su iPhone → ShadowRecomp*.
-- **Mod Manager iOS**: interfaccia UIKit integrata compatibile con `ModLoader::Init()` (`mods/.modloader/profiles/Default.json`).
-- **Icona app compilata in `Assets.car`**: icone PNG opache generate per iPhone e iPad e compilate tramite `actool` per una visualizzazione nitida sia su SpringBoard (Feather) che in LiveContainer.
+> **Important — Zero Copyrighted Assets:** Neither this repository nor the generated `.ipa` contains any copyrighted game assets, textures, audio, video, or proprietary SEGA/Sonic Team game code. To play, you must supply files extracted from **your own legally purchased copy** of *Shadow the Hedgehog (2005)* for the original Xbox using the iOS Files app. See [LEGAL.md](LEGAL.md) for full details.
 
 ---
 
-## Dispositivi Compatibili
+## iOS Exclusive Features
 
-Requisiti minimi di sistema: **iOS 17.0+ / iPadOS 17.0+** · Architettura **arm64** (Apple Silicon / A-series).
+### 1. Native arm64 Performance, Metal 3 & 120Hz ProMotion
+- **100% Native Execution (Zero JIT):** Runs on stock, non-jailbroken iOS via both standalone sideloading (**Feather**) and containerized execution (**LiveContainer**, built with `-fPIC -Wl,-pie`).
+- **True Native Full-Screen Resolution:** Configured with `UILaunchScreen` and universal `UIDeviceFamily` (iPhone + iPad) to render edge-to-edge at native display resolution (e.g., `2622×1206` on iPhone 16 Pro) with zero letterboxing or stretched scaling.
+- **120Hz ProMotion Ready:** Enables `CADisableMinimumFrameDurationOnPhone`, zero-overhead overlay compositing (`allowsGroupOpacity = NO`), and a lock-free input ring buffer for smooth 120 FPS gameplay.
+- **Extended Memory & Safe GPU Lifecycle:** Ships with `increased-memory-limit` and `extended-virtual-addressing` entitlements, plus synchronous Metal queue draining (`vkQueueWaitIdle`) on lock-screen/app-switch and automatic Vulkan swapchain recovery on resume.
 
-### iPhone Compatibili
+### 2. Shadow-Themed Xbox Original Virtual Controller
+- **Crisp Vector UI (CoreGraphics / QuartzCore):** Translucent obsidian-glass styling with crimson accents, a 3D-tilt & pressure-sensitive Shadow Emblem left stick, camera right stick, sliding 8-way D-Pad, classic Xbox ABXY cluster, analog `LT/RT` triggers, `LB (White)`, `RB (Black)`, `L3`, `R3`, `Start`, and `Back`.
+- **CoreHaptics Taptic Engine Feedback:** Calibrated mechanical press/release clicks, analog stick detents, and native forwarding of in-game Xbox rumble (`XboxVibrationPacket`) to the iPhone Taptic Engine.
+- **Chaos Emerald Quick-HUD:** Center Chaos Emerald button with dynamic **Hero / Neutral / Dark** aura that toggles a compact Quick-HUD bar featuring:
+  - **Opacity** adjustment (`25%–95%`, persisted via `NSUserDefaults`);
+  - **Haptics** toggle (ON/OFF);
+  - **Auto-Hide 4s** (fades controls out after 4 seconds of inactivity and wakes instantly on touch);
+  - **TV Mode** toggle (AirPlay / HDMI);
+  - **2-Player Multiplayer** toggle.
+- **Automatic Physical Controller Detection:** Connecting any Bluetooth or USB-C controller (DualSense, Xbox Wireless, Backbone, MFi) automatically hides the touch overlay for an unobstructed view.
 
-| Fascia | Modelli iPhone | Chip | RAM | Esperienza Attesa |
+### 3. Cross-Platform 2-Player Multiplayer (Personal Hotspot & Local Wi-Fi)
+- **Built-In Local HTTP + WebSocket Server:** Powered by Apple `Network.framework` (`nw_listener_t`, port `8765`, `TCP_NODELAY`), automatically detecting Personal Hotspot (`bridge100` / `172.20.10.1`) or local Wi-Fi with zero internet required and zero impact on 120 FPS performance.
+- **Instant Pairing:** Tap the **2-Player** button in the Chaos Emerald bar to reveal the **Pairing** pill. Tapping it displays a native **QR Code** (`CoreImage`) and automatically copies the local link to your clipboard (with background keep-alive so you can paste it in Messages/WhatsApp without dropping the server).
+- **Android & iPhone Web Controller:** Smartphone 2 opens the local link in any mobile browser to get a full-screen, oversized, blind-playable virtual controller styled to match the native iOS gamepad, complete with vibration feedback and live connection status.
+- **Smart Auto-Hide Status Pill:** Once Player 2 connects, the pill switches to **Connected** and automatically fades away after 3.5 seconds to keep the screen clean, reappearing with an alert only if Player 2 disconnects.
+- **Native Player 2 Injection:** Works in both **2P Battle Mode** and story stages where Player 2 controls Sonic and friends.
+
+### 4. Dedicated Dual-Screen TV Mode (AirPlay & HDMI)
+- **Automatic External Display Detection:** The **TV** button next to the 2-Player icon activates automatically whenever your iPhone or iPad is connected via **AirPlay** or **HDMI**.
+- **Clean Full-Screen Game on TV, Dedicated Gamepad on iPhone:**
+  - The **TV** displays **only** the pure full-screen Metal game surface — **zero virtual buttons or HUD overlays appear on the TV** (overscan compensation disabled, smart 1080p cap to prevent Jetsam OOM on 4K TVs).
+  - Your **iPhone** transforms into a sleek dark gamepad with **oversized blind-playable controls**, full CoreHaptics feedback, and simultaneous 2-Player Multiplayer support.
+- **Freeze-Free Lock Screen & App-Switch Recovery:** Locking your iPhone or switching apps during TV Mode cleanly parks Metal and detaches the external window, then rebuilds a fresh TV window and MoltenVK swapchain automatically upon return (or seamlessly returns the game to your iPhone if AirPlay/HDMI was disconnected).
+
+### 5. Automatic System Language Detection (6 Languages)
+- Automatically detects your device's language at launch (`[NSLocale preferredLanguages]`) with zero mixed-language labels across the HUD, Quick-Bar, 2P pairing card, TV Mode notifications, native iOS Files picker, and installer credits (*"iOS port developed by hiperema"*).
+- Smartphone 2's web controller independently adapts to its own browser language (`navigator.language`).
+- **Supported Languages:** English (universal fallback), Italian, Spanish, French, German, and Japanese.
+
+### 6. Native iOS Files Integration, Mod Manager & Custom App Icon
+- **Full-Screen iOS Files Picker:** Native `UIDocumentPickerViewController` bridge (`asCopy`) plus automatic scanning of local files placed in *On My iPhone → EdgyiOS*.
+- **Built-In iOS Mod Manager:** Native UIKit interface compatible with ShadowRecomp's `ModLoader::Init()` (`mods/.modloader/profiles/Default.json`).
+- **Compiled App Icon (`Assets.car`):** Opaque iPhone and iPad icons compiled via `actool` for sharp display on SpringBoard (Feather) and inside LiveContainer.
+
+---
+
+## Compatible Devices
+
+Minimum OS Requirement: **iOS 17.0+ / iPadOS 17.0+** · **arm64** (Apple Silicon / A-series).
+
+### Compatible iPhones
+
+| Tier | iPhone Models | Chip | RAM | Expected Experience |
 | :--- | :--- | :--- | :---: | :--- |
-| **Ottimale (120Hz ProMotion)** | **iPhone 17 / 17 Air / 17 Pro / 17 Pro Max**<br>**iPhone 16 Pro / 16 Pro Max**<br>**iPhone 15 Pro / 15 Pro Max** | A19 / A19 Pro<br>A18 Pro<br>A17 Pro | 8–12 GB | **120 FPS** nativi, risoluzione piena, Modalità TV e 2P fluidi, zero limiti RAM |
-| **Eccellente (60Hz–120Hz)** | **iPhone 16 / 16 Plus / 16e**<br>**iPhone 15 / 15 Plus**<br>**iPhone 14 Pro / 14 Pro Max**<br>**iPhone 13 Pro / 13 Pro Max** | A18<br>A16 Bionic<br>A16 Bionic<br>A15 Bionic | 6–8 GB | **60–120 FPS** (120Hz sui modelli Pro), ottima stabilità con `increased-memory-limit` |
-| **Buona (60Hz)** | **iPhone 14 / 14 Plus**<br>**iPhone 13 / 13 mini**<br>**iPhone 12 Pro / 12 Pro Max**<br>**iPhone SE (3ª gen)** | A15 Bionic<br>A15 Bionic<br>A14 Bionic<br>A15 Bionic | 4–6 GB | **60 FPS** fluidi (su modelli da 4 GB consigliato chiudere le app in background) |
-| **Supporto Base (60Hz)** | **iPhone 12 / 12 mini**<br>**iPhone 11 / 11 Pro / 11 Pro Max**<br>**iPhone XS / XS Max / XR**<br>**iPhone SE (2ª gen)** | A14 Bionic<br>A13 Bionic<br>A12 Bionic<br>A13 Bionic | 3–4 GB | Funzionante su iOS 17+, possibili chiusure Jetsam su dispositivi da 3 GB (XR / SE 2ª gen) nelle aree più pesanti |
+| **Optimal (120Hz ProMotion)** | **iPhone 17 / 17 Air / 17 Pro / 17 Pro Max**<br>**iPhone 16 Pro / 16 Pro Max**<br>**iPhone 15 Pro / 15 Pro Max** | A19 / A19 Pro<br>A18 Pro<br>A17 Pro | 8–12 GB | Native **120 FPS**, full display resolution, smooth TV Mode & 2P Multiplayer, ample RAM headroom |
+| **Excellent (60Hz–120Hz)** | **iPhone 16 / 16 Plus / 16e**<br>**iPhone 15 / 15 Plus**<br>**iPhone 14 Pro / 14 Pro Max**<br>**iPhone 13 Pro / 13 Pro Max** | A18<br>A16 Bionic<br>A16 Bionic<br>A15 Bionic | 6–8 GB | **60–120 FPS** (120Hz on Pro models), high stability with `increased-memory-limit` |
+| **Good (60Hz)** | **iPhone 14 / 14 Plus**<br>**iPhone 13 / 13 mini**<br>**iPhone 12 Pro / 12 Pro Max**<br>**iPhone SE (3rd gen)** | A15 Bionic<br>A15 Bionic<br>A14 Bionic<br>A15 Bionic | 4–6 GB | Smooth **60 FPS** (closing background apps is recommended on 4 GB models) |
+| **Basic Support (60Hz)** | **iPhone 12 / 12 mini**<br>**iPhone 11 / 11 Pro / 11 Pro Max**<br>**iPhone XS / XS Max / XR**<br>**iPhone SE (2nd gen)** | A14 Bionic<br>A13 Bionic<br>A12 Bionic<br>A13 Bionic | 3–4 GB | Boots on iOS 17+; 3 GB devices (XR / SE 2nd gen) may hit iOS Jetsam limits in heavy stages |
 
-### iPad Compatibili
+### Compatible iPads
 
-| Fascia | Modelli iPad | Chip | RAM | Esperienza Attesa |
+| Tier | iPad Models | Chip | RAM | Expected Experience |
 | :--- | :--- | :--- | :---: | :--- |
-| **Ottimale (120Hz ProMotion)** | **iPad Pro 11" / 13" (M4)**<br>**iPad Pro 11" / 12.9" (M2 / M1)**<br>**iPad Pro (2018 / 2020)** | M4 / M2 / M1<br>A12X / A12Z | 4–16 GB | **120 FPS** su display ProMotion, USB-C HDMI nativo plug-and-play per Modalità TV |
-| **Eccellente (60Hz)** | **iPad Air 11" / 13" (M3 / M2 / M1)**<br>**iPad mini (A17 Pro / 6ª gen)**<br>**iPad Air (4ª gen)** | M3 / M2 / M1<br>A17 Pro / A15<br>A14 | 4–8 GB | **60 FPS** costanti, schermo ampio ideale per gamepad fisico o touch |
-| **Supporto Base (60Hz)** | **iPad (11ª gen A16 / 10ª gen A14 / 9ª gen A13)**<br>**iPad Air (3ª gen)** · **iPad mini (5ª gen)** | A16 / A14 / A13 / A12 | 3–6 GB | Compatibile con iPadOS 17+; su modelli con 3 GB di RAM si consiglia di limitare le mod pesanti |
+| **Optimal (120Hz ProMotion)** | **iPad Pro 11" / 13" (M4)**<br>**iPad Pro 11" / 12.9" (M2 / M1)**<br>**iPad Pro (2018 / 2020)** | M4 / M2 / M1<br>A12X / A12Z | 4–16 GB | **120 FPS** on ProMotion displays, plug-and-play USB-C HDMI TV Mode |
+| **Excellent (60Hz)** | **iPad Air 11" / 13" (M3 / M2 / M1)**<br>**iPad mini (A17 Pro / 6th gen)**<br>**iPad Air (4th gen)** | M3 / M2 / M1<br>A17 Pro / A15<br>A14 | 4–8 GB | Rock-solid **60 FPS**, spacious screen ideal for physical controllers or touch |
+| **Basic Support (60Hz)** | **iPad (11th gen A16 / 10th gen A14 / 9th gen A13)**<br>**iPad Air (3rd gen)** · **iPad mini (5th gen)** | A16 / A14 / A13 / A12 | 3–6 GB | Supported on iPadOS 17+; avoid heavy texture mods on 3 GB RAM models |
 
-> **Nota RAM e Sideloading:** i dispositivi con **6 GB di RAM o superiori** offrono la migliore esperienza complessiva. Quando si firma l'IPA con un certificato che supporta `com.apple.developer.kernel.increased-memory-limit` (o tramite LiveContainer), iOS concede un margine di memoria significativamente più alto per MoltenVK e gli asset di gioco.
+> **RAM & Sideloading Note:** Devices with **6 GB RAM or higher** deliver the best experience. Signing with a certificate that preserves `com.apple.developer.kernel.increased-memory-limit` (or running inside LiveContainer) gives MoltenVK and game assets significantly more memory headroom.
 
 ---
 
-## Architettura e Sviluppo
+## How It Was Developed
 
-**EdgyiOS** è stato sviluppato da **hiperema** avvalendosi di **Google AI Studio** per l'ingegnerizzazione del layer di porting iOS, l'automazione delle patch C++/Objective-C++/CMake, la pipeline di cross-compilazione cloud e la suite di test automatici.
+**EdgyiOS** was developed by **hiperema** using **Google AI Studio** to architect the native iOS compatibility layer, automate upstream C++/Objective-C++/CMake patching, engineer the custom virtual gamepad / 2P server / TV Mode subsystems, and maintain the zero-Mac GitHub Actions CI pipeline and automated test suite.
 
-### Flusso Tecnico (Zero-Mac Pipeline)
+### Technical Architecture (Zero-Mac Cloud Pipeline)
 ```text
-[Host macOS-15 Runner su GitHub Actions]
-  ├── XboxRecomp2 (Rust)  ──► Ricompilazione statica x86 Xbox -> C++ nativo arm64
-  ├── XShaderRecomp + DXC ──► Compilazione shader Xbox -> SPIR-V
-  └── file_to_c           ──► Risorse UI e font di ShadowRecomp
+[GitHub Actions macOS-15 Host Runner]
+  ├── XboxRecomp2 (Rust)  ──► Static recompilation: Original Xbox x86 -> Native arm64 C++
+  ├── XShaderRecomp + DXC ──► Shader translation: Xbox shaders -> SPIR-V
+  └── file_to_c           ──► Embedded ShadowRecomp UI & font resources
                 │
                 ▼
-[Cross-Compilazione iOS arm64 (CMake + Ninja + Xcode SDK)]
+[iOS arm64 Cross-Compilation (CMake + Ninja + Xcode iOS SDK)]
   ├── ShadowRecomp + Plume (Vulkan) ──► MoltenVK (libMoltenVK.a) ──► Apple Metal 3
-  ├── SDL3 Static (UIKit AirPlay-safe + CoreAudio + GameController)
-  ├── Layer iOS EdgyiOS:
-  │     ├── ios_virtual_controller.mm (CoreGraphics + CoreHaptics + TV Mode + 6 Lingue)
-  │     ├── ios_p2_server.mm          (Network.framework HTTP/WS + Web Controller 2P)
-  │     ├── nfd_ios.mm                (UIDocumentPicker App File full-screen)
-  │     ├── ios_mod_manager.mm        (ModLoader profiles.json UIKit)
-  │     └── ios_platform.mm           (os::logger/process/media + GPU lifecycle hooks)
-  └── Firma ad-hoc ldid + Assets.car ──► ShadowRecomp-iOS.ipa (Unsigned, Zero Asset)
+  ├── SDL3 Static (AirPlay-safe UIKit + CoreAudio + GameController)
+  ├── EdgyiOS Native Layer (com.hiperema.edgyios.ios):
+  │     ├── ios_virtual_controller.mm (CoreGraphics + CoreHaptics + TV Mode + 6 Languages)
+  │     ├── ios_p2_server.mm          (Network.framework HTTP/WS + Cross-Platform 2P Webpad)
+  │     ├── nfd_ios.mm                (Full-Screen UIDocumentPicker iOS Files Bridge)
+  │     ├── ios_mod_manager.mm        (UIKit ModLoader profiles.json Manager)
+  │     └── ios_platform.mm           (os::logger/process/media + Safe Metal GPU Lifecycle)
+  └── ldid Entitlements + Assets.car ──► EdgyiOS-iOS.ipa (Unsigned, Zero Game Assets)
 ```
 
 ---
 
-## Risorse GitHub e Crediti
+## GitHub Resources & Credits
 
-Questo progetto esiste grazie al lavoro straordinario della community open-source. Tutte le risorse esterne utilizzate nella realizzazione di **EdgyiOS**:
+**EdgyiOS** stands on the shoulders of the open-source community. Full credit to every upstream project and resource used:
 
-| Progetto / Risorsa | Ruolo in EdgyiOS | Licenza / Riferimento |
+| Project / Resource | Role in EdgyiOS | License / Reference |
 | :--- | :--- | :--- |
-| **[FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp)** | Progetto upstream di ricompilazione statica di *Shadow the Hedgehog* (inclusi `XboxRecomp2`, `XShaderRecomp` e `Plume`) | Open-Source (Upstream) |
-| **[DevZer0D4Y/MarathonRecompilediOS](https://github.com/DevZer0D4Y/MarathonRecompilediOS)** | Riferimento architetturale iOS per build cloud Zero-Asset, App File e Mod Manager | Open-Source (Riferimento) |
-| **[KhronosGroup/MoltenVK](https://github.com/KhronosGroup/MoltenVK)** | Layer di traduzione Vulkan / SPIR-V → Apple Metal 3 per iOS arm64 | Apache-2.0 |
-| **[libsdl-org/SDL](https://github.com/libsdl-org/SDL)** | SDL3 UIKit (windowing, eventi, audio CoreAudio, GameController) | zlib License |
-| **[FreeType](https://freetype.org/)** | Rendering font statico arm64 per `msdf-atlas-gen` | FreeType License / GPL |
-| **[ocornut/imgui](https://github.com/ocornut/imgui)** | Interfaccia installer wizard e menu overlay di ShadowRecomp | MIT License |
-| **[ProcursusTeam/ldid](https://github.com/ProcursusTeam/ldid)** | Applicazione degli entitlements iOS (`increased-memory-limit`, `extended-virtual-addressing`) in CI | BSD / Open-Source |
-| **[khcrysalis/Feather](https://github.com/khcrysalis/Feather)** | Sideloader iOS standalone supportato e testato | Open-Source |
-| **[LiveContainer/LiveContainer](https://github.com/LiveContainer/LiveContainer)** | Esecuzione containerizzata iOS supportata e testata (`-fPIC -Wl,-pie`) | Apache-2.0 |
-| **Google AI Studio** | Ambiente di co-sviluppo utilizzato da **hiperema** per progettare, patchare e verificare il porting iOS | Strumento di sviluppo |
+| **[FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp)** | Upstream static recompilation project for *Shadow the Hedgehog* (including `XboxRecomp2`, `XShaderRecomp`, and `Plume`) | Upstream Open-Source |
+| **[DevZer0D4Y/MarathonRecompilediOS](https://github.com/DevZer0D4Y/MarathonRecompilediOS)** | Architectural inspiration for Zero-Asset iOS cloud builds, iOS Files workflow, and Mod Manager | Upstream Open-Source |
+| **[KhronosGroup/MoltenVK](https://github.com/KhronosGroup/MoltenVK)** | Vulkan / SPIR-V → Apple Metal 3 runtime for iOS arm64 | Apache-2.0 |
+| **[libsdl-org/SDL](https://github.com/libsdl-org/SDL)** | SDL3 UIKit backend (windowing, CoreAudio, GameController) | zlib License |
+| **[FreeType](https://freetype.org/)** | Static iOS arm64 font rasterizer required by `msdf-atlas-gen` | FreeType License / GPL |
+| **[ocornut/imgui](https://github.com/ocornut/imgui)** | Installer wizard and in-game overlay UI framework | MIT License |
+| **[ProcursusTeam/ldid](https://github.com/ProcursusTeam/ldid)** | Ad-hoc entitlement signing (`increased-memory-limit`, `extended-virtual-addressing`) in CI | BSD-style Open-Source |
+| **[khcrysalis/Feather](https://github.com/khcrysalis/Feather)** | Tested & supported standalone iOS sideloader | Open-Source |
+| **[LiveContainer/LiveContainer](https://github.com/LiveContainer/LiveContainer)** | Tested & supported containerized iOS runner (`-fPIC -Wl,-pie`) | Apache-2.0 |
+| **Google AI Studio** | Co-development environment used by **hiperema** to build, iterate, and verify the iOS port | Development Tool |
 
 ---
 
-## Compilazione Cloud (Zero-Mac)
+## Cloud Build (No Mac Required)
 
-Non serve un Mac: l'intera build gira gratuitamente su **GitHub Actions (`macos-15`)** senza mai committare file di gioco nel repository (`.gitignore` blocca automaticamente `*.xbe`, `*.iso`, `*.xiso`, `*.afs`, `*.one`, `*.txd` e `private/`).
+You do not need a Mac to build **EdgyiOS**. Everything compiles on **GitHub Actions (`macos-15`)** without ever committing game files to Git (`.gitignore` automatically blocks `*.xbe`, `*.iso`, `*.xiso`, `*.afs`, `*.one`, `*.txd`, and `private/`).
 
-1. Effettua un fork o clona questo repository su GitHub.
-2. Vai in **Settings → Secrets and variables → Actions → New repository secret**.
-3. Crea il Secret cifrato **`DEFAULT_XBE_URL`** inserendo un link diretto temporaneo/privato al `default.xbe` estratto dalla **tua copia originale** del gioco (~4,8 MB).
-   - Il file viene scaricato esclusivamente dentro la VM effimera `macos-15` durante lo step di ricompilazione di `XboxRecomp2` e rimosso al termine della build.
-4. Apri **Actions → Build ShadowRecomp iOS Unsigned IPA → Run workflow**.
-   - Seleziona `Release` (consigliato).
-   - *(Opzionale)* Spunta **`publish_release`** per pubblicare automaticamente una GitHub Release con `ShadowRecomp-iOS.ipa` e il file `SHA256SUMS`.
-5. Scarica l'artifact `.ipa` direttamente sul tuo iPhone o iPad.
-
----
-
-## Installazione su iPhone e iPad
-
-### Con Feather (Standalone)
-1. Importa `ShadowRecomp-iOS.ipa` in **Feather**, firma e installa.
-2. Avvia l'app: all'apertura dell'installer si aprirà il selettore nativo dell'**App File di iOS** (in alternativa, copia prima la tua `.iso` / `.xiso` o la cartella estratta in *Su iPhone → ShadowRecomp*).
-3. Completa l'installazione: al termine appariranno i crediti (*"Porting iOS sviluppato da hiperema"*) e al riavvio il gioco sarà pronto!
-
-### Con LiveContainer
-1. Importa `ShadowRecomp-iOS.ipa` in **LiveContainer** (l'eseguibile è già compilato con `-fPIC -Wl,-pie`).
-2. Avvia **EdgyiOS**, seleziona i file della tua copia originale dall'App File di iOS e completa la procedura guidata.
+1. Fork or clone this repository on GitHub.
+2. Open **Settings → Secrets and variables → Actions → New repository secret**.
+3. Create an encrypted secret named **`DEFAULT_XBE_URL`** pointing to a temporary/private direct download link of the `default.xbe` extracted from **your own legal copy** of the game (~4.8 MB).
+   - The file is downloaded solely inside the ephemeral `macos-15` runner during `XboxRecomp2` code generation and destroyed immediately after the build finishes.
+4. Go to **Actions → Build EdgyiOS Unsigned IPA → Run workflow**.
+   - Select `Release` (recommended).
+   - *(Optional)* Enable **`publish_release`** to automatically create a GitHub Release with `EdgyiOS-iOS.ipa` and `SHA256SUMS-EdgyiOS.txt`.
+5. Download the generated `.ipa` artifact directly onto your iPhone or iPad.
 
 ---
 
-## Note Legali e Copyright
+## Installation on iPhone & iPad
 
-- **Nessun contenuto protetto da copyright è incluso** in questo repository, nei sorgenti o nell'IPA compilato.
-- **EdgyiOS** è un progetto indipendente, amatoriale e senza scopo di lucro, non affiliato né approvato da **SEGA CORPORATION**, **Sonic Team**, **Microsoft Corporation** o **Apple Inc.**
-- Tutti i marchi citati (*Shadow the Hedgehog*, *SEGA*, *Xbox*, *iPhone*, *iPad*, *iOS*, *AirPlay*, *Metal*) appartengono ai rispettivi legittimi proprietari.
-- L'utilizzo di questo software richiede il possesso legale di una copia originale di *Shadow the Hedgehog (2005)* per Xbox. Non vengono forniti né richiesti link a ROM, ISO o file proprietari.
+### Option A — Feather (Standalone)
+1. Import `EdgyiOS-iOS.ipa` into **Feather**, sign with your certificate, and install.
+2. Launch **EdgyiOS**: the installer wizard opens the native **iOS Files** picker so you can select your extracted game folder or `.iso` / `.xiso` *(or pre-copy it into On My iPhone → EdgyiOS)*.
+3. Once installation completes, restart the app and enjoy!
 
-Per l'informativa legale completa, i dettagli sull'uso di Google AI Studio e le licenze dei componenti open-source, leggi **[LEGAL.md](LEGAL.md)**.
+### Option B — LiveContainer
+1. Import `EdgyiOS-iOS.ipa` into **LiveContainer** (the binary is pre-compiled with `-fPIC -Wl,-pie` for full compatibility).
+2. Launch **EdgyiOS**, pick your legally dumped game files via iOS Files, and restart once installation finishes.
+
+---
+
+## Legal & Copyright Notice
+
+- **Zero copyrighted assets** are included in this repository, its source code, or any compiled `.ipa`.
+- **EdgyiOS** is an independent, non-commercial, fan-made port and is **not affiliated with, endorsed by, or sponsored by** **SEGA CORPORATION**, **Sonic Team**, **Microsoft Corporation**, or **Apple Inc.**
+- All trademarks (*Shadow the Hedgehog*, *SEGA*, *Xbox*, *iPhone*, *iPad*, *iOS*, *AirPlay*, *Metal*) are the property of their respective owners.
+- Using this project requires owning a legitimate original copy of *Shadow the Hedgehog (2005)* for Xbox. Requests for or links to ROMs, ISOs, or `.xbe` files are strictly prohibited.
+
+Please read **[LEGAL.md](LEGAL.md)** for the complete legal notice, AI development disclosure, third-party licenses, and takedown policy.
 
 ---
 
 <div align="center">
-  <sub>Sviluppato con passione da <strong>hiperema</strong> · Co-sviluppato con <strong>Google AI Studio</strong> · Basato su <strong>FoxWorkshop/ShadowRecomp</strong></sub>
+  <sub>iOS Port developed by <strong>hiperema</strong> · Co-developed with <strong>Google AI Studio</strong> · Built upon <strong>FoxWorkshop/ShadowRecomp</strong></sub>
 </div>
