@@ -507,7 +507,14 @@ test('Connected pill auto-hide with disconnect alert and AirPlay/HDMI TV Mode (d
   // AirPlay/HDMI external display detection (UIWindowScene + UIScreen fallback for LiveContainer) + SDL external scene readiness
   assert.match(vcMm, /FindExternalWindowScene/);
   assert.match(vcMm, /FindExternalScreen/);
-  assert.match(vcMm, /FindMetalLayerViewInView/);
+  assert.match(vcMm, /FindGameMetalView/);
+  assert.match(vcMm, /FindCAMetalLayerInView/);
+  assert.match(vcMm, /FindMetalLayerViewInTree/);
+  assert.match(vcMm, /tvPhoneHostView/);
+  assert.match(vcMm, /tvMetalWasRootVCView/);
+  assert.match(vcMm, /@property \(nonatomic, strong\) UIView \*tvMovedMetalView;/);
+  assert.match(vcMm, /UIScreenOverscanCompensationNone/);
+  assert.match(vcMm, /if \(g_sharedOverlay && g_sharedOverlay\.tvGamepadMode\)/);
   assert.match(vcMm, /UISceneWillConnectNotification/);
   assert.match(vcMm, /UISceneDidDisconnectNotification/);
   assert.match(vcMm, /UIScreenDidConnectNotification/);

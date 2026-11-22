@@ -1757,8 +1757,14 @@ struct ActiveTouchRecord {
 @property (nonatomic, assign) BOOL externalDisplayAvailable;
 @property (nonatomic, assign) BOOL tvGamepadMode;
 @property (nonatomic, strong) UIWindow *tvExternalWindow;
-@property (nonatomic, weak) UIView *tvMovedMetalView;
+@property (nonatomic, weak) UIWindow *tvPhoneWindow;
+@property (nonatomic, weak) UIViewController *tvPhoneRootVC;
+@property (nonatomic, strong) UIView *tvPhoneHostView;
+@property (nonatomic, strong) UIView *tvMovedMetalView;
 @property (nonatomic, weak) UIView *tvOriginalMetalSuperview;
+@property (nonatomic, assign) BOOL tvMetalWasRootVCView;
+@property (nonatomic, assign) BOOL tvOverlayWasInMetalView;
+@property (nonatomic, assign) BOOL tvOriginalMetalUserInteraction;
 @property (nonatomic, assign) CGRect tvOriginalMetalFrame;
 @property (nonatomic, assign) UIViewAutoresizing tvOriginalMetalAutoresizing;
 @property (nonatomic, assign) CGFloat tvOriginalMetalScale;
@@ -1846,9 +1852,9 @@ static UIWindowScene *FindExternalWindowScene(void) {
     for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
         if ([scene isKindOfClass:[UIWindowScene class]]) {
             UIWindowScene *ws = (UIWindowScene *)scene;
-            if (![ws.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) {
-                return ws;
-            }
+            if ([ws.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) continue;
+            if (ws.activationState == UISceneActivationStateUnattached) continue;
+            return ws;
         }
     }
     return nil;
@@ -1867,15 +1873,53 @@ static UIScreen *FindExternalScreen(void) {
     return nil;
 }
 
-static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
+static CAMetalLayer *FindCAMetalLayerInView(UIView *view) {
+    if (!view) return nil;
+    if ([view.layer isKindOfClass:[CAMetalLayer class]]) {
+        return (CAMetalLayer *)view.layer;
+    }
+    for (CALayer *sublayer in view.layer.sublayers) {
+        if ([sublayer isKindOfClass:[CAMetalLayer class]]) {
+            return (CAMetalLayer *)sublayer;
+        }
+    }
+    return nil;
+}
+
+static UIView *FindMetalLayerViewInTree(UIView *root, UIView *excluded) {
     if (!root || root == excluded) return nil;
+    if (FindCAMetalLayerInView(root) != nil) {
+        return root;
+    }
     for (UIView *sub in root.subviews) {
         if (sub == excluded) continue;
-        if ([sub.layer isKindOfClass:[CAMetalLayer class]]) {
-            return sub;
-        }
-        UIView *nested = FindMetalLayerViewInView(sub, excluded);
+        UIView *nested = FindMetalLayerViewInTree(sub, excluded);
         if (nested) return nested;
+    }
+    return nil;
+}
+
+static UIView *FindGameMetalView(UIView *overlaySelf) {
+    // 1. In SDL3 UIKit, rootViewController.view E spesso SDL_uikitmetalview stesso (self.superview)!
+    UIView *hostView = overlaySelf.superview;
+    if (hostView && hostView != overlaySelf) {
+        UIView *found = FindMetalLayerViewInTree(hostView, overlaySelf);
+        if (found) return found;
+    }
+    // 2. Scansiona l'intera UIWindow dell'iPhone
+    if (overlaySelf.window) {
+        UIView *found = FindMetalLayerViewInTree(overlaySelf.window, overlaySelf);
+        if (found) return found;
+    }
+    // 3. Fallback su tutte le UIWindow Application-role (copre anche wrapper multi-window come LiveContainer)
+    for (UIScene *scene in [UIApplication sharedApplication].connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+        UIWindowScene *ws = (UIWindowScene *)scene;
+        if (![ws.session.role isEqualToString:UIWindowSceneSessionRoleApplication]) continue;
+        for (UIWindow *w in ws.windows) {
+            UIView *found = FindMetalLayerViewInTree(w, overlaySelf);
+            if (found) return found;
+        }
     }
     return nil;
 }
@@ -2490,12 +2534,15 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         return;
     }
 
-    UIView *hostView = self.superview;
-    UIView *metalView = FindMetalLayerViewInView(hostView, self);
-    if (!metalView && self.window) {
-        metalView = FindMetalLayerViewInView(self.window, self);
+    UIView *metalView = FindGameMetalView(self);
+    if (!metalView || metalView == self) {
+        [self showP2Toast:L().toastTVVideoNotReady duration:2.5];
+        return;
     }
-    if (!metalView || metalView == hostView || metalView == self) {
+
+    UIWindow *phoneWindow = self.window ?: metalView.window;
+    UIViewController *phoneVC = phoneWindow ? phoneWindow.rootViewController : nil;
+    if (!phoneWindow) {
         [self showP2Toast:L().toastTVVideoNotReady duration:2.5];
         return;
     }
@@ -2506,14 +2553,61 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
     // 1. Parcheggia in sicurezza il RenderThread Metal/MoltenVK prima di spostare il CAMetalLayer
     ShadowIOS_VideoOnWillEnterBackground();
 
-    // 2. Salva gerarchia e scala originali sull'iPhone
+    // 2. Salva gerarchia e scala originali sull'iPhone (strong ref su metalView per sicurezza ARC durante lo swap)
+    BOOL metalWasRootVCView = (phoneVC != nil && phoneVC.view == metalView);
+    BOOL overlayWasInMetal = [self isDescendantOfView:metalView];
+    UIView *origMetalSuperview = metalView.superview;
+
+    self.tvPhoneWindow = phoneWindow;
+    self.tvPhoneRootVC = phoneVC;
     self.tvMovedMetalView = metalView;
-    self.tvOriginalMetalSuperview = metalView.superview;
+    self.tvOriginalMetalSuperview = origMetalSuperview;
+    self.tvMetalWasRootVCView = metalWasRootVCView;
+    self.tvOverlayWasInMetalView = overlayWasInMetal;
+    self.tvOriginalMetalUserInteraction = metalView.userInteractionEnabled;
     self.tvOriginalMetalFrame = metalView.frame;
     self.tvOriginalMetalAutoresizing = metalView.autoresizingMask;
     self.tvOriginalMetalScale = metalView.contentScaleFactor;
 
-    // 3. Crea la UIWindow dedicata sulla TV (preferisce UIWindowScene iOS 16+, fallback UIScreen per LiveContainer)
+    // 3. Stacca SEMPRE ShadowTouchOverlayView da metalView PRIMA di spostare metalView sulla TV:
+    //    cosi sulla TV esce SOLO il gioco pulito a schermo intero con ZERO bottoni virtuali!
+    if (metalWasRootVCView && phoneVC) {
+        UIView *phoneHost = [[UIView alloc] initWithFrame:phoneWindow.bounds];
+        phoneHost.backgroundColor = [UIColor blackColor];
+        phoneHost.opaque = YES;
+        phoneHost.multipleTouchEnabled = YES;
+        phoneHost.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+        self.tvPhoneHostView = phoneHost;
+
+        [self removeFromSuperview];
+        self.frame = phoneHost.bounds;
+        [phoneHost addSubview:self];
+
+        // Sostituisce rootViewController.view con phoneHost mantenendo landscape, status bar nascosta e keyWindow su iPhone
+        phoneVC.view = phoneHost;
+        if (phoneHost.superview == nil) {
+            UIView *targetContainer = (origMetalSuperview && origMetalSuperview != metalView) ? origMetalSuperview : phoneWindow;
+            phoneHost.frame = targetContainer.bounds;
+            [targetContainer addSubview:phoneHost];
+        } else {
+            phoneHost.frame = phoneHost.superview.bounds;
+        }
+        self.frame = phoneHost.bounds;
+        [phoneHost layoutIfNeeded];
+    } else if (overlayWasInMetal) {
+        UIView *safePhoneParent = (origMetalSuperview && origMetalSuperview != metalView)
+                                  ? origMetalSuperview
+                                  : ((phoneVC && phoneVC.view && phoneVC.view != metalView) ? phoneVC.view : phoneWindow);
+        [self removeFromSuperview];
+        self.frame = safePhoneParent.bounds;
+        [safePhoneParent addSubview:self];
+        [safePhoneParent bringSubviewToFront:self];
+    }
+
+    // 4. Crea la UIWindow dedicata sulla TV (preferisce UIWindowScene iOS 16+, fallback UIScreen per LiveContainer)
+    if (extScreen) {
+        extScreen.overscanCompensation = UIScreenOverscanCompensationNone;
+    }
     UIWindow *tvWin = nil;
     if (extScene) {
         tvWin = [[UIWindow alloc] initWithWindowScene:extScene];
@@ -2524,44 +2618,62 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         tvWin.screen = extScreen;
 #pragma clang diagnostic pop
     }
+    if ((tvWin.bounds.size.width < 10.0 || tvWin.bounds.size.height < 10.0) && extScreen) {
+        tvWin.frame = extScreen.bounds;
+    }
     tvWin.backgroundColor = [UIColor blackColor];
     tvWin.userInteractionEnabled = NO;
 
     UIViewController *tvVC = [[UIViewController alloc] init];
     tvVC.view.backgroundColor = [UIColor blackColor];
+    tvVC.view.clipsToBounds = YES;
+    tvVC.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     tvVC.view.frame = tvWin.bounds;
     tvWin.rootViewController = tvVC;
 
-    // 4. Sposta la vista CAMetalLayer di ShadowRecomp sulla TV a schermo intero (cap 1080p per zero Jetsam OOM su TV 4K)
+    // 5. Sposta SOLO la vista CAMetalLayer di ShadowRecomp sulla TV a schermo intero (zero bottoni virtuali!)
     [metalView removeFromSuperview];
-    CGRect tvBounds = tvVC.view.bounds;
-    metalView.frame = tvBounds;
+    metalView.userInteractionEnabled = NO;
     metalView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [tvVC.view addSubview:metalView];
-    [tvVC.view layoutIfNeeded];
 
+    // NON chiamare makeKeyAndVisible: l'iPhone deve restare keyWindow per ricevere multi-touch e aptica!
+    tvWin.hidden = NO;
+    [tvWin layoutIfNeeded];
+    [tvVC.view layoutIfNeeded];
+    self.tvExternalWindow = tvWin;
+
+    CGRect tvBounds = tvVC.view.bounds;
+    if ((tvBounds.size.width < 10.0 || tvBounds.size.height < 10.0) && extScreen) {
+        tvBounds = extScreen.bounds;
+        tvVC.view.frame = tvBounds;
+    }
+    // Cap 1080p per zero Jetsam OOM su TV 4K e 60/120fps rock-solid
     CGFloat rawScale = extScreen ? MAX(extScreen.scale, 1.0) : 1.0;
     CGFloat tvScale = rawScale;
     if (tvBounds.size.width > 1.0 && (tvBounds.size.width * tvScale) > 1920.0) {
         tvScale = 1920.0 / tvBounds.size.width;
     }
+    metalView.frame = tvBounds;
     metalView.contentScaleFactor = tvScale;
-    if ([metalView.layer isKindOfClass:[CAMetalLayer class]]) {
-        CAMetalLayer *ml = (CAMetalLayer *)metalView.layer;
+    [metalView layoutIfNeeded];
+
+    CAMetalLayer *ml = FindCAMetalLayerInView(metalView);
+    if (ml) {
         ml.contentsScale = tvScale;
-        ml.frame = tvBounds;
+        ml.frame = metalView.bounds;
         ml.drawableSize = CGSizeMake(std::round(tvBounds.size.width * tvScale),
                                      std::round(tvBounds.size.height * tvScale));
     }
 
-    // NON chiamare makeKeyAndVisible: l'iPhone deve restare keyWindow per ricevere multi-touch e aptica!
-    tvWin.hidden = NO;
-    self.tvExternalWindow = tvWin;
+    if (!phoneWindow.isKeyWindow) {
+        [phoneWindow makeKeyAndVisible];
+    }
 
-    // 5. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK sul TV display
+    // 6. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK sul TV display
     ShadowIOS_VideoOnDidEnterForeground();
 
-    // 6. Trasforma lo schermo iPhone in controller virtuale dedicato ingrandito cieco-giocabile
+    // 7. Trasforma lo schermo iPhone in controller virtuale dedicato ingrandito cieco-giocabile
     self.tvGamepadMode = YES;
     self.isIdleFaded = NO;
     [self.idleFadeTimer invalidate];
@@ -2610,25 +2722,71 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
 
     // 2. Riporta CAMetalLayer nella finestra principale dell'iPhone dietro l'overlay
     UIView *metalView = self.tvMovedMetalView;
-    UIView *origParent = self.tvOriginalMetalSuperview ?: self.superview;
-    if (metalView && origParent) {
-        [metalView removeFromSuperview];
-        CGRect restoreFrame = origParent.bounds;
-        metalView.frame = restoreFrame;
-        metalView.autoresizingMask = self.tvOriginalMetalAutoresizing;
-        [origParent insertSubview:metalView atIndex:0];
-        [origParent bringSubviewToFront:self];
-        [origParent layoutIfNeeded];
+    UIWindow *phoneWindow = self.tvPhoneWindow ?: self.window;
+    UIViewController *phoneVC = self.tvPhoneRootVC ?: (phoneWindow ? phoneWindow.rootViewController : nil);
+    UIView *origParent = self.tvOriginalMetalSuperview;
+    UIView *phoneHost = self.tvPhoneHostView;
+    BOOL metalWasRootVCView = self.tvMetalWasRootVCView;
+    BOOL overlayWasInMetal = self.tvOverlayWasInMetalView;
 
-        CGFloat fallbackScale = (self.window && self.window.screen) ? self.window.screen.scale : 3.0;
+    if (metalView) {
+        UIView *hostSuper = phoneHost ? phoneHost.superview : nil;
+        [metalView removeFromSuperview];
+        metalView.userInteractionEnabled = self.tvOriginalMetalUserInteraction;
+        metalView.autoresizingMask = self.tvOriginalMetalAutoresizing;
+
+        if (metalWasRootVCView && phoneVC) {
+            [self removeFromSuperview];
+            if (phoneHost) {
+                [phoneHost removeFromSuperview];
+            }
+            CGRect restoreFrame = phoneWindow ? phoneWindow.bounds : self.bounds;
+            metalView.frame = restoreFrame;
+            phoneVC.view = metalView;
+            if (metalView.superview == nil) {
+                UIView *targetContainer = (hostSuper && hostSuper != metalView)
+                                          ? hostSuper
+                                          : ((origParent && origParent != metalView) ? origParent : phoneWindow);
+                if (targetContainer) {
+                    metalView.frame = targetContainer.bounds;
+                    [targetContainer insertSubview:metalView atIndex:0];
+                }
+            } else {
+                metalView.frame = metalView.superview.bounds;
+            }
+            self.frame = metalView.bounds;
+            [metalView addSubview:self];
+            [metalView bringSubviewToFront:self];
+            [metalView layoutIfNeeded];
+        } else {
+            UIView *targetParent = (origParent && origParent != metalView)
+                                   ? origParent
+                                   : ((phoneVC && phoneVC.view && phoneVC.view != metalView) ? phoneVC.view : phoneWindow);
+            if (targetParent) {
+                metalView.frame = targetParent.bounds;
+                [targetParent insertSubview:metalView atIndex:0];
+                if (overlayWasInMetal) {
+                    [self removeFromSuperview];
+                    self.frame = metalView.bounds;
+                    [metalView addSubview:self];
+                    [metalView bringSubviewToFront:self];
+                } else {
+                    [targetParent bringSubviewToFront:self];
+                }
+                [targetParent layoutIfNeeded];
+            }
+        }
+
+        CGFloat fallbackScale = (phoneWindow && phoneWindow.screen) ? phoneWindow.screen.scale : [UIScreen mainScreen].scale;
         CGFloat phoneScale = (self.tvOriginalMetalScale > 0.5) ? self.tvOriginalMetalScale : fallbackScale;
         metalView.contentScaleFactor = phoneScale;
-        if ([metalView.layer isKindOfClass:[CAMetalLayer class]]) {
-            CAMetalLayer *ml = (CAMetalLayer *)metalView.layer;
+        [metalView layoutIfNeeded];
+        CAMetalLayer *ml = FindCAMetalLayerInView(metalView);
+        if (ml) {
             ml.contentsScale = phoneScale;
-            ml.frame = restoreFrame;
-            ml.drawableSize = CGSizeMake(std::round(restoreFrame.size.width * phoneScale),
-                                         std::round(restoreFrame.size.height * phoneScale));
+            ml.frame = metalView.bounds;
+            ml.drawableSize = CGSizeMake(std::round(metalView.bounds.size.width * phoneScale),
+                                         std::round(metalView.bounds.size.height * phoneScale));
         }
     }
 
@@ -2641,8 +2799,17 @@ static UIView *FindMetalLayerViewInView(UIView *root, UIView *excluded) {
         }
         self.tvExternalWindow = nil;
     }
+    self.tvPhoneHostView = nil;
     self.tvMovedMetalView = nil;
     self.tvOriginalMetalSuperview = nil;
+    self.tvPhoneWindow = nil;
+    self.tvPhoneRootVC = nil;
+    self.tvMetalWasRootVCView = NO;
+    self.tvOverlayWasInMetalView = NO;
+
+    if (phoneWindow && !phoneWindow.isKeyWindow) {
+        [phoneWindow makeKeyAndVisible];
+    }
 
     // 4. Riattiva il RenderThread con rebuild pulito della swapchain MoltenVK su iPhone
     ShadowIOS_VideoOnDidEnterForeground();
@@ -3719,6 +3886,15 @@ static UIView *FindActiveHostView(void) {
 }
 
 static void EnsureOverlayAttachedOnMainThread(bool hasPhysical, bool installerVisible, int chaosAura) {
+    if (g_sharedOverlay && g_sharedOverlay.tvGamepadMode) {
+        // In Modalita TV l'overlay resta ancorato al container dedicato su iPhone (zero bottoni sulla TV)
+        [g_sharedOverlay updateExternalPhysical:hasPhysical
+                               installerVisible:installerVisible
+                                      chaosAura:chaosAura];
+        [g_sharedOverlay refreshExternalDisplayAvailabilitySilent:YES];
+        return;
+    }
+
     UIView *host = FindActiveHostView();
     if (!host) return;
 
