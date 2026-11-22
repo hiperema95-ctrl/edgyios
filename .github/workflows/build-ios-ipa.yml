@@ -32,7 +32,7 @@ on:
 env:
   APP_NAME: "EdgyiOS"
   BUNDLE_ID: "com.hiperema.edgyios.ios"
-  APP_VERSION: "1.0.0"
+  APP_VERSION: "1.0.1"
   IOS_DEPLOYMENT_TARGET: "17.0"
   UPSTREAM_REPO: "https://github.com/FoxWorkshop/ShadowRecomp.git"
   MOLTENVK_VERSION: "v1.4.2"
@@ -315,6 +315,8 @@ jobs:
           fi
 
           cp ios-port/ios/Info.plist "Payload/${APP_NAME}.app/Info.plist"
+          plutil -replace CFBundleShortVersionString -string "${APP_VERSION}" "Payload/${APP_NAME}.app/Info.plist"
+          plutil -replace CFBundleVersion -string "${GITHUB_RUN_NUMBER:-2}" "Payload/${APP_NAME}.app/Info.plist"
 
           # Genera icone iOS PNG opache + Assets.car (SpringBoard + LiveContainer / Feather)
           ICON_SRC=""

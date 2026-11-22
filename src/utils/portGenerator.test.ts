@@ -587,6 +587,7 @@ test('automatic phone system language detection localizes virtual controller HUD
 test('EdgyiOS English README.md, LEGAL.md, RELEASE_NOTES.md, com.hiperema.edgyios.ios bundle ID, and IPA packaging are consistent', () => {
   assert.equal(DEFAULT_BUILD_CONFIG.appName, 'EdgyiOS');
   assert.equal(DEFAULT_BUILD_CONFIG.bundleId, 'com.hiperema.edgyios.ios');
+  assert.equal(DEFAULT_BUILD_CONFIG.appVersion, '1.0.1');
 
   const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
   const byPath = new Map(files.map((f) => [f.path, f.content]));
@@ -616,12 +617,15 @@ test('EdgyiOS English README.md, LEGAL.md, RELEASE_NOTES.md, com.hiperema.edgyio
   assert.match(legal, /Apache License 2\.0/);
   assert.match(legal, /Notice & Takedown/);
 
-  assert.match(releaseNotes, /EdgyiOS v1\.0\.0 — Shadow The Hedgehog Recompiled for iOS/);
+  assert.match(releaseNotes, /EdgyiOS v1\.0\.1 — Shadow The Hedgehog Recompiled for iOS/);
+  assert.match(releaseNotes, /What's New in v1\.0\.1/);
   assert.match(releaseNotes, /Google AI Studio/);
   assert.match(releaseNotes, /EdgyiOS-iOS\.ipa/);
 
   assert.match(workflow, /APP_NAME: "EdgyiOS"/);
   assert.match(workflow, /BUNDLE_ID: "com\.hiperema\.edgyios\.ios"/);
+  assert.match(workflow, /APP_VERSION: "1\.0\.1"/);
+  assert.match(workflow, /plutil -replace CFBundleShortVersionString -string "\$\{APP_VERSION\}"/);
   assert.match(workflow, /mv "Payload\/\$\{APP_NAME\}\.app\/ShadowRecomp" "Payload\/\$\{APP_NAME\}\.app\/\$\{APP_NAME\}"/);
   assert.match(workflow, /--title "EdgyiOS v\$\{APP_VERSION\} — Shadow The Hedgehog Recompiled for iOS/);
   assert.match(workflow, /--notes-file ios-port\/RELEASE_NOTES\.md/);
@@ -629,6 +633,8 @@ test('EdgyiOS English README.md, LEGAL.md, RELEASE_NOTES.md, com.hiperema.edgyio
   assert.match(infoPlist, /<key>CFBundleDisplayName<\/key>\s*<string>EdgyiOS<\/string>/);
   assert.match(infoPlist, /<key>CFBundleExecutable<\/key>\s*<string>EdgyiOS<\/string>/);
   assert.match(infoPlist, /<key>CFBundleIdentifier<\/key>\s*<string>com\.hiperema\.edgyios\.ios<\/string>/);
+  assert.match(infoPlist, /<key>CFBundleShortVersionString<\/key>\s*<string>1\.0\.1<\/string>/);
+  assert.match(infoPlist, /<key>CFBundleVersion<\/key>\s*<string>2<\/string>/);
   assert.match(infoPlist, /<key>CFBundleDevelopmentRegion<\/key>\s*<string>en<\/string>/);
 });
 

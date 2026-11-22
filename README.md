@@ -20,7 +20,7 @@
   <a href="#github-resources--credits">GitHub Resources &amp; Credits</a> •
   <a href="#cloud-build-no-mac-required">No-Mac Cloud Build</a> •
   <a href="#installation-on-iphone--ipad">Installation</a> •
-  <a href="RELEASE_NOTES.md">Release v1.0.0</a> •
+  <a href="RELEASE_NOTES.md">Release v1.0.1</a> •
   <a href="LEGAL.md">Legal &amp; Licensing</a>
 </p>
 

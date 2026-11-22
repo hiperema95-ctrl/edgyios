@@ -45,7 +45,7 @@ export const DEFAULT_BUILD_CONFIG: PortBuildConfig = {
   iosRefRepoUrl: 'https://github.com/DevZer0D4Y/MarathonRecompilediOS',
   bundleId: 'com.hiperema.edgyios.ios',
   appName: 'EdgyiOS',
-  appVersion: '1.0.0',
+  appVersion: '1.0.1',
   deploymentTarget: '17.0',
   targetInstaller: 'both',
   enable120HzProMotion: true,
@@ -407,6 +407,8 @@ jobs:
           fi
 
           cp ios-port/ios/Info.plist "Payload/\${APP_NAME}.app/Info.plist"
+          plutil -replace CFBundleShortVersionString -string "\${APP_VERSION}" "Payload/\${APP_NAME}.app/Info.plist"
+          plutil -replace CFBundleVersion -string "\${GITHUB_RUN_NUMBER:-2}" "Payload/\${APP_NAME}.app/Info.plist"
 
           # Genera icone iOS PNG opache + Assets.car (SpringBoard + LiveContainer / Feather)
           ICON_SRC=""
@@ -2723,7 +2725,7 @@ function(shadow_configure_ios_target TARGET_NAME)
         XCODE_ATTRIBUTE_TARGETED_DEVICE_FAMILY "1,2"
         XCODE_ATTRIBUTE_PRODUCT_BUNDLE_IDENTIFIER "${config.bundleId}"
         XCODE_ATTRIBUTE_MARKETING_VERSION "${config.appVersion}"
-        XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "1"
+        XCODE_ATTRIBUTE_CURRENT_PROJECT_VERSION "2"
         XCODE_ATTRIBUTE_ENABLE_BITCODE "NO"
         XCODE_ATTRIBUTE_CLANG_ENABLE_OBJC_ARC "YES"
     )
@@ -3387,8 +3389,8 @@ static void InstallCrashLogInfrastructure() {
         NSBundle *bundle = [NSBundle mainBundle];
         NSString *appName = [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: @"EdgyiOS";
         NSString *bundleId = bundle.bundleIdentifier ?: @"com.hiperema.edgyios.ios";
-        NSString *shortVer = [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"1.0.0";
-        NSString *buildVer = [bundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"1";
+        NSString *shortVer = [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"${config.appVersion}";
+        NSString *buildVer = [bundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"2";
         NSString *sysVer = [NSProcessInfo processInfo].operatingSystemVersionString ?: @"iOS 17+";
         unsigned long long totalRamMB = [NSProcessInfo processInfo].physicalMemory / (1024ULL * 1024ULL);
         NSUInteger cpuCount = [NSProcessInfo processInfo].processorCount;
@@ -4387,7 +4389,7 @@ void curl_slist_free_all(struct curl_slist*) {}
     <key>CFBundleShortVersionString</key>
     <string>${config.appVersion}</string>
     <key>CFBundleVersion</key>
-    <string>1</string>
+    <string>2</string>
     <key>CFBundleIconName</key>
     <string>AppIcon</string>
     <key>CFBundleIcons</key>
@@ -4663,7 +4665,7 @@ dist/
     },
     {
       path: 'RELEASE_NOTES.md',
-      title: 'Note di Release GitHub v1.0.0 (RELEASE_NOTES.md)',
+      title: `Note di Release GitHub v${config.appVersion} (RELEASE_NOTES.md)`,
       language: 'markdown',
       description: 'Note di release pronte per GitHub Releases e usate automaticamente dallo step publish_release.',
       content: releaseNotesMd,

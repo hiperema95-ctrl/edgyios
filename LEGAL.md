@@ -3,7 +3,7 @@
 **Project:** EdgyiOS: Shadow The Hedgehog Recompiled for iOS  
 **iOS Port Maintainer:** hiperema  
 **Bundle Identifier:** `com.hiperema.edgyios.ios`  
-**Version:** v1.0.0  
+**Version:** v1.0.1  
 
 ---
 

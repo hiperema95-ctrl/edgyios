@@ -1,12 +1,19 @@
-# EdgyiOS v1.0.0 — Shadow The Hedgehog Recompiled for iOS
+# EdgyiOS v1.0.1 — Shadow The Hedgehog Recompiled for iOS
 
-Initial global release of **EdgyiOS**, the native iOS & iPadOS port of [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), developed by **hiperema** with **Google AI Studio**.
+Global release **v1.0.1** of **EdgyiOS**, the native iOS & iPadOS port of [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), developed by **hiperema** with **Google AI Studio**.
 
 > **Zero Game Assets Included:** `EdgyiOS-iOS.ipa` contains only the native arm64 recompiled runtime and iOS subsystems. On first launch, import the files extracted from **your own legally owned Xbox copy** of *Shadow the Hedgehog (2005)* via the iOS Files app.
 
 ---
 
-## Highlights in v1.0.0
+## What's New in v1.0.1
+- **Built-In `crashlog.txt` Automatic Crash & Memory-Warning Capture:** Automatically intercepts native ARM64 fatal signals (`SIGSEGV`, `SIGBUS`, `SIGABRT`, `SIGILL`, `SIGFPE`, `SIGTRAP`), uncaught `NSException` / `std::terminate` crashes, and iOS low-memory warnings (Jetsam risk) with zero impact on 120 FPS gameplay, writing timestamps, stack traces, RAM usage, and recent engine/SDL3 logs to **`On My iPhone → EdgyiOS → ShadowRecomp/crashlog.txt`**.
+- **On-Demand 10-Second `LOG` Diagnostic Button:** Added a dedicated **`LOG`** button right after the 2-Player button in the Chaos Emerald Quick-HUD bar. Tap it whenever you encounter a bug or slowdown to capture 10 seconds of live FPS, RAM, thermal state, and engine/SDL3 telemetry directly into `ShadowRecomp/crashlog.txt` (localized across all 6 languages) — ready to attach to a GitHub Issue.
+- **Cleaner TV Mode Quick-HUD Bar:** Removed the redundant **Opacity (`TV 100%`)** and **Auto-Hide (`4s`)** buttons when Dual-Screen TV Mode is active, keeping a compact centered bar (**Haptics · TV · 2P · LOG**) with zero overlap on the enlarged gamepad controls.
+
+---
+
+## Full Feature Highlights in v1.0.1
 
 ### Native Engine, Full-Screen Resolution & 120Hz ProMotion
 - **Native arm64 + Metal 3 (MoltenVK)** execution with **zero JIT**, **120Hz ProMotion** support, and full compatibility with both **Feather** (standalone) and **LiveContainer** (`-fPIC -Wl,-pie`).

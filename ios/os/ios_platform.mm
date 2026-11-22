@@ -599,8 +599,8 @@ static void InstallCrashLogInfrastructure() {
         NSBundle *bundle = [NSBundle mainBundle];
         NSString *appName = [bundle objectForInfoDictionaryKey:@"CFBundleDisplayName"] ?: @"EdgyiOS";
         NSString *bundleId = bundle.bundleIdentifier ?: @"com.hiperema.edgyios.ios";
-        NSString *shortVer = [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"1.0.0";
-        NSString *buildVer = [bundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"1";
+        NSString *shortVer = [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"1.0.1";
+        NSString *buildVer = [bundle objectForInfoDictionaryKey:@"CFBundleVersion"] ?: @"2";
         NSString *sysVer = [NSProcessInfo processInfo].operatingSystemVersionString ?: @"iOS 17+";
         unsigned long long totalRamMB = [NSProcessInfo processInfo].physicalMemory / (1024ULL * 1024ULL);
         NSUInteger cpuCount = [NSProcessInfo processInfo].processorCount;
