@@ -69,7 +69,8 @@ Unlike traditional emulators, static recompilation translates the original Xbox 
   - **Haptics** toggle (ON/OFF);
   - **Auto-Hide 4s** (fades controls out after 4 seconds of inactivity and wakes instantly on touch);
   - **TV Mode** toggle (AirPlay / HDMI);
-  - **2-Player Multiplayer** toggle.
+  - **2-Player Multiplayer** toggle;
+  - **LOG** diagnostic recorder (10-second live telemetry & engine capture saved to \`ShadowRecomp/crashlog.txt\`).
 - **Automatic Physical Controller Detection:** Connecting any Bluetooth or USB-C controller (DualSense, Xbox Wireless, Backbone, MFi) automatically hides the touch overlay for an unobstructed view.
 
 ### 3. Cross-Platform 2-Player Multiplayer (Personal Hotspot & Local Wi-Fi)
@@ -91,7 +92,11 @@ Unlike traditional emulators, static recompilation translates the original Xbox 
 - Smartphone 2's web controller independently adapts to its own browser language (\`navigator.language\`).
 - **Supported Languages:** English (universal fallback), Italian, Spanish, French, German, and Japanese.
 
-### 6. Native iOS Files Integration, Mod Manager & Custom App Icon
+### 6. Built-In Crashlog & 10-Second Diagnostic Recorder (\`crashlog.txt\`)
+- **Automatic Crash & Memory-Warning Capture:** Intercepts native iOS crashes (\`SIGSEGV\`, \`SIGBUS\`, \`SIGABRT\`, \`SIGILL\`, \`SIGFPE\`, \`SIGTRAP\`, \`NSException\`, \`std::terminate\`) and low-memory warnings with zero impact on 120 FPS gameplay, automatically writing timestamps, ARM64 stack traces, RAM usage, and recent engine/SDL3 logs to **\`On My iPhone → ${config.appName} → ShadowRecomp/crashlog.txt\`**.
+- **On-Demand 10s \`LOG\` Button:** Tap **\`LOG\`** (right next to the 2-Player button in the Chaos Emerald bar) whenever you spot a glitch, stutter, or bug to record 10 seconds of live FPS, RAM, thermal state, and engine/SDL3 events directly into \`crashlog.txt\` — ready to attach to a GitHub Issue!
+
+### 7. Native iOS Files Integration, Mod Manager & Custom App Icon
 - **Full-Screen iOS Files Picker:** Native \`UIDocumentPickerViewController\` bridge (\`asCopy\`) plus automatic scanning of local files placed in *On My iPhone → ${config.appName}*.
 - **Built-In iOS Mod Manager:** Native UIKit interface compatible with ShadowRecomp's \`ModLoader::Init()\` (\`mods/.modloader/profiles/Default.json\`).
 - **Compiled App Icon (\`Assets.car\`):** Opaque iPhone and iPad icons compiled via \`actool\` for sharp display on SpringBoard (Feather) and inside LiveContainer.
@@ -336,8 +341,9 @@ Initial global release of **EdgyiOS**, the native iOS & iPadOS port of [FoxWorks
 - **Zero virtual buttons on TV**: displays only the clean full-screen game on your TV (overscan disabled, 1080p cap to prevent 4K Jetsam OOM), while your iPhone becomes an oversized dark blind-playable controller with full haptics and 2P support.
 - **Freeze-free background & lock-screen recovery**: cleanly detaches the external window in background and automatically rebuilds the TV window and MoltenVK swapchain upon returning.
 
-### Automatic 6-Language System Localization
+### Automatic 6-Language System Localization & Built-In \`crashlog.txt\` Diagnostics
 - Automatically detects your device language at launch across **English, Italian, Spanish, French, German, and Japanese** for all native UI overlays, the iOS Files picker, and Smartphone 2's web controller.
+- **Automatic & On-Demand \`crashlog.txt\`**: automatically logs native crashes and iOS memory warnings, plus includes a **\`LOG\`** button in the Chaos Emerald bar to capture 10 seconds of live FPS/RAM/thermal/engine diagnostics directly into \`ShadowRecomp/crashlog.txt\` for easy GitHub bug reports.
 
 ---
 

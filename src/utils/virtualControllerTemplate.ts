@@ -58,6 +58,16 @@ extern "C" void ShadowIOS_VideoOnWillEnterBackground(void);
 extern "C" void ShadowIOS_VideoOnDidEnterForeground(void);
 extern "C" void ShadowIOS_VideoRequestSwapChainRebuild(void);
 
+typedef void (*ShadowCrashLogStateCallback)(bool capturing, int remainingSec, bool savedOk);
+extern "C" void ShadowIOS_CrashLogRecordBreadcrumb(const char *tag, const char *message);
+extern "C" void ShadowIOS_CrashLogSetRuntimeContext(bool tvMode, bool p2Active, bool p2Connected, bool physicalCtrl);
+extern "C" void ShadowIOS_CrashLogNotifyFrame(void);
+extern "C" void ShadowIOS_CrashLogSetCallback(ShadowCrashLogStateCallback cb);
+extern "C" bool ShadowIOS_CrashLogIsCapturing(void);
+extern "C" int  ShadowIOS_CrashLogRemainingSeconds(void);
+extern "C" bool ShadowIOS_CrashLogStartCapture(int durationSeconds);
+extern "C" void ShadowIOS_CrashLogStopAndFlush(const char *reason);
+
 namespace {
 
 // Costanti bitmask Xbox Original identiche a ShadowRecomp/input/input.h
@@ -118,6 +128,9 @@ struct ShadowLocalizedStrings {
     __unsafe_unretained NSString *toastTVVideoNotReady;
     __unsafe_unretained NSString *toastTVEnabled;
     __unsafe_unretained NSString *toastTVDisabled;
+    __unsafe_unretained NSString *toastLogStartedFmt;
+    __unsafe_unretained NSString *toastLogSaved;
+    __unsafe_unretained NSString *toastLogError;
 };
 
 static ShadowUILang DetectSystemUILanguage(void) {
@@ -165,7 +178,10 @@ static const ShadowLocalizedStrings &L(void) {
             @"AirPlay/HDMI disconnected — game returned to iPhone",
             @"Video screen not ready — try again in a moment",
             @"TV Mode active • Game on TV, Gamepad on iPhone",
-            @"TV Mode disabled — game returned to iPhone"
+            @"TV Mode disabled — game returned to iPhone",
+            @"Recording crashlog.txt (%ds) — reproduce the issue",
+            @"Saved: Files → ShadowRecomp/crashlog.txt",
+            @"Could not save crashlog.txt"
         },
         // 1: Italian
         {
@@ -193,7 +209,10 @@ static const ShadowLocalizedStrings &L(void) {
             @"AirPlay/HDMI disconnesso — gioco tornato su iPhone",
             @"Schermo video non pronto — riprova tra un istante",
             @"Modalità TV attiva • Gioco su TV, Controller su iPhone",
-            @"Modalità TV disattivata — gioco tornato su iPhone"
+            @"Modalità TV disattivata — gioco tornato su iPhone",
+            @"Registrazione crashlog.txt (%ds) — riproduci il problema",
+            @"Salvato: File → ShadowRecomp/crashlog.txt",
+            @"Impossibile salvare crashlog.txt"
         },
         // 2: Spanish
         {
@@ -221,7 +240,10 @@ static const ShadowLocalizedStrings &L(void) {
             @"AirPlay/HDMI desconectado — juego devuelto al iPhone",
             @"Pantalla de vídeo no lista — inténtalo en un momento",
             @"Modo TV activo • Juego en TV, Mando en iPhone",
-            @"Modo TV desactivado — juego devuelto al iPhone"
+            @"Modo TV desactivado — juego devuelto al iPhone",
+            @"Grabando crashlog.txt (%ds) — reproduce el problema",
+            @"Guardado: Archivos → ShadowRecomp/crashlog.txt",
+            @"No se pudo guardar crashlog.txt"
         },
         // 3: French
         {
@@ -249,7 +271,10 @@ static const ShadowLocalizedStrings &L(void) {
             @"AirPlay/HDMI déconnecté — jeu revenu sur iPhone",
             @"Écran vidéo non prêt — réessayez dans un instant",
             @"Mode TV actif • Jeu sur TV, Manette sur iPhone",
-            @"Mode TV désactivé — jeu revenu sur iPhone"
+            @"Mode TV désactivé — jeu revenu sur iPhone",
+            @"Enregistrement crashlog.txt (%ds) — reproduisez le bug",
+            @"Enregistré : Fichiers → ShadowRecomp/crashlog.txt",
+            @"Impossible d'enregistrer crashlog.txt"
         },
         // 4: German
         {
@@ -277,7 +302,10 @@ static const ShadowLocalizedStrings &L(void) {
             @"AirPlay/HDMI getrennt — Spiel zurück auf iPhone",
             @"Videobild nicht bereit — kurz warten und erneut versuchen",
             @"TV-Modus aktiv • Spiel auf TV, Controller auf iPhone",
-            @"TV-Modus beendet — Spiel zurück auf iPhone"
+            @"TV-Modus beendet — Spiel zurück auf iPhone",
+            @"Zeichne crashlog.txt auf (%ds) — Problem reproduzieren",
+            @"Gespeichert: Dateien → ShadowRecomp/crashlog.txt",
+            @"crashlog.txt konnte nicht gespeichert werden"
         },
         // 5: Japanese
         {
@@ -305,7 +333,10 @@ static const ShadowLocalizedStrings &L(void) {
             @"AirPlay/HDMI切断 — ゲームがiPhoneに戻りました",
             @"映像画面の準備中 — 少し待ってから再試行してください",
             @"TVモード有効 • TVにゲーム、iPhoneにコントローラー",
-            @"TVモード解除 — ゲームがiPhoneに戻りました"
+            @"TVモード解除 — ゲームがiPhoneに戻りました",
+            @"crashlog.txt を記録中 (%ds) — 問題を再現してください",
+            @"保存完了: ファイル → ShadowRecomp/crashlog.txt",
+            @"crashlog.txt を保存できませんでした"
         }
     };
     return kTables[static_cast<int>(DetectSystemUILanguage())];
@@ -1614,6 +1645,100 @@ enum class NavIconType : int {
 }
 @end
 
+#pragma mark - Crashlog & Diagnostic Capture Vector Button (LOG / 10s Countdown)
+
+@interface ShadowCrashLogIconView : UIView
+@property (nonatomic, assign) BOOL recording;
+@property (nonatomic, assign) int remainingSeconds;
+@end
+
+@implementation ShadowCrashLogIconView
+- (instancetype)initWithFrame:(CGRect)frame {
+    self = [super initWithFrame:frame];
+    if (self) {
+        self.backgroundColor = [UIColor clearColor];
+        self.opaque = NO;
+        self.userInteractionEnabled = NO;
+        self.layer.cornerRadius = 10.0;
+        self.layer.masksToBounds = YES;
+    }
+    return self;
+}
+
+- (void)setRecording:(BOOL)recording {
+    if (_recording != recording) {
+        _recording = recording;
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)setRemainingSeconds:(int)remainingSeconds {
+    if (_remainingSeconds != remainingSeconds) {
+        _remainingSeconds = remainingSeconds;
+        [self setNeedsDisplay];
+    }
+}
+
+- (void)drawRect:(CGRect)rect {
+    CGContextRef ctx = UIGraphicsGetCurrentContext();
+    if (!ctx) return;
+
+    CGRect box = CGRectInset(rect, 0.75, 0.75);
+    UIBezierPath *bg = [UIBezierPath bezierPathWithRoundedRect:box cornerRadius:9.5];
+    UIColor *amber = [UIColor colorWithRed:0.980 green:0.650 blue:0.120 alpha:1.0];
+
+    if (self.recording) {
+        [[ShadowCrimsonColor(0.36) colorWithAlphaComponent:0.38] setFill];
+        [bg fill];
+        [ShadowCrimsonColor(0.98) setStroke];
+        bg.lineWidth = 1.45;
+        [bg stroke];
+    } else {
+        [[UIColor colorWithWhite:1.0 alpha:0.08] setFill];
+        [bg fill];
+        [[amber colorWithAlphaComponent:0.42] setStroke];
+        bg.lineWidth = 1.0;
+        [bg stroke];
+    }
+
+    CGFloat w = rect.size.width;
+    CGFloat h = rect.size.height;
+
+    if (self.recording) {
+        // Pallino REC rosso acceso + countdown secondi (es. "9s")
+        CGFloat dotD = 5.5;
+        NSString *txt = [NSString stringWithFormat:@"%ds", MAX(1, self.remainingSeconds)];
+        NSDictionary *attrs = @{
+            NSFontAttributeName: [UIFont monospacedDigitSystemFontOfSize:10.5 weight:UIFontWeightHeavy],
+            NSForegroundColorAttributeName: [UIColor colorWithRed:1.0 green:0.90 blue:0.92 alpha:1.0]
+        };
+        CGSize sz = [txt sizeWithAttributes:attrs];
+        CGFloat totalW = dotD + 4.0 + sz.width;
+        CGFloat startX = (w - totalW) * 0.5;
+        UIBezierPath *dot = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(startX, (h - dotD) * 0.5, dotD, dotD)];
+        [[UIColor colorWithRed:1.0 green:0.22 blue:0.28 alpha:1.0] setFill];
+        [dot fill];
+        [txt drawAtPoint:CGPointMake(startX + dotD + 4.0, (h - sz.height) * 0.5) withAttributes:attrs];
+    } else {
+        // Scritta pulita "LOG" ad alto contrasto con minuscolo pallino ambra diagnostico
+        NSString *txt = @"LOG";
+        NSDictionary *attrs = @{
+            NSFontAttributeName: [UIFont monospacedSystemFontOfSize:10.5 weight:UIFontWeightHeavy],
+            NSForegroundColorAttributeName: [UIColor colorWithWhite:0.96 alpha:0.96]
+        };
+        CGSize sz = [txt sizeWithAttributes:attrs];
+        [txt drawAtPoint:CGPointMake((w - sz.width) * 0.5, (h - sz.height) * 0.5) withAttributes:attrs];
+
+        CGFloat dotR = 2.0;
+        UIBezierPath *dot = [UIBezierPath bezierPathWithOvalInRect:CGRectMake(box.origin.x + box.size.width - dotR * 2.0 - 3.5,
+                                                                              box.origin.y + 3.5,
+                                                                              dotR * 2.0, dotR * 2.0)];
+        [amber setFill];
+        [dot fill];
+    }
+}
+@end
+
 #pragma mark - TV Gamepad Mode Obsidian Backdrop (Full-Screen Dedicated Controller Surface)
 
 @interface ShadowTVGamepadBackdropView : UIView
@@ -1733,14 +1858,17 @@ struct ActiveTouchRecord {
 @property (nonatomic, strong) ShadowNavCircleButtonView *emeraldView;
 @property (nonatomic, strong) ShadowNavCircleButtonView *backView;
 
-// Quick HUD Bar (Opacità / Aptica / Auto-Hide 4s / TV / 2 Giocatori) aperta dal Chaos Emerald
+// Quick HUD Bar (Opacità / Aptica / Auto-Hide 4s / TV / 2 Giocatori / LOG) aperta dal Chaos Emerald
 @property (nonatomic, strong) UIView *quickBarView;
 @property (nonatomic, strong) UILabel *quickOpacityLabel;
 @property (nonatomic, strong) UILabel *quickHapticsLabel;
 @property (nonatomic, strong) UILabel *quickAutoHideLabel;
 @property (nonatomic, strong) ShadowTVModeIconView *quickTVModeView;
 @property (nonatomic, strong) ShadowTwoPlayersIconView *quickTwoPlayersView;
+@property (nonatomic, strong) ShadowCrashLogIconView *quickCrashLogView;
 @property (nonatomic, assign) BOOL quickBarOpen;
+@property (nonatomic, assign) BOOL logCapturing;
+@property (nonatomic, assign) int logRemainingSeconds;
 
 // Modalita TV (AirPlay / HDMI): gioco su schermo TV esterno + controller ingrandito cieco-giocabile su iPhone
 @property (nonatomic, strong) ShadowTVGamepadBackdropView *tvBackdropView;
@@ -1795,6 +1923,7 @@ struct ActiveTouchRecord {
 - (void)updateExternalPhysical:(BOOL)sdlPhysical installerVisible:(BOOL)installerVisible chaosAura:(int)aura;
 - (void)clearAllInputs;
 - (void)handleRemoteP2StateChangedRunning:(BOOL)running connected:(BOOL)connected url:(NSString *)url;
+- (void)handleCrashLogStateChangedCapturing:(BOOL)capturing remaining:(int)remainingSec savedOk:(BOOL)savedOk;
 - (void)refreshExternalDisplayAvailabilitySilent:(BOOL)silent;
 @end
 
@@ -1838,6 +1967,14 @@ static void OnIOSRemoteP2StateChanged(bool serverRunning, bool clientConnected, 
     [overlay handleRemoteP2StateChangedRunning:(serverRunning ? YES : NO)
                                      connected:(clientConnected ? YES : NO)
                                            url:urlStr];
+}
+
+static void OnIOSCrashLogStateChanged(bool capturing, int remainingSec, bool savedOk) {
+    ShadowTouchOverlayView *overlay = g_p2CallbackOverlay;
+    if (!overlay) return;
+    [overlay handleCrashLogStateChangedCapturing:(capturing ? YES : NO)
+                                       remaining:remainingSec
+                                         savedOk:(savedOk ? YES : NO)];
 }
 
 static UIWindowScene *FindExternalWindowScene(void) {
@@ -1924,6 +2061,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     CGRect _quickAutoHideRect;
     CGRect _quickTVModeRect;
     CGRect _quickTwoPlayersRect;
+    CGRect _quickCrashLogRect;
     CGRect _p2CardCopyRect;
     CGRect _p2CardCloseRect;
 }
@@ -1973,9 +2111,12 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         [self registerNotifications];
         [self refreshExternalDisplayAvailabilitySilent:YES];
 
-        // Registra callback in tempo reale dal server locale 2P (Pairing -> Connected)
+        // Registra callback in tempo reale dal server locale 2P (Pairing -> Connected) e dal motore crashlog
         g_p2CallbackOverlay = self;
         IOSRemoteP2_SetStateCallback(&OnIOSRemoteP2StateChanged);
+        ShadowIOS_CrashLogSetCallback(&OnIOSCrashLogStateChanged);
+        _logCapturing = ShadowIOS_CrashLogIsCapturing() ? YES : NO;
+        _logRemainingSeconds = ShadowIOS_CrashLogRemainingSeconds();
         _p2ServerRunning = IOSRemoteP2_IsServerRunning() ? YES : NO;
         _p2ClientConnected = IOSRemoteP2_IsConnected() ? YES : NO;
         if (_p2ServerRunning || _p2ClientConnected) {
@@ -1996,6 +2137,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     if (g_p2CallbackOverlay == self) {
         g_p2CallbackOverlay = nil;
         IOSRemoteP2_SetStateCallback(nullptr);
+        ShadowIOS_CrashLogSetCallback(nullptr);
     }
     [_idleFadeTimer invalidate];
     [_p2ToastTimer invalidate];
@@ -2119,12 +2261,14 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     _quickAutoHideLabel = makePill();
     _quickTVModeView = [[ShadowTVModeIconView alloc] initWithFrame:CGRectZero];
     _quickTwoPlayersView = [[ShadowTwoPlayersIconView alloc] initWithFrame:CGRectZero];
+    _quickCrashLogView = [[ShadowCrashLogIconView alloc] initWithFrame:CGRectZero];
 
     [_quickBarView addSubview:_quickOpacityLabel];
     [_quickBarView addSubview:_quickHapticsLabel];
     [_quickBarView addSubview:_quickAutoHideLabel];
     [_quickBarView addSubview:_quickTVModeView];
     [_quickBarView addSubview:_quickTwoPlayersView];
+    [_quickBarView addSubview:_quickCrashLogView];
     [_controlsContainer addSubview:_quickBarView];
 
     // Mini-bottoncino Pairing -> Connected per 2 Giocatori via Hotspot/Wi-Fi
@@ -2166,7 +2310,8 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     _p2ToastLabel.alpha = 0.0;
     _p2ToastLabel.hidden = YES;
     _p2ToastLabel.userInteractionEnabled = NO;
-    [_controlsContainer addSubview:_p2ToastLabel];
+    // Montato direttamente su self (non controlsContainer) cosi i toast LOG/2P/TV restano leggibili anche con bottoni trasparenti o in fade
+    [self addSubview:_p2ToastLabel];
 
     // Card QR Code 100% opaca (montata su self, zero shadowRadius dinamico per zero offscreen blur GPU)
     _p2PairingCardView = [[UIView alloc] initWithFrame:CGRectZero];
@@ -2255,6 +2400,30 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     self.quickTVModeView.active = self.tvGamepadMode;
     self.quickTwoPlayersView.active = self.twoPlayerEnabled;
     self.quickTwoPlayersView.connected = self.p2ClientConnected;
+    self.quickCrashLogView.recording = self.logCapturing;
+    self.quickCrashLogView.remainingSeconds = self.logRemainingSeconds;
+}
+
+- (void)syncCrashLogRuntimeContext {
+    ShadowIOS_CrashLogSetRuntimeContext(
+        self.tvGamepadMode ? true : false,
+        self.twoPlayerEnabled ? true : false,
+        self.p2ClientConnected ? true : false,
+        self.hiddenForPhysicalController ? true : false
+    );
+}
+
+- (void)handleCrashLogStateChangedCapturing:(BOOL)capturing remaining:(int)remainingSec savedOk:(BOOL)savedOk {
+    BOOL wasCapturing = self.logCapturing;
+    self.logCapturing = capturing;
+    self.logRemainingSeconds = remainingSec;
+    [self refreshQuickBarLabels];
+
+    if (!capturing && wasCapturing) {
+        [self.haptics ensureStarted];
+        [self.haptics playDPadTick];
+        [self showP2Toast:(savedOk ? L().toastLogSaved : L().toastLogError) duration:3.6];
+    }
 }
 
 - (void)cancelP2ConnectedPillAutoHide {
@@ -2420,6 +2589,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     [self refreshP2StatusPillAnimated:YES];
 
     if (connected && !wasConnected) {
+        ShadowIOS_CrashLogRecordBreadcrumb("2P", "Remote 2P controller connected");
         // Chiude subito la card QR, mostra "Connected" per ~3.5s poi lo nasconde automaticamente!
         if (self.p2CardVisible) {
             [self setP2PairingCardVisible:NO animated:YES];
@@ -2430,12 +2600,14 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         [self scheduleP2ConnectedPillAutoHideAfter:kP2ConnectedPillAutoHideSeconds];
         [self scheduleIdleFadeTimer];
     } else if (!connected && wasConnected && self.twoPlayerEnabled) {
+        ShadowIOS_CrashLogRecordBreadcrumb("2P", "Remote 2P controller disconnected");
         // Risveglia subito l'overlay per avvisare l'utente della disconnessione anche se era in fade!
         [self wakeControlsAnimated:YES];
         [self.haptics ensureStarted];
         [self.haptics playButtonDownIsTrigger:NO pressure:0.80f];
         [self showP2Toast:L().toastP2Disconnected duration:4.0];
     }
+    [self syncCrashLogRuntimeContext];
 }
 
 - (void)handlePairingPillTap {
@@ -2775,6 +2947,8 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     [self redrawAllVectorControls];
     [self applyVisibilityAnimated:YES];
     [self refreshQuickBarLabels];
+    [self syncCrashLogRuntimeContext];
+    ShadowIOS_CrashLogRecordBreadcrumb("TV_MODE", "Dual-screen TV Mode enabled");
 
     [self.haptics ensureStarted];
     [self.haptics playButtonDownIsTrigger:NO pressure:0.95f];
@@ -2786,7 +2960,8 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         self.ltView, self.lbView, self.l3View, self.r3View, self.rtView, self.rbView,
         self.leftStickView, self.rightStickView, self.dpadView,
         self.btnYView, self.btnXView, self.btnBView, self.btnAView,
-        self.pauseView, self.emeraldView, self.backView, self.tvBackdropView
+        self.pauseView, self.emeraldView, self.backView, self.tvBackdropView,
+        self.quickTVModeView, self.quickTwoPlayersView, self.quickCrashLogView
     ];
     for (UIView *v in views) {
         [v setNeedsDisplay];
@@ -2908,7 +3083,9 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
     [self redrawAllVectorControls];
     [self applyVisibilityAnimated:YES];
     [self refreshQuickBarLabels];
+    [self syncCrashLogRuntimeContext];
     [self scheduleIdleFadeTimer];
+    ShadowIOS_CrashLogRecordBreadcrumb("TV_MODE", "Dual-screen TV Mode disabled");
 
     if (notify) {
         [self.haptics ensureStarted];
@@ -3304,28 +3481,65 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         self.backView.frame    = CGRectMake(midX + navSize * 0.5 + navGap, navY, navSize, navSize);
     }
 
-    // 8. Quick-HUD Bar sopra al Chaos Emerald (5 pulsanti: Opacità | Aptica | Sfuma 4s | TV | 2 Omini)
+    // 8. Quick-HUD Bar sopra al Chaos Emerald
+    // Modalita TV: rimuove Opacita (TV 100%) e Auto-Hide (Sfuma 4s), lasciando [ Aptica | TV | 2 Omini | LOG ]
+    // Modalita Handheld: [ Opacita | Aptica | Sfuma 4s | TV | 2 Omini | LOG ]
     CGFloat navY = CGRectGetMinY(self.emeraldView.frame);
-    CGFloat qbW = 396.0 * s;
     CGFloat qbH = 38.0 * s;
-    self.quickBarView.frame = CGRectMake(midX - qbW * 0.5, navY - qbH - 10.0 * s, qbW, qbH);
     CGFloat pad = 5.0 * s;
-    CGFloat tvBtnW = 44.0 * s;
-    CGFloat twoPBtnW = 46.0 * s;
-    CGFloat textAreaW = qbW - pad * 6.0 - tvBtnW - twoPBtnW;
-    CGFloat itemW = textAreaW / 3.0;
     CGFloat itemH = qbH - pad * 2.0;
-    self.quickOpacityLabel.frame   = CGRectMake(pad, pad, itemW, itemH);
-    self.quickHapticsLabel.frame   = CGRectMake(pad * 2.0 + itemW, pad, itemW, itemH);
-    self.quickAutoHideLabel.frame  = CGRectMake(pad * 3.0 + itemW * 2.0, pad, itemW, itemH);
-    self.quickTVModeView.frame     = CGRectMake(pad * 4.0 + itemW * 3.0, pad, tvBtnW, itemH);
-    self.quickTwoPlayersView.frame = CGRectMake(pad * 5.0 + itemW * 3.0 + tvBtnW, pad, twoPBtnW, itemH);
+    CGFloat tvBtnW = 42.0 * s;
+    CGFloat twoPBtnW = 44.0 * s;
+    CGFloat logBtnW = 48.0 * s;
 
-    _quickOpacityRect    = [self convertRect:self.quickOpacityLabel.frame fromView:self.quickBarView];
-    _quickHapticsRect    = [self convertRect:self.quickHapticsLabel.frame fromView:self.quickBarView];
-    _quickAutoHideRect   = [self convertRect:self.quickAutoHideLabel.frame fromView:self.quickBarView];
-    _quickTVModeRect     = [self convertRect:self.quickTVModeView.frame fromView:self.quickBarView];
-    _quickTwoPlayersRect = [self convertRect:self.quickTwoPlayersView.frame fromView:self.quickBarView];
+    CGAffineTransform prevQbTransform = self.quickBarView.transform;
+    self.quickBarView.transform = CGAffineTransformIdentity;
+
+    if (self.tvGamepadMode) {
+        CGFloat hapticsW = 88.0 * s;
+        CGFloat qbW = pad * 5.0 + hapticsW + tvBtnW + twoPBtnW + logBtnW;
+        self.quickBarView.frame = CGRectMake(midX - qbW * 0.5, navY - qbH - 10.0 * s, qbW, qbH);
+
+        self.quickOpacityLabel.hidden = YES;
+        self.quickAutoHideLabel.hidden = YES;
+        self.quickOpacityLabel.frame = CGRectZero;
+        self.quickAutoHideLabel.frame = CGRectZero;
+
+        self.quickHapticsLabel.frame   = CGRectMake(pad, pad, hapticsW, itemH);
+        self.quickTVModeView.frame     = CGRectMake(pad * 2.0 + hapticsW, pad, tvBtnW, itemH);
+        self.quickTwoPlayersView.frame = CGRectMake(pad * 3.0 + hapticsW + tvBtnW, pad, twoPBtnW, itemH);
+        self.quickCrashLogView.frame   = CGRectMake(pad * 4.0 + hapticsW + tvBtnW + twoPBtnW, pad, logBtnW, itemH);
+
+        _quickOpacityRect    = CGRectZero;
+        _quickAutoHideRect   = CGRectZero;
+        _quickHapticsRect    = [self convertRect:self.quickHapticsLabel.frame fromView:self.quickBarView];
+        _quickTVModeRect     = [self convertRect:self.quickTVModeView.frame fromView:self.quickBarView];
+        _quickTwoPlayersRect = [self convertRect:self.quickTwoPlayersView.frame fromView:self.quickBarView];
+        _quickCrashLogRect   = [self convertRect:self.quickCrashLogView.frame fromView:self.quickBarView];
+    } else {
+        CGFloat qbW = MIN(W - 20.0, 444.0 * s);
+        self.quickBarView.frame = CGRectMake(midX - qbW * 0.5, navY - qbH - 10.0 * s, qbW, qbH);
+
+        self.quickOpacityLabel.hidden = NO;
+        self.quickAutoHideLabel.hidden = NO;
+
+        CGFloat textAreaW = qbW - pad * 7.0 - tvBtnW - twoPBtnW - logBtnW;
+        CGFloat itemW = textAreaW / 3.0;
+        self.quickOpacityLabel.frame   = CGRectMake(pad, pad, itemW, itemH);
+        self.quickHapticsLabel.frame   = CGRectMake(pad * 2.0 + itemW, pad, itemW, itemH);
+        self.quickAutoHideLabel.frame  = CGRectMake(pad * 3.0 + itemW * 2.0, pad, itemW, itemH);
+        self.quickTVModeView.frame     = CGRectMake(pad * 4.0 + itemW * 3.0, pad, tvBtnW, itemH);
+        self.quickTwoPlayersView.frame = CGRectMake(pad * 5.0 + itemW * 3.0 + tvBtnW, pad, twoPBtnW, itemH);
+        self.quickCrashLogView.frame   = CGRectMake(pad * 6.0 + itemW * 3.0 + tvBtnW + twoPBtnW, pad, logBtnW, itemH);
+
+        _quickOpacityRect    = [self convertRect:self.quickOpacityLabel.frame fromView:self.quickBarView];
+        _quickHapticsRect    = [self convertRect:self.quickHapticsLabel.frame fromView:self.quickBarView];
+        _quickAutoHideRect   = [self convertRect:self.quickAutoHideLabel.frame fromView:self.quickBarView];
+        _quickTVModeRect     = [self convertRect:self.quickTVModeView.frame fromView:self.quickBarView];
+        _quickTwoPlayersRect = [self convertRect:self.quickTwoPlayersView.frame fromView:self.quickBarView];
+        _quickCrashLogRect   = [self convertRect:self.quickCrashLogView.frame fromView:self.quickBarView];
+    }
+    self.quickBarView.transform = prevQbTransform;
 
     // 9. Mini-bottoncino Abbina/Pairing -> Connesso/Connected + Toast 2P sopra la Quick-HUD Bar
     [self updateP2FloatingFrames];
@@ -3573,6 +3787,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
         (void)finished;
         if (!self.quickBarOpen) {
             self.quickBarView.hidden = YES;
+            self.quickBarView.transform = CGAffineTransformIdentity;
             [self scheduleIdleFadeTimer];
         }
     }];
@@ -3580,7 +3795,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
 
 - (void)handleQuickBarTapAtPoint:(CGPoint)p {
     NSUserDefaults *ud = [NSUserDefaults standardUserDefaults];
-    if (CGRectContainsPoint(_quickOpacityRect, p)) {
+    if (!self.tvGamepadMode && CGRectContainsPoint(_quickOpacityRect, p)) {
         if (self.preferredOpacity < 0.45)      self.preferredOpacity = 0.58;
         else if (self.preferredOpacity < 0.72) self.preferredOpacity = 0.80;
         else                                   self.preferredOpacity = 0.35;
@@ -3594,7 +3809,7 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
             [self.haptics ensureStarted];
             [self.haptics playButtonDownIsTrigger:NO pressure:0.8f];
         }
-    } else if (CGRectContainsPoint(_quickAutoHideRect, p)) {
+    } else if (!self.tvGamepadMode && CGRectContainsPoint(_quickAutoHideRect, p)) {
         self.autoHideEnabled = !self.autoHideEnabled;
         [ud setBool:self.autoHideEnabled forKey:@"ShadowIOS_AutoHide4s"];
         [self.haptics playDPadTick];
@@ -3623,6 +3838,26 @@ static UIView *FindGameMetalView(UIView *overlaySelf) {
             [self.haptics playDPadTick];
             [self refreshP2StatusPillAnimated:YES];
             [self scheduleIdleFadeTimer];
+        }
+        [self syncCrashLogRuntimeContext];
+    } else if (CGRectContainsPoint(_quickCrashLogRect, p)) {
+        [self syncCrashLogRuntimeContext];
+        [self.haptics ensureStarted];
+        if (ShadowIOS_CrashLogIsCapturing()) {
+            [self.haptics playDPadTick];
+            ShadowIOS_CrashLogStopAndFlush("User tapped LOG to save early");
+        } else {
+            const int kCaptureSeconds = 10;
+            if (ShadowIOS_CrashLogStartCapture(kCaptureSeconds)) {
+                self.logCapturing = YES;
+                self.logRemainingSeconds = kCaptureSeconds;
+                [self.haptics playButtonDownIsTrigger:NO pressure:0.85f];
+                [self showP2Toast:[NSString stringWithFormat:L().toastLogStartedFmt, kCaptureSeconds] duration:2.8];
+                // Chiude la Quick-Bar cosi l'utente puo subito riprodurre il problema a schermo pulito durante i 10s
+                [self toggleQuickBarOpen:NO];
+            } else {
+                [self showP2Toast:L().toastLogError duration:2.5];
+            }
         }
     }
     [self refreshQuickBarLabels];
@@ -4022,6 +4257,7 @@ static void EnsureOverlayAttachedOnMainThread(bool hasPhysical, bool installerVi
 extern "C" {
 
 void IOSVirtualController_SyncState(bool hasPhysicalController, bool installerVisible, int chaosAuraMode) {
+    ShadowIOS_CrashLogNotifyFrame();
     static uint32_t s_frameCounter = 0;
     bool prevPhys = g_lastPhysicalSDL.exchange(hasPhysicalController, std::memory_order_relaxed);
     bool prevInst = g_lastInstallerVisible.exchange(installerVisible, std::memory_order_relaxed);

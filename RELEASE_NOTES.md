@@ -29,8 +29,9 @@ Initial global release of **EdgyiOS**, the native iOS & iPadOS port of [FoxWorks
 - **Zero virtual buttons on TV**: displays only the clean full-screen game on your TV (overscan disabled, 1080p cap to prevent 4K Jetsam OOM), while your iPhone becomes an oversized dark blind-playable controller with full haptics and 2P support.
 - **Freeze-free background & lock-screen recovery**: cleanly detaches the external window in background and automatically rebuilds the TV window and MoltenVK swapchain upon returning.
 
-### Automatic 6-Language System Localization
+### Automatic 6-Language System Localization & Built-In `crashlog.txt` Diagnostics
 - Automatically detects your device language at launch across **English, Italian, Spanish, French, German, and Japanese** for all native UI overlays, the iOS Files picker, and Smartphone 2's web controller.
+- **Automatic & On-Demand `crashlog.txt`**: automatically logs native crashes and iOS memory warnings, plus includes a **`LOG`** button in the Chaos Emerald bar to capture 10 seconds of live FPS/RAM/thermal/engine diagnostics directly into `ShadowRecomp/crashlog.txt` for easy GitHub bug reports.
 
 ---
 

@@ -632,6 +632,49 @@ test('EdgyiOS English README.md, LEGAL.md, RELEASE_NOTES.md, com.hiperema.edgyio
   assert.match(infoPlist, /<key>CFBundleDevelopmentRegion<\/key>\s*<string>en<\/string>/);
 });
 
+test('crashlog.txt automatic crash/memory-warning capture, 10s LOG Quick-HUD button, and TV Mode Quick-Bar cleanup are wired', () => {
+  const files = generateAllRepositoryFiles(DEFAULT_BUILD_CONFIG);
+  const byPath = new Map(files.map((f) => [f.path, f.content]));
+
+  const iosPlatform = byPath.get('ios/os/ios_platform.mm') ?? '';
+  const vcMm = byPath.get('ios/ios_virtual_controller.mm') ?? '';
+  const readme = byPath.get('README.md') ?? '';
+
+  // 1. Native crashlog.txt engine in Documents/ShadowRecomp/crashlog.txt
+  assert.match(iosPlatform, /rootDir \/ "crashlog\.txt"/);
+  assert.match(iosPlatform, /sigaltstack\(&ss, nullptr\)/);
+  assert.match(iosPlatform, /SIGSEGV, SIGBUS, SIGABRT, SIGILL, SIGFPE, SIGTRAP/);
+  assert.match(iosPlatform, /backtrace_symbols_fd\(frames, frameCount, fd\)/);
+  assert.match(iosPlatform, /NSSetUncaughtExceptionHandler\(&EdgyIOSUncaughtNSExceptionHandler\)/);
+  assert.match(iosPlatform, /std::set_terminate\(&EdgyIOSTerminateHandler\)/);
+  assert.match(iosPlatform, /UIApplicationDidReceiveMemoryWarningNotification/);
+  assert.match(iosPlatform, /SDL_SetLogOutputFunction\(&EdgyIOSSdlLogCallback, nullptr\)/);
+  assert.match(iosPlatform, /ShadowIOS_CrashLogStartCapture\(int durationSeconds\)/);
+  assert.match(iosPlatform, /ShadowIOS_CrashLogStopAndFlush/);
+  assert.match(iosPlatform, /ShadowIOS_CrashLogNotifyFrame/);
+  assert.match(iosPlatform, /ShadowIOS_CrashLogRecordBreadcrumb/);
+  assert.doesNotMatch(iosPlatform, /NSLog\(@/);
+
+  // 2. LOG button placed right after Multiplayer (2-Player) button in Quick-HUD Bar
+  assert.match(vcMm, /@interface ShadowCrashLogIconView : UIView/);
+  assert.match(vcMm, /ShadowIOS_CrashLogStartCapture\(kCaptureSeconds\)/);
+  assert.match(vcMm, /ShadowIOS_CrashLogNotifyFrame\(\);/);
+  const twoPIdx = vcMm.indexOf('self.quickTwoPlayersView.frame');
+  const logIdx = vcMm.indexOf('self.quickCrashLogView.frame');
+  assert.ok(twoPIdx > 0 && logIdx > twoPIdx, 'LOG button must be laid out immediately to the right of the 2-Player button');
+  assert.match(vcMm, /pad \* 6\.0 \+ itemW \* 3\.0 \+ tvBtnW \+ twoPBtnW/);
+  assert.match(vcMm, /Saved: Files → ShadowRecomp\/crashlog\.txt/);
+  assert.match(vcMm, /Salvato: File → ShadowRecomp\/crashlog\.txt/);
+
+  // 3. TV Mode hides useless Opacity (TV 100%) and Auto-Hide (Sfuma 4s) buttons in Quick-HUD Bar
+  assert.match(vcMm, /if \(self\.tvGamepadMode\) \{[\s\S]*?self\.quickOpacityLabel\.hidden = YES;[\s\S]*?self\.quickAutoHideLabel\.hidden = YES;[\s\S]*?_quickOpacityRect\s*=\s*CGRectZero;[\s\S]*?_quickAutoHideRect\s*=\s*CGRectZero;/);
+  assert.match(vcMm, /if \(!self\.tvGamepadMode && CGRectContainsPoint\(_quickOpacityRect, p\)\)/);
+  assert.match(vcMm, /else if \(!self\.tvGamepadMode && CGRectContainsPoint\(_quickAutoHideRect, p\)\)/);
+
+  // 4. Documentation mentions crashlog.txt
+  assert.match(readme, /ShadowRecomp\/crashlog\.txt/);
+});
+
 
 
 
