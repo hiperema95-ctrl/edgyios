@@ -1,5 +1,10 @@
 import { IOS_VIRTUAL_CONTROLLER_H, IOS_VIRTUAL_CONTROLLER_MM } from './virtualControllerTemplate';
 import { IOS_P2_SERVER_H, IOS_P2_SERVER_MM } from './p2WebControllerTemplate';
+import {
+  generateEdgyIosLegalMd,
+  generateEdgyIosReadmeMd,
+  generateEdgyIosReleaseNotesMd,
+} from './docsTemplate';
 
 export interface PortBuildConfig {
   upstreamRepoUrl: string;
@@ -458,19 +463,19 @@ jobs:
             \${{ env.APP_NAME }}-iOS-v\${{ env.APP_VERSION }}-Unsigned.ipa.sha256
           retention-days: 7
 
-      - name: 11. Pubblica GitHub Release Opzionale (stile MarathonRecompilediOS)
+      - name: 11. Pubblica GitHub Release Opzionale (EdgyiOS)
         if: \${{ inputs.publish_release == true }}
         env:
           GH_TOKEN: \${{ github.token }}
         run: |
-          TAG="ios-v\${APP_VERSION}-\${GITHUB_RUN_NUMBER}"
+          TAG="edgyios-v\${APP_VERSION}-b\${GITHUB_RUN_NUMBER}"
           cp "\${APP_NAME}-iOS-v\${APP_VERSION}-Unsigned.ipa" "\${APP_NAME}-iOS.ipa"
           shasum -a 256 "\${APP_NAME}-iOS.ipa" > "SHA256SUMS-\${APP_NAME}.txt"
           gh release create "\${TAG}" \\
             "\${APP_NAME}-iOS.ipa" \\
             "SHA256SUMS-\${APP_NAME}.txt" \\
-            --title "Shadow the Hedgehog (2005) — iOS Unsigned IPA (build \${APP_VERSION}.\${GITHUB_RUN_NUMBER})" \\
-            --notes "Unsigned IPA per Feather / LiveContainer (iPhone 16 Pro arm64). Nessun asset di gioco incluso: importa i file estratti dalla tua copia Xbox al primo avvio dall'App File di iOS."
+            --title "EdgyiOS v\${APP_VERSION} — Shadow The Hedgehog Recompiled for iOS (build \${GITHUB_RUN_NUMBER})" \\
+            --notes-file ios-port/RELEASE_NOTES.md
 `;
 }
 
@@ -3751,22 +3756,16 @@ node_modules/
 dist/
 .DS_Store`;
 
-  const readmeMd = `# ShadowRecomp iOS Port (Stile MarathonRecompilediOS — Zero File Protetti su Git)
-
-Porting iOS per **iPhone 16 Pro (arm64)** di [FoxWorkshop/ShadowRecomp](https://github.com/FoxWorkshop/ShadowRecomp), basato sullo stesso flusso di [DevZer0D4Y/MarathonRecompilediOS](https://github.com/DevZer0D4Y/MarathonRecompilediOS).
-Tutta la compilazione avviene nel cloud su **GitHub Actions (\`macos-15\`)**, senza bisogno di un Mac.
-
-## 100% Pulito sul Repository GitHub
-- Questo repository contiene **ZERO file protetti da copyright** (\`.gitignore\` blocca \`*.xbe\`, \`*.iso\`, \`*.xiso\` e \`private/\`).
-- Esattamente come \`MarathonRecompilediOS\` (\`Sonic06-iOS.ipa\`, ~35 MB): l'\`.ipa\` finale **non contiene nessun asset di gioco** (texture, livelli, audio, filmati).
-- Al primo avvio dell'\`.ipa\` su **iPhone 16 Pro** (installato da **Feather** o **LiveContainer**), l'app apre l'**App File di iOS** per farti selezionare la cartella con i file estratti dalla tua \`.xiso\`, completa l'importazione, e al riavvio il gioco parte!
-
-## Come compilare l'\`.ipa\` su GitHub Actions senza MAI caricare \`default.xbe\` nel repo
-1. Carica tutti i file di questo pacchetto nel tuo repository GitHub.
-2. Vai su **Settings → Secrets and variables → Actions → New repository secret**.
-3. Crea il Secret cifrato **\`DEFAULT_XBE_URL\`** con un link diretto temporaneo/privato al tuo \`default.xbe\` (~4.8 MB).
-   - Il Secret è cifrato e invisibile a tutti; \`default.xbe\` viene scaricato **solo** nella VM temporanea \`macos-15\` durante la compilazione di \`XboxRecomp2\` e distrutto subito a fine build.
-4. Vai su **Actions → Build ShadowRecomp iOS Unsigned IPA → Run workflow** *(opzionale: spunta \`publish_release\` se vuoi creare una Release con \`${config.appName}-iOS.ipa\` come \`MarathonRecompilediOS\`)* e scarica il file \`.ipa\` su iPhone!`;
+  const docsConfig = {
+    appName: config.appName,
+    appVersion: config.appVersion,
+    deploymentTarget: config.deploymentTarget,
+    upstreamRepoUrl: config.upstreamRepoUrl,
+    iosRefRepoUrl: config.iosRefRepoUrl,
+  };
+  const readmeMd = generateEdgyIosReadmeMd(docsConfig);
+  const legalMd = generateEdgyIosLegalMd(docsConfig);
+  const releaseNotesMd = generateEdgyIosReleaseNotesMd(docsConfig);
 
   return [
     {
@@ -3890,10 +3889,24 @@ Tutta la compilazione avviene nel cloud su **GitHub Actions (\`macos-15\`)**, se
     },
     {
       path: 'README.md',
-      title: 'Guida Tecnica Zero-Mac (Feather / LiveContainer)',
+      title: 'EdgyiOS GitHub README (Funzionalità, Compatibilità, Guida)',
       language: 'markdown',
-      description: 'Istruzioni esatte su default.xbe, GitHub Action e primo avvio con App File.',
+      description: 'README completo per EdgyiOS: Shadow The Hedgehog Recompiled for iOS con funzionalità iOS, lista iPhone/iPad, risorse GitHub e note legali.',
       content: readmeMd,
+    },
+    {
+      path: 'LEGAL.md',
+      title: 'Note Legali, Licenze & Disclaimer (LEGAL.md)',
+      language: 'markdown',
+      description: 'Informativa legale completa, politica Zero Copyrighted Assets, marchi registrati, trasparenza Google AI Studio e licenze di terze parti.',
+      content: legalMd,
+    },
+    {
+      path: 'RELEASE_NOTES.md',
+      title: 'Note di Release GitHub v1.0.0 (RELEASE_NOTES.md)',
+      language: 'markdown',
+      description: 'Note di release pronte per GitHub Releases e usate automaticamente dallo step publish_release.',
+      content: releaseNotesMd,
     },
   ];
 }

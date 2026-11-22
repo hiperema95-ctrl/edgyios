@@ -371,16 +371,16 @@ jobs:
             ${{ env.APP_NAME }}-iOS-v${{ env.APP_VERSION }}-Unsigned.ipa.sha256
           retention-days: 7
 
-      - name: 11. Pubblica GitHub Release Opzionale (stile MarathonRecompilediOS)
+      - name: 11. Pubblica GitHub Release Opzionale (EdgyiOS)
         if: ${{ inputs.publish_release == true }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="ios-v${APP_VERSION}-${GITHUB_RUN_NUMBER}"
+          TAG="edgyios-v${APP_VERSION}-b${GITHUB_RUN_NUMBER}"
           cp "${APP_NAME}-iOS-v${APP_VERSION}-Unsigned.ipa" "${APP_NAME}-iOS.ipa"
           shasum -a 256 "${APP_NAME}-iOS.ipa" > "SHA256SUMS-${APP_NAME}.txt"
           gh release create "${TAG}" \
             "${APP_NAME}-iOS.ipa" \
             "SHA256SUMS-${APP_NAME}.txt" \
-            --title "Shadow the Hedgehog (2005) — iOS Unsigned IPA (build ${APP_VERSION}.${GITHUB_RUN_NUMBER})" \
-            --notes "Unsigned IPA per Feather / LiveContainer (iPhone 16 Pro arm64). Nessun asset di gioco incluso: importa i file estratti dalla tua copia Xbox al primo avvio dall'App File di iOS."
+            --title "EdgyiOS v${APP_VERSION} — Shadow The Hedgehog Recompiled for iOS (build ${GITHUB_RUN_NUMBER})" \
+            --notes-file ios-port/RELEASE_NOTES.md
